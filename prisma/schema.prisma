@@ -1,0 +1,318 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ---------- People & access ----------
+
+enum Role {
+  SUPER_ADMIN
+  ADMIN
+  MEMBER
+}
+
+enum AccessLevel {
+  OWNER // the member responsible for the client
+  EDIT  // granted: can approve and push
+  VIEW  // granted: read only
+}
+
+model User {
+  id           String   @id @default(cuid())
+  name         String
+  email        String   @unique
+  passwordHash String
+  role         Role     @default(MEMBER)
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  assignments      ClientAssignment[] @relation("AssignmentUser")
+  grantsGiven      ClientAssignment[] @relation("AssignmentGrantedBy")
+  accessRequests   AccessRequest[]    @relation("RequestRequester")
+  accessDecisions  AccessRequest[]    @relation("RequestDecider")
+  activity         ActivityLog[]
+}
+
+model ClientAssignment {
+  id          String      @id @default(cuid())
+  clientId    String
+  userId      String
+  access      AccessLevel
+  grantedById String?
+  expiresAt   DateTime?
+  createdAt   DateTime    @default(now())
+
+  client    Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  user      User   @relation("AssignmentUser", fields: [userId], references: [id], onDelete: Cascade)
+  grantedBy User?  @relation("AssignmentGrantedBy", fields: [grantedById], references: [id])
+
+  @@unique([clientId, userId])
+  @@index([userId])
+}
+
+enum RequestStatus {
+  PENDING
+  APPROVED
+  DENIED
+}
+
+model AccessRequest {
+  id          String        @id @default(cuid())
+  clientId    String
+  requesterId String
+  access      AccessLevel   @default(VIEW)
+  reason      String?
+  status      RequestStatus @default(PENDING)
+  decidedById String?
+  decidedAt   DateTime?
+  expiresAt   DateTime?
+  createdAt   DateTime      @default(now())
+
+  client    Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  requester User   @relation("RequestRequester", fields: [requesterId], references: [id], onDelete: Cascade)
+  decidedBy User?  @relation("RequestDecider", fields: [decidedById], references: [id])
+
+  @@index([status])
+}
+
+// ---------- Clients ----------
+
+enum ClientStatus {
+  ACTIVE
+  PAUSED
+  ARCHIVED
+}
+
+model Client {
+  id                  String       @id @default(cuid())
+  name                String       @unique
+  slug                String       @unique
+  status              ClientStatus @default(ACTIVE)
+  siteUrl             String
+  businessType        String?
+  targetCountry       String?
+  primaryCity         String?
+  serviceAreaCities   String[]
+  servicesOffered     String[]
+  targetAudience      String?
+  competitors         String[]
+  brandVoiceAvoid     String?
+  ctaText             String?
+  ctaLink             String?
+  postsPerMonth       Int          @default(0)
+  preferredDates      String[] // YYYY-MM-DD from Tally, empty = auto-schedule
+  imageRequired       Boolean      @default(false)
+  imageStyle          String?
+  referenceImages     String[]
+  cmsPlatform         String?
+  cmsPreviewSupported Boolean      @default(false)
+  linkPool            String[]
+  socialLinks         String[]
+  masterTemplateUrl   String?
+  gscAccount          String?
+  brandPrimaryColor   String?
+  brandSecondaryColor String?
+  brandAccentColor    String?
+  logoUrl             String?
+  autoApproveKeywords Boolean      @default(true)
+  submittedBy         String?
+  onboardedAt         DateTime     @default(now())
+  createdAt           DateTime     @default(now())
+  updatedAt           DateTime     @updatedAt
+
+  credentials    ClientCredential[]
+  assignments    ClientAssignment[]
+  accessRequests AccessRequest[]
+  postingSlots   PostingSlot[]
+  keywords       Keyword[]
+  topics         Topic[]
+  articles       Article[]
+}
+
+enum CredentialKind {
+  WORDPRESS
+}
+
+/// Secrets are AES-256-GCM encrypted (see src/lib/crypto.ts). Plaintext is never stored.
+model ClientCredential {
+  id              String         @id @default(cuid())
+  clientId        String
+  kind            CredentialKind
+  endpoint        String // e.g. https://clientsite.com/wp-json/wp/v2/posts
+  username        String
+  secretEncrypted String // base64 ciphertext + auth tag
+  iv              String // base64
+  keyVersion      Int
+  lastVerifiedAt  DateTime?
+  lastError       String?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@unique([clientId, kind])
+}
+
+model PostingSlot {
+  id            String   @id @default(cuid())
+  clientId      String
+  scheduledDate DateTime @db.Date
+  articleId     String?  @unique
+  createdAt     DateTime @default(now())
+
+  client  Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  article Article? @relation(fields: [articleId], references: [id], onDelete: SetNull)
+
+  @@unique([clientId, scheduledDate])
+}
+
+// ---------- Content pipeline ----------
+
+enum KeywordStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum KeywordSource {
+  TALLY
+  MANUAL
+  API
+  IMPORT
+}
+
+model Keyword {
+  id             String        @id @default(cuid())
+  clientId       String
+  keyword        String
+  keywordNorm    String // lower-cased, trimmed; used for de-duplication
+  category       String?
+  searchVolume   Int?
+  difficulty     Int?
+  volumeVerified Boolean       @default(false)
+  status         KeywordStatus @default(PENDING)
+  used           Boolean       @default(false)
+  usedAt         DateTime?
+  source         KeywordSource @default(MANUAL)
+  submittedBy    String?
+  approvedById   String?
+  addedAt        DateTime      @default(now())
+
+  client Client  @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  topics Topic[]
+
+  @@unique([clientId, keywordNorm])
+  @@index([clientId, status, used])
+}
+
+enum TopicStatus {
+  GENERATED
+  APPROVED
+  REJECTED
+}
+
+model Topic {
+  id                String      @id @default(cuid())
+  clientId          String
+  keywordId         String?
+  keyword           String // focus keyword text, kept even if the keyword row is deleted
+  secondaryKeywords String[]
+  title             String
+  category          String?
+  angle             String?
+  status            TopicStatus @default(GENERATED)
+  reviewNote        String?
+  approvedById      String?
+  generatedAt       DateTime    @default(now())
+
+  client      Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  keywordRow  Keyword? @relation(fields: [keywordId], references: [id], onDelete: SetNull)
+  article     Article?
+
+  @@index([clientId, status])
+}
+
+enum ArticleStatus {
+  GENERATING
+  READY_FOR_REVIEW
+  CHANGES_REQUESTED
+  APPROVED
+  PUSHING
+  PUSHED_DRAFT
+  PUSH_FAILED
+}
+
+model Article {
+  id               String        @id @default(cuid())
+  clientId         String
+  topicId          String        @unique
+  metaTitle        String
+  slug             String
+  metaDescription  String?
+  focusKeyword     String
+  bodyHtml         String
+  featuredImageUrl String?
+  status           ArticleStatus @default(READY_FOR_REVIEW)
+  reviewNote       String?
+  approvedById     String?
+  approvedAt       DateTime?
+  wpPostId         Int?
+  wpPostUrl        String?
+  wpMediaId        Int?
+  pushAttempts     Int           @default(0)
+  lastPushError    String?
+  pushedAt         DateTime?
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+
+  client      Client       @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  topic       Topic        @relation(fields: [topicId], references: [id], onDelete: Cascade)
+  postingSlot PostingSlot?
+
+  @@index([clientId, status])
+}
+
+// ---------- Intake & audit ----------
+
+enum FormKind {
+  ONBOARDING
+  KEYWORDS
+}
+
+model FormSubmission {
+  id                String    @id @default(cuid())
+  form              FormKind
+  tallySubmissionId String    @unique
+  payload           Json // raw Tally body with the WordPress password removed
+  // The WordPress password from the form, encrypted on arrival so a retry can still use it
+  secretEncrypted   String?
+  secretIv          String?
+  secretKeyVersion  Int?
+  clientId          String?
+  processedAt       DateTime?
+  error             String?
+  receivedAt        DateTime  @default(now())
+}
+
+model ActivityLog {
+  id       String   @id @default(cuid())
+  actorId  String? // null = system / n8n / Tally
+  actor    User?    @relation(fields: [actorId], references: [id], onDelete: SetNull)
+  actorTag String? // "n8n", "tally", "import" when there is no user
+  clientId String?
+  action   String // e.g. "keyword.approve", "article.push"
+  entity   String
+  entityId String
+  before   Json?
+  after    Json?
+  at       DateTime @default(now())
+
+  @@index([clientId, at])
+  @@index([entity, entityId])
+}

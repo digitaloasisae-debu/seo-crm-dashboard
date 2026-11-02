@@ -1,0 +1,1234 @@
+{
+  "name": "WF2 (Dashboard test) - Content generation",
+  "nodes": [
+    {
+      "parameters": {
+        "workflowInputs": {
+          "values": [
+            {
+              "name": "client_id"
+            },
+            {
+              "name": "client_name"
+            },
+            {
+              "name": "site_url"
+            },
+            {
+              "name": "mode"
+            },
+            {
+              "name": "regenerate_notes"
+            },
+            {
+              "name": "original_brief"
+            }
+          ]
+        }
+      },
+      "name": "When Called by WF2 or WF6",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        -10544,
+        -3056
+      ],
+      "id": "6ce22f4d-0d93-4d4f-b572-d1f6f0ce962b"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.firecrawl.dev/v2/scrape",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer YOUR_FIRECRAWL_API_KEY"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"url\": \"{{ $json.competitor_url }}\",\n  \"formats\": [\"markdown\"]\n}",
+        "options": {}
+      },
+      "name": "Scrape Single Competitor Page",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -7280,
+        -2816
+      ],
+      "id": "5a8a82f7-8bd1-4fed-8a34-c3da0722cf56"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.firecrawl.dev/v2/scrape",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer YOUR_FIRECRAWL_API_KEY"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"url\": \"{{ $('Read Client Profile1').item.json.site_url }}\",\n  \"formats\": [\"markdown\"]\n}",
+        "options": {}
+      },
+      "name": "Scrape Client Site (Audience Context)1",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -9040,
+        -2896
+      ],
+      "id": "89255aec-16a2-4a86-b929-517970331943"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Approved topics without an article, from the dashboard.\nconst rows = $('Get Approved Topics').all().filter(item => item.json.topic_id);\n\nreturn rows.map((item, i) => ({\n  json: {\n    topic_id: item.json.topic_id,\n    row_number: i + 1,\n    selected_keyword: item.json.selected_keyword,\n    secondary_keywords: Array.isArray(item.json.secondary_keywords) ? item.json.secondary_keywords : [],\n    topic: item.json.topic || '',\n    angle: item.json.angle || '',\n    category: item.json.category || '',\n    client_name: item.json.client_name || ''\n  }\n}));"
+      },
+      "name": "Filter & Select Keyword1",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -8672,
+        -2608
+      ],
+      "id": "78cbda81-cb15-4f38-a209-f633ffd43ce3"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        -7776,
+        -3072
+      ],
+      "id": "b0a874c0-dd2c-417f-a300-6261d19c67af",
+      "name": "Loop Over Items1"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "c1c2c3c4-0001-0001-0001-000000000010",
+              "leftValue": "={{ ($('Read Client Profile1').first().json.Competitors || '').trim().length }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -8000,
+        -2608
+      ],
+      "id": "b1aa2f9f-2569-4e6b-b4d4-9d9fb96b7a94",
+      "name": "Has Competitors?2"
+    },
+    {
+      "parameters": {
+        "jsCode": "const client = $('Read Client Profile1').first().json;\nconst currentTopic = $json;\n\nconst urls = (client.Competitors || '').split(/[\\n,]/).map(s => s.trim()).filter(Boolean);\nconst top = urls.slice(0, 2);\n\nreturn top.map(url => ({\n  json: {\n    competitor_url: url,\n    row_number: currentTopic.row_number,\n    selected_keyword: currentTopic.selected_keyword,\n    topic: currentTopic.topic,\n    angle: currentTopic.angle,\n    category: currentTopic.category,\n    client_name: currentTopic.client_name\n  }\n}));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -7632,
+        -2816
+      ],
+      "id": "fae76311-b6de-4fff-815f-f7968c6579e4",
+      "name": "Prepare Manual Competitors2"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "1",
+              "name": "competitor_analysis_text",
+              "value": "No competitor data available for this client - proceed based on the business's own services, audience, and site content only.",
+              "type": "string"
+            },
+            {
+              "id": "2",
+              "name": "row_number",
+              "value": "={{ $json.row_number }}",
+              "type": "number"
+            },
+            {
+              "id": "3",
+              "name": "selected_keyword",
+              "value": "={{ $json.selected_keyword }}",
+              "type": "string"
+            },
+            {
+              "id": "4",
+              "name": "topic",
+              "value": "={{ $json.topic }}",
+              "type": "string"
+            },
+            {
+              "id": "5",
+              "name": "angle",
+              "value": "={{ $json.angle }}",
+              "type": "string"
+            },
+            {
+              "id": "6",
+              "name": "category",
+              "value": "={{ $json.category }}",
+              "type": "string"
+            },
+            {
+              "id": "7",
+              "name": "client_name",
+              "value": "={{ $json.client_name }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.5,
+      "position": [
+        -7632,
+        -2432
+      ],
+      "id": "296d4331-0568-4c0e-a6f3-ebcac7ad6352",
+      "name": "No Competitor Data2"
+    },
+    {
+      "parameters": {
+        "jsCode": "const input = items[0].json;\nlet text;\nlet topic;\n\nif (input.data && input.data.markdown) {\n  text = (input.data.markdown || '').substring(0, 1500);\n  topic = $('Prepare Manual Competitors2').first().json;\n} else if (input.candidates) {\n  text = input.candidates[0]?.content?.parts?.[0]?.text || '';\n  topic = $('Prepare Manual Competitors2').first().json;\n} else {\n  text = input.competitor_analysis_text || '';\n  topic = input;\n}\n\nreturn [{\n  json: {\n    competitor_analysis_text: text,\n    row_number: topic.row_number,\n    selected_keyword: topic.selected_keyword,\n    topic: topic.topic,\n    angle: topic.angle,\n    category: topic.category,\n    client_name: topic.client_name\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -7040,
+        -2816
+      ],
+      "id": "24cf221a-756c-4368-93da-af1fd3725eb5",
+      "name": "Normalize Competitor Analysis2"
+    },
+    {
+      "parameters": {
+        "jsCode": "const client = $('Read Client Profile1').first().json;\nconst allUrls = (client.sitemap_or_key_pages || '').split('\\n').map(u => u.trim()).filter(Boolean);\n\nreturn [{ json: { link_candidates: allUrls.slice(0, 20) } }];"
+      },
+      "name": "Get Internal Link Candidates1",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -7040,
+        -2432
+      ],
+      "id": "8b75ea0a-630c-4033-8c7f-1b21123d9e11"
+    },
+    {
+      "parameters": {
+        "jsCode": "const client = $('Read Client Profile1').first().json;\nconst urls = (client['External Links'] || '').split(/[\\n,]/).map(u => u.trim()).filter(Boolean);\nreturn [{ json: { external_link_candidates: urls.slice(0, 10) } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -6720,
+        -2432
+      ],
+      "id": "fa4a72fe-84ed-4151-a4b0-780543a70133",
+      "name": "Get External Link Candidates2"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "9a26e0f8-7eee-4091-87c7-5dc8eb173095",
+              "name": "sop_text",
+              "value": "=SEO Content Writing SOPs \n\nSOP 1 — General SEO Content Writing Process\nFollow this process for every piece of content, start to finish. \n\n1. Pre-Writing: Research & Planning\n● Primary Keyword: pick one main focus keyword\n● Secondary Keywords: list 3–5 related (LSI) keywords\n● Search Intent: confirm it matches informational, transactional, navigational, or commercial intent\n● Word Count: standard blogs = 1,000–1,200 words; pillar/comparison = 1,500+ words\n● Content Brief: outline with H1/H2/H3, pick a content angle (guide, listicle, how-to, review)\n● Add AT LEAST 5 distinct FAQs from “People Also Ask” + competitor pages\n● Define clear CTAs (e.g. “Contact us,” “Shop now”)\n\n2. Writing: Title, Headings & Meta\n● H1 Title: primary keyword included naturally, under 60 characters\n● Current Year Rule: Always use 2026 as the current year for temporal statements, titles, or current guide recommendations. Never use past years like 2024 or 2025 unless referencing historical data.\n● Use H2/H3 subheadings with secondary/LSI keywords in logical order (never skip levels)\n● Meta Title: under 60 characters, includes main keyword\n● Meta Description: 150–160 characters, engaging, includes primary keyword\n\n3. Writing: Content Body\n● Primary keyword MUST appear in the first 100 words of the opening paragraph\n● Keyword density 1%–1.5% — natural, never stuffed\n● Short sentences (15–20 words max) and short paragraphs (2–3 lines / under 100 words)\n● Use bullet points, lists, and visuals to break up text\n● Match or exceed target word count (1,000–1,200 words minimum)\n● Content must be original, actionable, and solve the reader's problem\n\n🔗 Linking Rules\n• Internal links: 5–7 per post, place the first link in the intro paragraph, 2–3 word anchor text\n• External links: Exactly 1 to a high-authority pre-approved source (DA 50+), opens in new tab, never link competitors\n\n⚙️ 4. On-Page SEO Checks\n● At least 1 image per 500 words with keyword-optimized alt text\n● Optimize for featured snippets (lists, tables, Q&A format)\n● Include an FAQ section with AT LEAST 5 Q&A pairs\n● Short, descriptive, keyword-rich URL slug\n● Natural CTA (form, button, or link)\n\n✅ 5. Post-Writing Checklist\n☑ Grammarly score 90+ (no grammar issues)\n☑ 100% unique — checked with Copyscape/Quetext\n☑ Readability at Grade 6–8 (Hemingway/Yoast standard)\n☑ Proper heading hierarchy: H1 → H2 → H3\n☑ Keywords used naturally, no stuffing\n☑ Internal & external links inserted correctly\n☑ Alt text added on all images\n☑ Word count matches the brief (1,000–1,200+ words)\n\n--------------------------------------------------\n\nSOP 2 — Local SEO Blog Rules\nApply these rules on top of SOP 1 for every blog written for a local or service-area client.\n\n1. Keyword & Topic Selection\n● 1 primary keyword + 2–3 supporting local keywords\n● Topic must tie to a current trend (seasonal demand, viral DIY fails, rising energy costs) or a frequently searched local problem\n\n🏙️ 2. Local Optimization (Required on Every Post)\n● Include primary city + \"city, state\" naturally in the title, intro, H2s, and conclusion\n● Use hyper-local phrasing: “homeowners in [City],” “[City] HVAC codes,” “common [City] plumbing issues”\n● Reference local landmarks, climate, or regulations where it fits naturally\n\n3. Blog Structure\n● Title — primary keyword + city + 2026 (e.g. “Best Water Heater Upgrades for [City] Homeowners in 2026”)\n● Intro (100–150 words) — hook + primary keyword in first 100 words + local context\n● H2 sections (3–5) — each targeting a supporting keyword or question\n● FAQ Section — minimum 5 local/service FAQs\n● Local CTA — ends with a call to action naming the city and service\n\n4. Style & Consistency\n● Tone: conversational but professional — no jargon, no fluff\n● Length: 1,000–1,200 words for standard posts; 1,500+ for pillar posts\n● No walls of text — short paragraphs, H2/H3 subheadings, plain bullet lists",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.5,
+      "position": [
+        -6464,
+        -2400
+      ],
+      "id": "79f0c85c-d349-4b9e-b21d-5b39468aaf8d",
+      "name": "SOP Reference1",
+      "executeOnce": true
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "models/gemini-3-flash-preview"
+        },
+        "messages": {
+          "values": [
+            {
+              "content": "={{ \"Follow this SOP: \" + $('SOP Reference1').first().json.sop_text + \"\\n\\nCreate a content brief for client \" + $('Read Client Profile1').first().json.client_name + \". Primary keyword: \" + $('Loop Over Items1').first().json.selected_keyword + \". Topic: \" + $('Loop Over Items1').first().json.topic + \". City: \" + $('Read Client Profile1').first().json.primary_city + \". Target year: 2026. Candidate internal links: \" + JSON.stringify($('Get Internal Link Candidates1').first().json.link_candidates) + \". Competitor context: \" + $('Normalize Competitor Analysis2').first().json.competitor_analysis_text + \". Output a structured brief including H2/H3 outline and at least 5 FAQ targets.\" }}"
+            }
+          ]
+        },
+        "simplify": false,
+        "jsonOutput": true,
+        "builtInTools": {},
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.googleGemini",
+      "typeVersion": 1.2,
+      "position": [
+        -5952,
+        -2464
+      ],
+      "id": "0097f9d8-9bef-413e-8c46-aa5c9801fe6a",
+      "name": "AI - Generate Content Brief1",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "Mo0wLHIq6kmLMFBK",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "models/gemini-3.1-pro-preview",
+          "mode": "list",
+          "cachedResultName": "models/gemini-3.1-pro-preview"
+        },
+        "messages": {
+          "values": [
+            {
+              "content": "=={{ \"Follow this SOP exactly (word count, keyword density, internal/external linking, tone): \" + $('SOP Reference1').first().json.sop_text + \"\\n\\nWrite the full blog post from this brief. Brief: \" + $json.candidates[0].content.parts[0].text + \"\\n\\nCRITICAL WORD COUNT & CONTENT RULES:\\n- TARGET WORD COUNT: You MUST write a comprehensive, in-depth article of AT LEAST 1,000 to 1,200 words (or 1,500+ words for pillar/comparison guides). Do not write brief summaries or cut sections short. Expand thoroughly on every main point, scenario, and process step to meet this exact length target.\\n- CURRENT YEAR: The current year is 2026. Always reference 2026 (or future dates) for any temporal statements, titles, or current recommendations. Do not use past years like 2024 or 2025 unless discussing past historical data.\\n- INTRO PARAGRAPH & KEYWORD: You MUST place the exact primary keyword ('\" + $('Loop Over Items1').first().json.selected_keyword + \"') inside the first 100 words of the introductory paragraph.\\n- FAQS SECTION: You MUST include AT LEAST 5 distinct Frequently Asked Questions with thorough, helpful answers at the end of the post under '## Frequently Asked Questions'.\\n\\nSTRICT FORMATTING RULES:\\n- Do not use emojis anywhere in the content.\\n- Do not use em dashes (—) or en dashes (–). Use commas, periods, or restructure the sentence instead.\\n- Do not use bullet points with checkmark or emoji markers — use plain markdown dashes or numbers only.\\n- Write in a natural, human tone. Avoid phrases that sound distinctly AI-generated, such as overly formal transitions ('Furthermore,', 'In conclusion,'), excessive rhetorical questions, or repetitive sentence structures.\\n- Base all analysis on original thinking and your own synthesis of the competitor research provided. Do not closely paraphrase or lift sentence structures from the competitor content — write in your own words and structure throughout.\\n- Vary sentence length for natural rhythm, but NEVER exceed 20 words in any single sentence. Mix short, punchy sentences of 5 to 8 words with medium sentences of 12 to 18 words. Do not let more than two consecutive sentences fall into a similar length or rhythm.\\n- Include at least three specific, concrete details that could not be found by summarizing the competitor pages provided. This could be a specific realistic example, a genuine process detail, a local or industry specific, or a concrete scenario. Generic, summarized advice reads as AI generated. Specific, concrete detail does not.\\n- Avoid starting consecutive paragraphs with similar sentence structures or transition words. Do not open more than one paragraph in the piece with the same word.\\n- Do not include any <img> tags, image placeholders, or references to images (such as 'image1.jpg', '[image here]', or similar) anywhere in the content. Images are inserted programmatically after generation — write pure text content only, with no image markup of any kind.\\n\\nREADABILITY RULES (follow exactly, these are graded automatically):\\n- Use simple, everyday words over complex ones wherever possible. Write at a 6th to 8th grade reading level.\\n- Keep every paragraph to 3 sentences or fewer, and under 100 words total. Break up any longer thought into two shorter paragraphs.\\n- Use active voice for at least 90% of sentences. Avoid passive constructions like 'was created by' or 'is used to' - write 'we created' or 'you use' instead.\\n- Include a genuine transition word or phrase (such as 'however', 'because', 'as a result', 'meanwhile', 'for example', 'in fact', 'that said') in at least 1 out of every 3 sentences, varied throughout and never repeated back to back.\\n- Place an H2 or H3 subheading at least once every 250 to 300 words. Never let a section run longer than that without a subheading break.\\n\\nLINKING RULES (follow exactly):\\n- Use 5 to 7 internal links total across the post, drawn from the internal link candidates provided in the brief.\\n- Place the first internal link within the opening paragraph of the article, not later.\\n- Every internal link's anchor text must be only 2 to 3 words long. Never link a full phrase like 'comprehensive digital marketing services' - link a short fragment like 'digital marketing' instead, with the rest of the sentence as plain text around it.\\n- Use exactly 1 external link total, chosen ONLY from this pre-approved list, never invent or guess your own external URL: \" + JSON.stringify($('Get External Link Candidates2').first().json.external_link_candidates) + \". If none of these fit the topic naturally, omit the external link entirely rather than inventing one.\\n\\nOUTPUT FORMAT (use real markdown syntax exactly as shown, since this gets converted to HTML automatically):\\n\\nMETA_TITLE: [under 60 characters, include 2026 if year referenced]\\nMETA_DESCRIPTION: [150-160 characters]\\nURL_SLUG: [slug here]\\n\\n# [The actual H1 title, as a real markdown heading. This MUST be 60 characters or fewer, counted exactly. It should closely match META_TITLE in wording and length, not just start the same way and then run longer. If your first draft of this title exceeds 60 characters, shorten it by cutting words, not by using abbreviations or removing spaces.]\\n\\nIMPORTANT: Respond with plain text only. Do not wrap your response in a JSON object, do not add any JSON keys or braces around it, and do not add any commentary before or after — output only the raw content exactly as specified below.\\n\\n[Full blog body here, in proper markdown: use ## for H2 sections, ### for H3 subsections, **text** for bold emphasis, - for bullet lists, 1. 2. 3. for numbered lists. Do not use any other heading level or label. Do not write out words like 'BODY:' or 'H1 TITLE:' as literal text — only use real markdown symbols.]\\n\\n## Frequently Asked Questions\\n\\n[Provide AT LEAST 5 detailed Q&A pairs, each question as **bold text**]\\n\\n[Final CTA paragraph, no separate label, just the CTA sentence itself as the last paragraph, plain text only - do not include a hyperlink, button, or markdown link syntax here, a real CTA button will be added automatically after your content]\"\n}}"
+            }
+          ]
+        },
+        "simplify": false,
+        "builtInTools": {},
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.googleGemini",
+      "typeVersion": 1.2,
+      "position": [
+        -5536,
+        -2464
+      ],
+      "id": "4be9f06d-69fa-4896-971c-2ab52455a37a",
+      "name": "AI - Write Blog Draft1",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "Mo0wLHIq6kmLMFBK",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const text = items[0].json.candidates[0].content.parts[0].text;\n\nconst metaTitleMatch = text.match(/META[_ ]?TITLE:\\s*(.+)/i);\nconst metaDescMatch = text.match(/META[_ ]?DESCRIPTION:\\s*(.+)/i);\nconst slugMatch = text.match(/URL[_ ]?SLUG:\\s*(.+)/i);\n\nlet bodyMarkdown = text\n  .replace(/META[_ ]?TITLE:.*(\\r?\\n)?/i, '')\n  .replace(/META[_ ]?DESCRIPTION:.*(\\r?\\n)?/i, '')\n  .replace(/URL[_ ]?SLUG:.*(\\r?\\n)?/i, '')\n  .trim();\n\nbodyMarkdown = bodyMarkdown.replace(/^\\s*#\\s+.*(\\r?\\n)+/, '');\n\nreturn [{\n  json: {\n    meta_title: metaTitleMatch ? metaTitleMatch[1].trim() : '',\n    meta_description: metaDescMatch ? metaDescMatch[1].trim() : '',\n    url_slug: slugMatch ? slugMatch[1].trim() : '',\n    markdown_text: bodyMarkdown\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -5152,
+        -2464
+      ],
+      "id": "aa130793-e001-4ab7-ac91-d30c24cbdc94",
+      "name": "Code in JavaScript3"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "img-flag-1",
+              "leftValue": "={{ ($('Read Client Profile1').first().json['Is image generation required?'] || '').trim() }}",
+              "rightValue": "No",
+              "operator": {
+                "type": "string",
+                "operation": "notEquals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -4960,
+        -2464
+      ],
+      "id": "b0b107cf-6410-485e-befa-6b51dfb44c91",
+      "name": "Generate Images?1"
+    },
+    {
+      "parameters": {
+        "jsCode": "const markdown = items[0].json.markdown_text || '';\nconst client = $('Read Client Profile1').first().json;\nconst brandPrimaryColor = client.brand_primary_color || client['Branding colors'] || '#3898FF';\nconst brandSecondaryColor = client.brand_secondary_color || '';\n\nconst paragraphs = markdown.split(/\\n\\n+/);\nconst sections = [];\nlet currentWordCount = 0;\nlet currentParagraphs = [];\n\nparagraphs.forEach((para, idx) => {\n  currentParagraphs.push(para);\n  const wordsInPara = (para.match(/\\S+/g) || []).length;\n  currentWordCount += wordsInPara;\n\n  if (currentWordCount >= 500) {\n    sections.push({\n      section_index: sections.length,\n      insert_after_paragraph_index: idx,\n      section_text: currentParagraphs.join('\\n\\n'),\n      brand_primary_color: brandPrimaryColor,\n      brand_secondary_color: brandSecondaryColor\n    });\n    currentParagraphs = [];\n    currentWordCount = 0;\n  }\n});\n\nconst allParagraphsJson = JSON.stringify(paragraphs);\n\nif (sections.length === 0 && paragraphs.length > 0) {\n  const midIndex = Math.floor(paragraphs.length / 2);\n  sections.push({\n    section_index: 0,\n    insert_after_paragraph_index: midIndex,\n    section_text: paragraphs.slice(0, midIndex + 1).join('\\n\\n'),\n    brand_primary_color: brandPrimaryColor,\n    brand_secondary_color: brandSecondaryColor\n  });\n}\n\nreturn sections.map(s => ({ json: { ...s, all_paragraphs: allParagraphsJson } }));"
+      },
+      "name": "Split Body Into Image Sections1",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -4272,
+        -2784
+      ],
+      "id": "425caf03-51c2-4222-aae9-2be37164f097"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-image:generateContent",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googlePalmApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ contents: [{ parts: [ { text: \"Create a blog section image for this part of the article: \" + $json.section_text.substring(0, 400) + \". Realistic image, no logo, no text, primary color \" + $json.brand_primary_color + \". Specs: 1200x800.\" } ] }] }) }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "name": "Generate Section Image1",
+      "id": "7fb17bc8-a4f3-40db-b1e0-f32d2274ea5b",
+      "position": [
+        -4080,
+        -2784
+      ],
+      "credentials": {
+        "googlePalmApi": {
+          "id": "Mo0wLHIq6kmLMFBK",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const sectionData = $('Split Body Into Image Sections1').item.json;\nconst parts = items[0].json.candidates?.[0]?.content?.parts || [];\nconst imagePart = parts.find(p => p.inline_data || p.inlineData);\n\nif (!imagePart) {\n  throw new Error('No image returned for section');\n}\n\nconst data = imagePart.inline_data || imagePart.inlineData;\nconst buffer = Buffer.from(data.data, 'base64');\nconst binary = await this.helpers.prepareBinaryData(buffer, 'section-image.png', data.mime_type || data.mimeType || 'image/png');\n\nreturn [{\n  json: { section_text: sectionData.section_text, insert_after_paragraph_index: sectionData.insert_after_paragraph_index },\n  binary: { edited: binary }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "name": "Extract Section Image Binary1",
+      "id": "64fe715a-8fa4-4bb4-8591-f6a1edddc0a4",
+      "position": [
+        -3872,
+        -2784
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "resize",
+        "dataPropertyName": "edited",
+        "width": 1200,
+        "height": 800,
+        "resizeOption": "ignoreAspectRatio",
+        "options": {
+          "format": "webp"
+        }
+      },
+      "type": "n8n-nodes-base.editImage",
+      "typeVersion": 1,
+      "position": [
+        -3648,
+        -2784
+      ],
+      "id": "1a105b2b-c22b-4980-8eb7-01aaf7fded7d",
+      "name": "Edit Image4"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.imgbb.com/1/upload",
+        "sendBody": true,
+        "contentType": "multipart-form-data",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "key",
+              "value": "YOUR_IMGBB_API_KEY"
+            },
+            {
+              "parameterType": "formBinaryData",
+              "name": "image",
+              "inputDataFieldName": "edited"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "name": "Upload Section Image to imgbb1",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -3456,
+        -2784
+      ],
+      "id": "9af85e84-5f56-4598-ae81-71804071f331"
+    },
+    {
+      "parameters": {
+        "jsCode": "const itemData = $('Split Body Into Image Sections1').item.json;\nconst sectionText = itemData.section_text || '';\nconst plainText = sectionText.replace(/\\[([^\\]]+)\\]\\([^)]+\\)/g, '$1').replace(/[#*_`]/g, '').replace(/\\n/g, ' ');\nconst altText = plainText.trim().split(/\\s+/).slice(0, 10).join(' ');\n\nconst imageUrl = $json.data ? $json.data.display_url : '';\nconst insertAfterIndex = itemData.insert_after_paragraph_index;\n\nreturn [{\n  json: {\n    insert_after_paragraph_index: insertAfterIndex,\n    image_markdown: `<p style=\"text-align:center;\"><img src=\"${imageUrl}\" alt=\"${altText}\" style=\"max-width:100%;height:auto;\" /></p>`\n  }\n}];"
+      },
+      "name": "Build Section Image Markdown1",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -3264,
+        -2768
+      ],
+      "id": "3a24118f-dc77-4184-ab44-5dc9a6b2a788"
+    },
+    {
+      "parameters": {
+        "aggregate": "aggregateAllItemData",
+        "options": {}
+      },
+      "name": "Collect All Section Images1",
+      "type": "n8n-nodes-base.aggregate",
+      "typeVersion": 1,
+      "position": [
+        -3072,
+        -2768
+      ],
+      "id": "c3b1e377-ad5c-4939-9620-809ac5165c6e"
+    },
+    {
+      "parameters": {
+        "jsCode": "const aggregatedItems = $json.data || [];\n\nif (aggregatedItems.length === 0) {\n  return [{ json: { markdown_text: $('Code in JavaScript3').item.json.markdown_text } }];\n}\n\nconst paragraphs = JSON.parse($('Split Body Into Image Sections1').first().json.all_paragraphs);\nconst sorted = [...aggregatedItems].sort((a, b) => b.insert_after_paragraph_index - a.insert_after_paragraph_index);\n\nfor (const item of sorted) {\n  const targetIdx = Number(item.insert_after_paragraph_index);\n  if (!isNaN(targetIdx) && targetIdx >= 0 && targetIdx < paragraphs.length) {\n    paragraphs.splice(targetIdx + 1, 0, item.image_markdown);\n  } else {\n    paragraphs.splice(Math.floor(paragraphs.length / 2), 0, item.image_markdown);\n  }\n}\n\nreturn [{ json: { markdown_text: paragraphs.join('\\n\\n') } }];"
+      },
+      "name": "Reassemble Body With Inline Images1",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -2912,
+        -2800
+      ],
+      "id": "86e5a7be-86eb-4b8a-996d-eb66e75ce1a5"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-image:generateContent",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googlePalmApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ contents: [{ parts: [ { text: \"Create a blog feature image representing: \" + $('Code in JavaScript3').first().json.meta_title + \". Realistic image, no logo, no text. Primary color \" + ($('Read Client Profile1').first().json.brand_primary_color || '#3898FF') + \". Specs: 1200x800.\" } ] }] }) }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "name": "Generate Featured Image4",
+      "id": "fef19a2e-8395-4c89-a79f-f6f0bc6cb8a1",
+      "position": [
+        -4192,
+        -2464
+      ],
+      "credentials": {
+        "googlePalmApi": {
+          "id": "Mo0wLHIq6kmLMFBK",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const parts = items[0].json.candidates?.[0]?.content?.parts || [];\nconst imagePart = parts.find(p => p.inline_data || p.inlineData);\n\nif (!imagePart) {\n  throw new Error('No image returned from Gemini featured image generation');\n}\n\nconst data = imagePart.inline_data || imagePart.inlineData;\nconst buffer = Buffer.from(data.data, 'base64');\nconst binary = await this.helpers.prepareBinaryData(buffer, 'featured-image.png', data.mime_type || data.mimeType || 'image/png');\n\nreturn [{ json: {}, binary: { edited: binary } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "name": "Extract Featured Image Binary1",
+      "id": "9392c04a-2c85-4e68-88ff-a92330855d85",
+      "position": [
+        -4032,
+        -2464
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "resize",
+        "dataPropertyName": "edited",
+        "width": 1200,
+        "height": 800,
+        "resizeOption": "ignoreAspectRatio",
+        "options": {
+          "format": "jpeg"
+        }
+      },
+      "type": "n8n-nodes-base.editImage",
+      "typeVersion": 1,
+      "position": [
+        -3856,
+        -2464
+      ],
+      "id": "f1f59f3e-d09d-4f22-819f-facf9057560a",
+      "name": "Edit Image5"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.imgbb.com/1/upload",
+        "sendBody": true,
+        "contentType": "multipart-form-data",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "key",
+              "value": "YOUR_IMGBB_API_KEY"
+            },
+            {
+              "parameterType": "formBinaryData",
+              "name": "image",
+              "inputDataFieldName": "edited"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        -3376,
+        -2544
+      ],
+      "id": "dcad28ac-9103-4a33-97b4-5a7a00754bae",
+      "name": "Upload Featured Image to imgbb2"
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{\n  json: {\n    featured_image_url: items[0].json.data ? items[0].json.data.display_url : ''\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -2960,
+        -2464
+      ],
+      "id": "570e134e-22dc-422f-9257-56310a5ab943",
+      "name": "Extract Featured Image URL2"
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "combineByPosition",
+        "options": {}
+      },
+      "name": "Merge Content and Image2",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [
+        -2544,
+        -2832
+      ],
+      "id": "fac810ec-2ccc-4fc0-b249-7c79908e4285"
+    },
+    {
+      "parameters": {
+        "jsCode": "const json = items[0].json;\nreturn [{\n  json: {\n    markdown_text: json.markdown_text,\n    featured_image_url: json.featured_image_url || ''\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -2352,
+        -2720
+      ],
+      "id": "0b368757-ef81-43ee-a106-ff25cb96895f",
+      "name": "Prepare Publish Data1"
+    },
+    {
+      "parameters": {
+        "mode": "markdownToHtml",
+        "markdown": "={{ ($json.markdown_text || '').replace(/\\\\n/g, '\\n') }}",
+        "destinationKey": "html",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.markdown",
+      "typeVersion": 1,
+      "position": [
+        -2192,
+        -2528
+      ],
+      "id": "09c3c986-ac89-449b-b5c2-d17cc7f337b0",
+      "name": "Markdown to HTML2"
+    },
+    {
+      "parameters": {
+        "jsCode": "const html = $json.html;\nconst client =$('Read Client Profile1').first().json;\nconst primaryColor = client.brand_primary_color || client['Branding colors'] || '#3898FF';\n\nconst styleBlock = `<style>\n.blog-content h2,.blog-content h3{color:${primaryColor};}\n.blog-content ul{list-style:disc;padding-left:24px;margin:16px 0;}\n.blog-content ol{list-style:decimal;padding-left:24px;margin:16px 0;}\n.blog-content li{margin-bottom:8px;}\n.blog-content ul li::marker,.blog-content ol li::marker{color:${primaryColor};}\n.blog-content img{display:block;margin:0 auto;max-width:100%;height:auto;}\n.blog-content .faq-item{border-left:4px solid ${primaryColor};padding:12px 16px;margin-bottom:16px;background:rgba(0,0,0,0.02);}\n.blog-content .faq-item strong{color:${primaryColor};}\n.blog-content .faq-item .faq-number{color:${primaryColor};font-weight:bold;margin-right:6px;}\n</style>`;\n\nconst faqSplit = html.split(/(<h2[^>]*>\\s*Frequently Asked Questions[\\s\\S]*?<\\/h2>)/i);\nlet bodyHtml;\nif (faqSplit.length === 3) {\n  const [before, heading, after] = faqSplit;\n  let faqIndex = 0;\n  const wrappedAfter = after.replace(/<p><strong>(.*?)<\\/strong>\\s*([\\s\\S]*?)<\\/p>/g,\n    (match, question, answer) => {\n      faqIndex++;\n      return `<div class=\"faq-item\"><p><span class=\"faq-number\">${faqIndex}.</span> <strong>${question}</strong></p><p>${answer}</p></div>`;\n    }\n  );\n  bodyHtml = before + heading + wrappedAfter;\n} else {\n  bodyHtml = html;\n}\n\nconst finalHtml = `<div class=\"blog-content\">${styleBlock}${bodyHtml}</div>`;\nconst ctaLink = client['CTA Link'] || '#';\nconst ctaText = client.cta_text || 'Get Started';\nconst ctaButton = `<p style=\"text-align:center;margin-top:32px;\"><a href=\"${ctaLink}\" style=\"display:inline-block;background-color:${primaryColor};color:#ffffff;padding:14px 32px;border-radius:6px;text-decoration:none;font-weight:bold;\">${ctaText}</a></p>`;\n\nreturn [{ json: { final_html: finalHtml + ctaButton } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1952,
+        -2528
+      ],
+      "id": "12f67ca0-cd42-4e5f-8b68-a98d9b5674a4",
+      "name": "Style Blog Content2"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "dashboard-wf2",
+        "authentication": "headerAuth",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -10544,
+        -2836
+      ],
+      "id": "edc2120f-d146-4eef-9c59-46d256b9fdb7",
+      "name": "Dashboard Trigger",
+      "webhookId": "2570bbf5-55a7-45cd-be32-4f2d9a78b8ac"
+    },
+    {
+      "parameters": {
+        "url": "=https://YOUR-DASHBOARD-URL/api/n8n/clients/{{ encodeURIComponent($json.client_id || ($json.body && $json.body.client_id) || $json.client_name) }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -10320,
+        -3056
+      ],
+      "id": "7891325e-63e6-43d4-b2ef-fcc01ad86456",
+      "name": "Read Client Profile1"
+    },
+    {
+      "parameters": {
+        "url": "=https://YOUR-DASHBOARD-URL/api/n8n/topics?client={{ $('Read Client Profile1').first().json.id }}&status=approved&has_article=false&limit=10",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -8880,
+        -2688
+      ],
+      "id": "6e484022-cd4e-46ba-855b-5d9c98baf2df",
+      "name": "Get Approved Topics"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Send the finished article to the dashboard for review.\n// The dashboard pushes it to WordPress after someone approves it.\nconst codeOutput = $('Code in JavaScript3').first().json;\nconst topic = $('Loop Over Items1').first().json;\nconst publish = $('Prepare Publish Data1').first().json;\n\nconst body = {\n  meta_title: codeOutput.meta_title,\n  meta_description: codeOutput.meta_description,\n  url_slug: codeOutput.url_slug,\n  content_html: $('Style Blog Content2').first().json.final_html\n};\nif (publish.featured_image_url) body.featured_image_url = publish.featured_image_url;\n\nreturn [{ json: { topic_id: topic.topic_id, body } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1728,
+        -2528
+      ],
+      "id": "fa5718ee-dcc6-4ce5-b35c-21f9aed6f4cd",
+      "name": "Build Dashboard Article"
+    },
+    {
+      "parameters": {
+        "url": "=https://YOUR-DASHBOARD-URL/api/n8n/topics/{{ $json.topic_id }}/article",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {},
+        "method": "POST",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.body) }}"
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -1504,
+        -2528
+      ],
+      "id": "99de6873-73a8-4252-8444-3550d1ce2423",
+      "name": "Send Article to Dashboard"
+    }
+  ],
+  "connections": {
+    "When Called by WF2 or WF6": {
+      "main": [
+        [
+          {
+            "node": "Read Client Profile1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Scrape Single Competitor Page": {
+      "main": [
+        [
+          {
+            "node": "Normalize Competitor Analysis2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Scrape Client Site (Audience Context)1": {
+      "main": [
+        [
+          {
+            "node": "Get Approved Topics",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter & Select Keyword1": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Items1": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Has Competitors?2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Competitors?2": {
+      "main": [
+        [
+          {
+            "node": "Prepare Manual Competitors2",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "No Competitor Data2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Manual Competitors2": {
+      "main": [
+        [
+          {
+            "node": "Scrape Single Competitor Page",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "No Competitor Data2": {
+      "main": [
+        [
+          {
+            "node": "Normalize Competitor Analysis2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize Competitor Analysis2": {
+      "main": [
+        [
+          {
+            "node": "Get Internal Link Candidates1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Internal Link Candidates1": {
+      "main": [
+        [
+          {
+            "node": "Get External Link Candidates2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get External Link Candidates2": {
+      "main": [
+        [
+          {
+            "node": "SOP Reference1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "SOP Reference1": {
+      "main": [
+        [
+          {
+            "node": "AI - Generate Content Brief1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI - Generate Content Brief1": {
+      "main": [
+        [
+          {
+            "node": "AI - Write Blog Draft1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI - Write Blog Draft1": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript3": {
+      "main": [
+        [
+          {
+            "node": "Generate Images?1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Images?1": {
+      "main": [
+        [
+          {
+            "node": "Split Body Into Image Sections1",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Generate Featured Image4",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Prepare Publish Data1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Body Into Image Sections1": {
+      "main": [
+        [
+          {
+            "node": "Generate Section Image1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Section Image1": {
+      "main": [
+        [
+          {
+            "node": "Extract Section Image Binary1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Section Image Binary1": {
+      "main": [
+        [
+          {
+            "node": "Edit Image4",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Image4": {
+      "main": [
+        [
+          {
+            "node": "Upload Section Image to imgbb1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Upload Section Image to imgbb1": {
+      "main": [
+        [
+          {
+            "node": "Build Section Image Markdown1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Section Image Markdown1": {
+      "main": [
+        [
+          {
+            "node": "Collect All Section Images1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Collect All Section Images1": {
+      "main": [
+        [
+          {
+            "node": "Reassemble Body With Inline Images1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Reassemble Body With Inline Images1": {
+      "main": [
+        [
+          {
+            "node": "Merge Content and Image2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Featured Image4": {
+      "main": [
+        [
+          {
+            "node": "Extract Featured Image Binary1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Featured Image Binary1": {
+      "main": [
+        [
+          {
+            "node": "Edit Image5",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Image5": {
+      "main": [
+        [
+          {
+            "node": "Upload Featured Image to imgbb2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Upload Featured Image to imgbb2": {
+      "main": [
+        [
+          {
+            "node": "Extract Featured Image URL2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Featured Image URL2": {
+      "main": [
+        [
+          {
+            "node": "Merge Content and Image2",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Merge Content and Image2": {
+      "main": [
+        [
+          {
+            "node": "Prepare Publish Data1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Publish Data1": {
+      "main": [
+        [
+          {
+            "node": "Markdown to HTML2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Markdown to HTML2": {
+      "main": [
+        [
+          {
+            "node": "Style Blog Content2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Style Blog Content2": {
+      "main": [
+        [
+          {
+            "node": "Build Dashboard Article",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Dashboard Trigger": {
+      "main": [
+        [
+          {
+            "node": "Read Client Profile1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Client Profile1": {
+      "main": [
+        [
+          {
+            "node": "Scrape Client Site (Audience Context)1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Approved Topics": {
+      "main": [
+        [
+          {
+            "node": "Filter & Select Keyword1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Dashboard Article": {
+      "main": [
+        [
+          {
+            "node": "Send Article to Dashboard",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Article to Dashboard": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "nodeGroups": []
+}

@@ -1,0 +1,41 @@
+{
+  "name": "seo-crm-dashboard",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "prisma generate && next build",
+    "vercel-build": "prisma generate && prisma db push --skip-generate && tsx prisma/seed.ts && next build",
+    "start": "next start",
+    "lint": "tsc --noEmit",
+    "db:push": "prisma db push",
+    "db:migrate": "prisma migrate dev",
+    "db:deploy": "prisma migrate deploy",
+    "db:seed": "tsx --env-file=.env prisma/seed.ts",
+    "import:sheets": "tsx --env-file=.env scripts/import-sheets.ts",
+    "gen:key": "node -e \"console.log(require('crypto').randomBytes(32).toString('base64'))\""
+  },
+  "dependencies": {
+    "@prisma/client": "6.19.3",
+    "bcryptjs": "3.0.3",
+    "marked": "16.4.2",
+    "next": "15.5.27",
+    "next-auth": "5.0.0-beta.29",
+    "react": "19.1.1",
+    "react-dom": "19.1.1",
+    "sanitize-html": "2.17.0",
+    "zod": "3.25.76"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "4.1.13",
+    "@types/node": "22.18.0",
+    "@types/react": "19.1.12",
+    "@types/react-dom": "19.1.9",
+    "@types/sanitize-html": "2.16.0",
+    "csv-parse": "6.1.0",
+    "prisma": "6.19.3",
+    "tailwindcss": "4.1.13",
+    "tsx": "4.20.5",
+    "typescript": "5.9.2"
+  }
+}

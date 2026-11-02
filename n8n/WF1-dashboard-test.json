@@ -1,0 +1,576 @@
+{
+  "name": "WF1 (Dashboard test) - Topic generation",
+  "nodes": [
+    {
+      "parameters": {
+        "options": {}
+      },
+      "name": "Loop Over Clients",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        -1120,
+        192
+      ],
+      "id": "b8204557-d2d9-4642-80ae-cd5ea6371d12"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.firecrawl.dev/v2/scrape",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer YOUR_FIRECRAWL_API_KEY"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"url\": \"{{ $json.site_url }}\",\n  \"formats\": [\"markdown\"]\n}",
+        "options": {}
+      },
+      "name": "Firecrawl Client Scrape",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -800,
+        96
+      ],
+      "id": "0a42e1c2-402f-43c7-97e1-cf1c402beb5a"
+    },
+    {
+      "parameters": {
+        "jsCode": "const responseText = items[0].json.content.parts[0].text;\nconst profile = JSON.parse(responseText.replace(/```json|```/g, '').trim());\nconst client = $('Loop Over Clients').item.json;\nreturn [{\n  json: {\n    client_name: client.client_name,\n    site_url: client.site_url,\n    core_services: profile.core_services,\n    industry_summary: profile.industry_summary\n  }\n}];"
+      },
+      "name": "Parse Business Profile",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -384,
+        96
+      ],
+      "id": "db4635ca-2424-432f-b9f7-f487f5e39fd4"
+    },
+    {
+      "parameters": {
+        "jsCode": "const profile = $('Parse Business Profile').first().json;\n\n// Read Keyword Pool returns approved, unused keywords from the dashboard (oldest first).\nconst eligible = items.filter(item => item.json.keyword);\n\nif (eligible.length === 0) {\n  throw new Error(`No approved, unused keywords found for ${profile.client_name}`);\n}\n\nconst selected = eligible.slice(0, 25).map(item => ({\n  keyword: item.json.keyword,\n  category: item.json.category || ''\n}));\n\nreturn [{\n  json: {\n    client_name: profile.client_name,\n    site_url: profile.site_url,\n    core_services: profile.core_services,\n    industry_summary: profile.industry_summary,\n    selected\n  }\n}];"
+      },
+      "name": "Select Top 10 Unused Approved",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        32,
+        96
+      ],
+      "id": "112d09b3-b41e-4018-8bd7-688af4b7cafe"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "c1c1c1c1-0001-0001-0001-000000000001",
+              "leftValue": "={{ $json.selected.length }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "name": "If Keywords Available",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        240,
+        96
+      ],
+      "id": "378822f1-d680-405f-a7af-5971833be5e2"
+    },
+    {
+      "parameters": {
+        "jsCode": "const content = items[0].json.content;\nconst responseText = content?.parts?.find(p => p.text)?.text;\n\nif (!responseText) {\n  throw new Error('No topics text returned from Gemini');\n}\n\nconst cleaned = responseText.replace(/```json|```/g, '').trim();\nlet topics;\ntry {\n  topics = JSON.parse(cleaned);\n} catch (e) {\n  const lastComplete = cleaned.lastIndexOf('},');\n  if (lastComplete === -1) return [];\n  topics = JSON.parse(cleaned.substring(0, lastComplete + 1) + ']');\n}\n\nconst clientName = $('Select Top 10 Unused Approved').first().json.client_name;\nconst today = new Date().toISOString().split('T')[0];\n\nreturn topics.map(t => ({\n  json: {\n    client_name: clientName,\n    keyword: t.keyword,\n    category: t.category,\n    topic: t.topic,\n    angle: t.angle,\n    date_generated: today,\n    topic_status: '',\n    blog_status: ''\n  }\n}));"
+      },
+      "name": "Parse Topics",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        656,
+        0
+      ],
+      "id": "881c5564-dcb4-450a-8816-450fa387ceb3"
+    },
+    {
+      "parameters": {},
+      "name": "Wait",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        1344,
+        112
+      ],
+      "id": "044b8793-30e3-46f8-9e42-441128d3e5b0",
+      "webhookId": "98520aaf-ad3f-49f7-a4ae-8eec05a1a30d"
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "models/gemini-3-flash-preview"
+        },
+        "messages": {
+          "values": [
+            {
+              "content": "=={{ \"Read this business's website content and identify exactly what specific services, products, or courses it offers. Website content: \" + $json.data.markdown.substring(0, 1500) + \". Return ONLY a JSON object: {\\\"core_services\\\": [\\\"...\\\"], \\\"industry_summary\\\": \\\"...\\\"}. Be specific and narrow. No other text, no markdown.\" }}"
+            }
+          ]
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.googleGemini",
+      "typeVersion": 1.2,
+      "position": [
+        -640,
+        -64
+      ],
+      "id": "192f901e-589a-4c94-8a33-68aa2319d320",
+      "name": "Message a model",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "Mo0wLHIq6kmLMFBK",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "models/gemini-3-flash-preview"
+        },
+        "messages": {
+          "values": [
+            {
+              "content": "=={{ \"This businesss specific services: \" + JSON.stringify($json.core_services) + \". Niche: \" + $json.industry_summary + \". For each of these approved keywords, write one blog title and a one-sentence angle that this business could publish to target that keyword.\\n\\nTITLE RULES (follow exactly):\\n- Maximum 60 characters, counted exactly. Titles longer than this must be shortened by cutting words, never by abbreviating or removing spaces.\\n- Use simple, everyday words a general reader would understand immediately. No jargon, no industry buzzwords, no complex vocabulary.\\n- Phrase the title the way a real person would type it into Google when searching for an answer, not like a marketing headline. Favor natural question or how-to phrasing over generic noun phrases. For example, prefer How Often Should You Clean Air Ducts over The Importance of Regular Air Duct Maintenance, and prefer Is a Home Addition Worth It over Exploring the Value of Home Additions.\\n- Make the title specific enough to be genuinely interesting, not vague or generic. Avoid titles that could apply to any business in this industry - anchor it to the specific angle, problem, or decision this keyword implies.\\n- Do not use clickbait tactics like ALL CAPS, excessive punctuation, or vague teasers such as promising shocking or unbelievable information. The title should be honest about what the article delivers while still being specific enough to make someone want to click.\\n- Never repeat the keyword verbatim as the entire title if that would be awkward or robotic sounding. Rephrase it into a natural title while keeping the core search intent obvious.\\n\\nKeywords: \" + JSON.stringify($json.selected.map(k => ({ keyword: k.keyword, category: k.category }))) + \". Return ONLY a JSON array: [{\\\"keyword\\\": \\\"...\\\", \\\"category\\\": \\\"...\\\", \\\"topic\\\": \\\"...\\\", \\\"angle\\\": \\\"...\\\"}]. No other text, no markdown, no code fences.\" }}"
+            }
+          ]
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.googleGemini",
+      "typeVersion": 1.2,
+      "position": [
+        368,
+        -96
+      ],
+      "id": "223cc972-1171-4051-92cd-64d5c6afcd53",
+      "name": "Message a model1",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "Mo0wLHIq6kmLMFBK",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "",
+          "mode": "list"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "client_name": "={{ $('Read Client Config').first().json.client_name }}",
+            "site_url": "={{ $('Read Client Config').first().json.site_url }}",
+            "mode": "generate_from_approved_topics",
+            "client_id": "={{ $('Read Client Config').first().json.id }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "client_id",
+              "displayName": "client_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "client_name",
+              "displayName": "client_name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "site_url",
+              "displayName": "site_url",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "mode",
+              "displayName": "mode",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "regenerate_notes",
+              "displayName": "regenerate_notes",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "original_brief",
+              "displayName": "original_brief",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3,
+      "position": [
+        -800,
+        -192
+      ],
+      "id": "287cf6b1-6012-4008-910d-419412cf0082",
+      "name": "Call WF2 (Dashboard)",
+      "executeOnce": true
+    },
+    {
+      "parameters": {
+        "amount": 20,
+        "unit": "minutes"
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        -960,
+        -192
+      ],
+      "id": "5c886eb1-cc9c-4bed-a9d7-7d83c614c368",
+      "name": "Wait1",
+      "webhookId": "df3d58b2-a3cf-4612-a25a-75458306d656"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "dashboard-wf1",
+        "authentication": "headerAuth",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -2112,
+        192
+      ],
+      "id": "4e70d9eb-3836-4605-af4a-713426e89e38",
+      "name": "Dashboard Trigger",
+      "webhookId": "8db9044d-0dc8-47ef-bb27-48b2d5d834dc"
+    },
+    {
+      "parameters": {
+        "url": "=https://YOUR-DASHBOARD-URL/api/n8n/clients/{{ $json.body.client_id }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -1440,
+        192
+      ],
+      "id": "a9581dbe-d28c-4772-85c6-9d4411ed3552",
+      "name": "Read Client Config"
+    },
+    {
+      "parameters": {
+        "url": "=https://YOUR-DASHBOARD-URL/api/n8n/clients/{{ $('Loop Over Clients').item.json.id }}/keywords?status=approved&used=false&limit=25",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -176,
+        96
+      ],
+      "id": "b5a30551-5f08-4642-85d2-87d05351554f",
+      "name": "Read Keyword Pool",
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse Topics returns one item per topic; send them in one call.\n// The dashboard saves the topics and marks their keywords used.\nconst client = $('Loop Over Clients').first().json;\nconst topics = items\n  .filter(i => i.json.keyword && i.json.topic)\n  .map(i => ({ keyword: i.json.keyword, topic: i.json.topic, category: i.json.category || '', angle: i.json.angle || '' }));\nreturn [{ json: { client_id: client.id, topics } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        864,
+        0
+      ],
+      "id": "e3a11a1d-122e-4594-9bdf-e5627180c580",
+      "name": "Build Topics Payload"
+    },
+    {
+      "parameters": {
+        "url": "=https://YOUR-DASHBOARD-URL/api/n8n/clients/{{ $json.client_id }}/topics",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {},
+        "method": "POST",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ topics: $json.topics }) }}"
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1072,
+        0
+      ],
+      "id": "859baab6-58f6-4b4f-b882-af8e11720b50",
+      "name": "Save Topics to Dashboard"
+    }
+  ],
+  "connections": {
+    "Loop Over Clients": {
+      "main": [
+        [
+          {
+            "node": "Wait1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Firecrawl Client Scrape",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Firecrawl Client Scrape": {
+      "main": [
+        [
+          {
+            "node": "Message a model",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Business Profile": {
+      "main": [
+        [
+          {
+            "node": "Read Keyword Pool",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Select Top 10 Unused Approved": {
+      "main": [
+        [
+          {
+            "node": "If Keywords Available",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If Keywords Available": {
+      "main": [
+        [
+          {
+            "node": "Message a model1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Wait",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Topics": {
+      "main": [
+        [
+          {
+            "node": "Build Topics Payload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Clients",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Message a model": {
+      "main": [
+        [
+          {
+            "node": "Parse Business Profile",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Message a model1": {
+      "main": [
+        [
+          {
+            "node": "Parse Topics",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait1": {
+      "main": [
+        [
+          {
+            "node": "Call WF2 (Dashboard)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Dashboard Trigger": {
+      "main": [
+        [
+          {
+            "node": "Read Client Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Client Config": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Clients",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Keyword Pool": {
+      "main": [
+        [
+          {
+            "node": "Select Top 10 Unused Approved",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Topics Payload": {
+      "main": [
+        [
+          {
+            "node": "Save Topics to Dashboard",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save Topics to Dashboard": {
+      "main": [
+        [
+          {
+            "node": "Wait",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call WF2 (Dashboard)": {
+      "main": [
+        []
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "nodeGroups": []
+}
