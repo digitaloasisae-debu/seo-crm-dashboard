@@ -9,7 +9,7 @@ export const authConfig = {
     authorized({ auth, request }) {
       const isLoggedIn = !!auth?.user;
       const path = request.nextUrl.pathname;
-      if (path.startsWith("/login")) return true;
+      if (path.startsWith("/login") || path === "/privacy") return true;
       return isLoggedIn;
     },
     jwt({ token, user }) {
