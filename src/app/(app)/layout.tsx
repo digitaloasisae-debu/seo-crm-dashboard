@@ -7,6 +7,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const nav = [
     { href: "/", label: "Waiting on me" },
     { href: "/clients", label: "Clients" },
+    { href: "/seo", label: "SEO" },
     ...(user.role !== "MEMBER" ? [{ href: "/intake", label: "Intake" }, { href: "/access", label: "Access" }] : []),
     ...(user.role === "SUPER_ADMIN" ? [{ href: "/users", label: "Team" }, { href: "/import", label: "Import" }] : []),
   ];

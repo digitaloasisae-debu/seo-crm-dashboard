@@ -18,8 +18,35 @@ enum Role {
 
 enum AccessLevel {
   OWNER // the member responsible for the client
-  EDIT  // granted: can approve and push
-  VIEW  // granted: read only
+  EDIT // granted: can approve and push
+  VIEW // granted: read only
+}
+
+model SiteAudit {
+  id           String      @id @default(cuid())
+  clientId     String
+  status       AuditStatus @default(RUNNING)
+  score        Int?
+  pagesChecked Int         @default(0)
+  // PageSpeed Insights summary per strategy: { performance, seo, accessibility, bestPractices, lcpMs, cls, tbtMs, fcpMs }
+  psiMobile    Json?
+  psiDesktop   Json?
+  // [{ code, severity: "error"|"warning"|"notice", title, urls: string[], count }]
+  issues       Json?
+  error        String?
+  startedById  String?
+  startedAt    DateTime    @default(now())
+  finishedAt   DateTime?
+
+  client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@index([clientId, startedAt])
+}
+
+enum AuditStatus {
+  RUNNING
+  DONE
+  FAILED
 }
 
 model User {
@@ -32,11 +59,11 @@ model User {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  assignments      ClientAssignment[] @relation("AssignmentUser")
-  grantsGiven      ClientAssignment[] @relation("AssignmentGrantedBy")
-  accessRequests   AccessRequest[]    @relation("RequestRequester")
-  accessDecisions  AccessRequest[]    @relation("RequestDecider")
-  activity         ActivityLog[]
+  assignments     ClientAssignment[] @relation("AssignmentUser")
+  grantsGiven     ClientAssignment[] @relation("AssignmentGrantedBy")
+  accessRequests  AccessRequest[]    @relation("RequestRequester")
+  accessDecisions AccessRequest[]    @relation("RequestDecider")
+  activity        ActivityLog[]
 }
 
 model ClientAssignment {
@@ -133,6 +160,7 @@ model Client {
   keywords       Keyword[]
   topics         Topic[]
   articles       Article[]
+  audits         SiteAudit[]
 }
 
 enum CredentialKind {
@@ -231,9 +259,9 @@ model Topic {
   approvedById      String?
   generatedAt       DateTime    @default(now())
 
-  client      Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
-  keywordRow  Keyword? @relation(fields: [keywordId], references: [id], onDelete: SetNull)
-  article     Article?
+  client     Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  keywordRow Keyword? @relation(fields: [keywordId], references: [id], onDelete: SetNull)
+  article    Article?
 
   @@index([clientId, status])
 }

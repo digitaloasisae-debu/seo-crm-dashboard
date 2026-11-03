@@ -18,6 +18,7 @@ export default async function ClientLayout({ children, params }: { children: Rea
     { href: `/clients/${id}/keywords`, label: "Keywords" },
     { href: `/clients/${id}/topics`, label: "Topics" },
     { href: `/clients/${id}/articles`, label: "Articles" },
+    { href: `/clients/${id}/seo`, label: "SEO" },
     { href: `/clients/${id}/settings`, label: "Settings" },
   ];
   return (
