@@ -11,6 +11,12 @@ async function main() {
   const name = process.env.SEED_ADMIN_NAME ?? "Super Admin";
   if (!email || password.length < 10) throw new Error("Set SEED_ADMIN_EMAIL and SEED_ADMIN_PASSWORD (10+ characters) in .env");
 
+  // Once a Super Admin exists, leave accounts alone (they may have changed their email or password on the Profile page).
+  const existing = await db.user.findFirst({ where: { role: "SUPER_ADMIN" } });
+  if (existing) {
+    console.log(`Super Admin already set up: ${existing.name} <${existing.email}>`);
+    return;
+  }
   const user = await db.user.upsert({
     where: { email },
     create: { email, name, role: "SUPER_ADMIN", passwordHash: await bcrypt.hash(password, 12) },

@@ -22,9 +22,10 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           ))}
         </nav>
         <div className="flex items-center gap-3 border-t border-slate-100 px-4 py-2 text-xs text-slate-500 md:block md:p-4">
-          <div className="font-medium text-slate-700">{user.name}</div>
+          <Link href="/profile" className="font-medium text-slate-700 hover:underline md:block">{user.name}</Link>
           <div>{user.role.replace("_", " ").toLowerCase()}</div>
-          <form action={logoutAction} className="mt-2">
+          <Link href="/profile" className="text-indigo-600 hover:underline md:mt-2 md:block">My profile</Link>
+          <form action={logoutAction} className="md:mt-1">
             <button className="text-indigo-600 hover:underline">Sign out</button>
           </form>
         </div>
