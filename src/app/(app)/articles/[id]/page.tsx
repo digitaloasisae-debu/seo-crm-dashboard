@@ -47,7 +47,6 @@ export default async function ArticleReview({ params }: { params: Promise<{ id: 
             {article.topic.angle && <div><span className="text-slate-500">Angle:</span> {article.topic.angle}</div>}
             <div><span className="text-slate-500">Scheduled:</span> {fmtDate(article.postingSlot?.scheduledDate) || "next open slot at push time"}</div>
             {approver && <div><span className="text-slate-500">Approved by:</span> {approver.name} on {fmtDate(article.approvedAt)}</div>}
-            {article.reviewNote && <div className="rounded bg-amber-50 p-2 text-amber-800">Note: {article.reviewNote}</div>}
             {article.wpPostUrl && <div><a className="text-indigo-600 hover:underline" href={article.wpPostUrl} target="_blank" rel="noreferrer">Open WordPress draft #{article.wpPostId}</a></div>}
             {article.lastPushError && article.status === "PUSH_FAILED" && <div className="rounded bg-red-50 p-2 text-red-700">Push failed: {article.lastPushError}</div>}
           </section>
@@ -55,13 +54,11 @@ export default async function ArticleReview({ params }: { params: Promise<{ id: 
           {editable && !locked && (
             <section className="card space-y-3">
               <h2 className="font-semibold">Review</h2>
-              <form className="space-y-3">
-                <textarea className="input" name="note" rows={2} placeholder="Note for the team (required when requesting changes)" defaultValue={article.reviewNote ?? ""} />
-                <div className="flex flex-wrap gap-2">
-                  {article.status !== "APPROVED" && article.status !== "PUSH_FAILED" && <button formAction={reviewArticleAction.bind(null, id, "APPROVED")} className="btn-primary">Approve</button>}
-                  <button formAction={reviewArticleAction.bind(null, id, "CHANGES_REQUESTED")} className="btn-danger">Request changes</button>
-                </div>
-              </form>
+              {article.status !== "APPROVED" && article.status !== "PUSH_FAILED" && (
+                <form action={reviewArticleAction.bind(null, id, "APPROVED")}>
+                  <button className="btn-primary w-full">Approve</button>
+                </form>
+              )}
               {(article.status === "APPROVED" || article.status === "PUSH_FAILED") && (
                 <form action={pushArticleAction.bind(null, id)}>
                   <button className="btn-primary w-full" disabled={!hasCred}>{article.status === "PUSH_FAILED" ? "Retry push to WordPress" : "Push to WordPress as draft"}</button>

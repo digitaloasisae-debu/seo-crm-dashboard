@@ -32,7 +32,6 @@ export default async function TopicsPage({ params, searchParams }: { params: Pro
             <div className="flex flex-wrap items-center gap-2 border-b border-slate-200 p-3">
               <button formAction={setTopicStatusAction.bind(null, id, "APPROVED")} className="btn-primary">Approve selected</button>
               <button formAction={setTopicStatusAction.bind(null, id, "REJECTED")} className="btn-danger">Reject selected</button>
-              <input className="input max-w-sm" name="note" placeholder="Optional note (saved on the topics)" />
             </div>
           )}
           <table className="table">
@@ -44,7 +43,6 @@ export default async function TopicsPage({ params, searchParams }: { params: Pro
                   <td>
                     <div className="font-medium">{t.title}</div>
                     {t.angle && <div className="text-xs text-slate-500">{t.angle}</div>}
-                    {t.reviewNote && <div className="text-xs text-amber-700">Note: {t.reviewNote}</div>}
                   </td>
                   <td>{t.keyword}</td>
                   <td>{t.category}</td>
