@@ -20,10 +20,10 @@ export async function GET(req: NextRequest) {
     const conn = await saveConnection(p.get("code") ?? "", user.id);
     // Link every client that has no property yet to its matching Search Console property.
     const { sites } = await listSites();
-    const clients = await db.client.findMany({ where: { gscProperty: null }, select: { id: true, siteUrl: true } });
+    const clients = await db.client.findMany({ where: { gscProperty: null }, select: { id: true, siteUrl: true, gscAccount: true } });
     let linked = 0;
     for (const c of clients) {
-      const m = matchSite(c.siteUrl, sites);
+      const m = matchSite(c.siteUrl, sites, c.gscAccount);
       if (m) {
         await db.client.update({ where: { id: c.id }, data: { gscProperty: m.siteUrl, gscConnectionId: m.connectionId } });
         linked++;

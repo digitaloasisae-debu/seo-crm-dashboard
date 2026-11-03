@@ -23,9 +23,9 @@ export async function setPropertyAction(clientId: string, fd: FormData) {
 export async function autoMatchAction() {
   await requireSuperAdmin();
   const { sites } = await listSites();
-  const clients = await db.client.findMany({ where: { gscProperty: null }, select: { id: true, siteUrl: true } });
+  const clients = await db.client.findMany({ where: { gscProperty: null }, select: { id: true, siteUrl: true, gscAccount: true } });
   for (const c of clients) {
-    const m = matchSite(c.siteUrl, sites);
+    const m = matchSite(c.siteUrl, sites, c.gscAccount);
     if (m) await db.client.update({ where: { id: c.id }, data: { gscProperty: m.siteUrl, gscConnectionId: m.connectionId } });
   }
   revalidatePath("/google");

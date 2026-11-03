@@ -111,11 +111,15 @@ const bareHost = (u: string) => {
   }
 };
 
-/** Best Search Console property for a site URL: domain property first, then a URL-prefix property on the same host. */
-export function matchSite(siteUrl: string, sites: GscSite[]) {
+/** Best Search Console property for a site URL: domain property first, then a URL-prefix property on the same host.
+ *  If several connected accounts can see it, prefer the one whose email contains the client's "GSC account" label (e.g. "tom"). */
+export function matchSite(siteUrl: string, sites: GscSite[], accountLabel?: string | null) {
   const host = bareHost(siteUrl);
   if (!host) return null;
-  return sites.find((s) => s.siteUrl === `sc-domain:${host}`) ?? sites.find((s) => !s.siteUrl.startsWith("sc-domain:") && bareHost(s.siteUrl) === host) ?? null;
+  const label = (accountLabel ?? "").toLowerCase().replace(/[^a-z0-9]/g, "");
+  const score = (s: GscSite) => (label && s.email.toLowerCase().replace(/[^a-z0-9@]/g, "").includes(label) ? 0 : 1);
+  const pick = (list: GscSite[]) => list.sort((a, b) => score(a) - score(b))[0] ?? null;
+  return pick(sites.filter((s) => s.siteUrl === `sc-domain:${host}`)) ?? pick(sites.filter((s) => !s.siteUrl.startsWith("sc-domain:") && bareHost(s.siteUrl) === host));
 }
 
 // ---------- Sync ----------
