@@ -1,5 +1,6 @@
 import { LoginForm } from "./form";
-import { Icon } from "@/components/icons";
+import { LogoMark } from "@/components/logo";
+import { BRAND } from "@/lib/brand";
 
 export default function LoginPage() {
   return (
@@ -13,11 +14,9 @@ export default function LoginPage() {
       />
       <div className="relative w-full max-w-sm animate-fade-up">
         <div className="mb-6 flex flex-col items-center text-center text-white">
-          <span className="mb-4 flex h-14 w-14 animate-pop items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-400 to-fuchsia-500 shadow-2xl shadow-fuchsia-500/40">
-            <Icon name="sparkles" className="h-7 w-7" />
-          </span>
-          <h1 className="text-2xl font-bold tracking-tight">SEO Control Center</h1>
-          <p className="mt-1 text-sm text-indigo-200/70">Sign in with your team account</p>
+          <span className="mb-4 animate-pop"><LogoMark size={64} animated className="drop-shadow-[0_12px_30px_rgba(217,70,239,0.45)]" /></span>
+          <h1 className="text-3xl font-bold tracking-tight">{BRAND.name.slice(0, 4)}<span className="bg-gradient-to-r from-indigo-300 to-fuchsia-300 bg-clip-text text-transparent">{BRAND.name.slice(4)}</span></h1>
+          <p className="mt-1 text-sm text-indigo-200/70">{BRAND.tagline}</p>
         </div>
         <div className="rounded-3xl border border-white/10 bg-white/95 p-6 shadow-2xl shadow-black/40 backdrop-blur-xl">
           <LoginForm />

@@ -3,6 +3,7 @@ import { requireUser } from "@/lib/session";
 import { logoutAction } from "../actions";
 import { SideNav, type NavItem } from "@/components/nav";
 import { Icon } from "@/components/icons";
+import { Logo } from "@/components/logo";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const user = await requireUser();
@@ -30,14 +31,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       <aside className="relative z-10 overflow-hidden bg-gradient-to-b from-slate-950 via-indigo-950 to-slate-950 text-white md:sticky md:top-0 md:flex md:h-screen md:w-60 md:shrink-0 md:flex-col">
         <div className="pointer-events-none absolute -top-24 -left-20 h-64 w-64 animate-float rounded-full bg-indigo-500/25 blur-3xl" />
         <div className="pointer-events-none absolute -bottom-24 -right-24 h-64 w-64 animate-float rounded-full bg-fuchsia-500/15 blur-3xl [animation-delay:-7s]" />
-        <Link href="/" className="relative flex items-center gap-2.5 px-5 py-5">
-          <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-400 to-fuchsia-500 shadow-lg shadow-fuchsia-500/30">
-            <Icon name="sparkles" className="h-4 w-4 text-white" />
-          </span>
-          <span className="text-sm leading-tight font-semibold tracking-tight">
-            SEO Control
-            <span className="block text-[11px] font-normal text-indigo-200/60">Center</span>
-          </span>
+        <Link href="/" className="relative block px-5 py-5 transition-opacity hover:opacity-90">
+          <Logo size={34} light animated />
         </Link>
         <div className="relative md:flex-1 md:overflow-y-auto">
           <SideNav items={nav} />

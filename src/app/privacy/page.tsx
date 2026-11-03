@@ -1,4 +1,6 @@
-export const metadata = { title: "Privacy policy · SEO Control Center" };
+import { BRAND } from "@/lib/brand";
+
+export const metadata = { title: "Privacy policy" };
 
 export default function PrivacyPage() {
   return (
@@ -6,7 +8,7 @@ export default function PrivacyPage() {
       <h1 className="mb-2 text-xl font-semibold text-slate-900">Privacy policy</h1>
       <p className="mb-4 text-slate-500">Last updated 3 November 2026</p>
       <p className="mb-3">
-        SEO Control Center is a private internal tool used by Digital Oasis and its team to manage SEO and content work for
+        {BRAND.name} is a private internal tool used by Digital Oasis and its team to manage SEO and content work for
         their clients. It is not offered to the public.
       </p>
       <h2 className="mt-5 mb-1 font-semibold text-slate-900">Google data</h2>
