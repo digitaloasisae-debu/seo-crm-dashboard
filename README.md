@@ -90,13 +90,14 @@ After that call the article waits on the review screen. When someone approves it
 
 ## 5. Import the existing Google Sheet
 
-1. Export these tabs as CSV into a folder named `imports/` in the project: `Client Config.csv`, every `Keyword Pool - <Client>.csv` and every `Topic Queue - <Client>.csv`. Keep Google's default file names, which are the tab names.
-2. Dry run: `npm run import:sheets`. It prints counts and any rows that don't map. Nothing is written.
-3. Import: `npm run import:sheets -- --commit`. Passwords are encrypted on the way in, and re-running skips what's already there.
-4. Topics already marked "Drafted" are imported as pushed articles, linked to their WordPress post, so they aren't written twice.
-5. Delete the `imports/` folder afterwards, because `Client Config.csv` contains plain-text passwords.
+1. Add the team on the **Team** page first (Sana, Aiman, Ambreen, Talhat…). Each client is assigned to the person named in its "Submitted By" column, matched by name.
+2. In Google Sheets: **File → Download → Microsoft Excel (.xlsx)**.
+3. In the dashboard (Super Admin): **Import** → choose the file → **Preview**. It lists every client with its keyword and topic counts, the team matches, and anything to check. Nothing is saved.
+4. Click **Import**. WordPress passwords are encrypted on the way in. Re-running skips what's already there, so it's safe to import again after adding a missing team member.
+5. Topics marked "Drafted" become pushed articles so they're never written twice. Blank keyword statuses count as approved (same rule as Tally keywords). The "Brand Profiles" tab isn't imported yet.
+6. Delete the downloaded file afterwards, because it contains plain-text passwords.
 
-Suggested cutover: import the sheet, run one monthly cycle with n8n on the API while the sheet stays read-only, then switch the Tally webhooks and archive the sheet.
+Command-line alternative: `npm run import:sheets -- "file.xlsx"` (preview) and add `--commit` to import.
 
 ## How access works
 

@@ -8,7 +8,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     { href: "/", label: "Waiting on me" },
     { href: "/clients", label: "Clients" },
     ...(user.role !== "MEMBER" ? [{ href: "/intake", label: "Intake" }, { href: "/access", label: "Access" }] : []),
-    ...(user.role === "SUPER_ADMIN" ? [{ href: "/users", label: "Team" }] : []),
+    ...(user.role === "SUPER_ADMIN" ? [{ href: "/users", label: "Team" }, { href: "/import", label: "Import" }] : []),
   ];
   return (
     <div className="min-h-screen md:flex">
