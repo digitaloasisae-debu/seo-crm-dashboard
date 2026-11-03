@@ -20,6 +20,7 @@ export default async function ClientLayout({ children, params }: { children: Rea
     { href: `/clients/${id}/topics`, label: "Topics", icon: "lightbulb" as const },
     { href: `/clients/${id}/articles`, label: "Articles", icon: "file" as const },
     { href: `/clients/${id}/seo`, label: "SEO", icon: "chart" as const },
+    { href: `/clients/${id}/brain`, label: "Brain", icon: "sparkles" as const },
     { href: `/clients/${id}/settings`, label: "Settings", icon: "shield" as const },
   ];
   const initials = client.name.split(/\s+/).map((w) => w[0]).slice(0, 2).join("").toUpperCase();

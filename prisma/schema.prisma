@@ -121,6 +121,7 @@ model User {
   accessRequests  AccessRequest[]    @relation("RequestRequester")
   accessDecisions AccessRequest[]    @relation("RequestDecider")
   activity        ActivityLog[]
+  articleNotes    ArticleNote[]
 }
 
 model ClientAssignment {
@@ -211,6 +212,7 @@ model Client {
   updatedAt           DateTime     @updatedAt
 
   credentials     ClientCredential[]
+  brain           ClientBrain?
   assignments     ClientAssignment[]
   accessRequests  AccessRequest[]
   postingSlots    PostingSlot[]
@@ -364,11 +366,62 @@ model Article {
   createdAt        DateTime      @default(now())
   updatedAt        DateTime      @updatedAt
 
-  client      Client       @relation(fields: [clientId], references: [id], onDelete: Cascade)
-  topic       Topic        @relation(fields: [topicId], references: [id], onDelete: Cascade)
+  qualityScore     Int?
+  qualityReport    Json?
+  qualityCheckedAt DateTime?
+  aiReviewedAt     DateTime?
+
+  client      Client        @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  topic       Topic         @relation(fields: [topicId], references: [id], onDelete: Cascade)
   postingSlot PostingSlot?
+  notes       ArticleNote[]
 
   @@index([clientId, status])
+}
+
+enum NoteKind {
+  GENERAL
+  CONTENT
+  TITLE
+  IMAGE
+}
+
+/// Feedback a team member leaves on an article. Each note teaches the client's brain.
+model ArticleNote {
+  id        String    @id @default(cuid())
+  articleId String
+  clientId  String
+  authorId  String?
+  kind      NoteKind  @default(GENERAL)
+  quote     String?
+  body      String
+  learnedAt DateTime?
+  createdAt DateTime  @default(now())
+
+  article Article @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  author  User?   @relation(fields: [authorId], references: [id], onDelete: SetNull)
+
+  @@index([clientId, createdAt])
+}
+
+/// The per-client learning agent's memory: rules distilled from notes, edits and results. Sent to n8n with every article job.
+model ClientBrain {
+  clientId      String    @id
+  rules         String    @default("")
+  version       Int       @default(0)
+  lastLearnedAt DateTime?
+  lastError     String?
+  updatedById   String?
+  updatedAt     DateTime  @updatedAt
+
+  client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+}
+
+/// Small key/value settings editable in the app (e.g. the SOP text).
+model AppSetting {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
 }
 
 // ---------- Intake & audit ----------

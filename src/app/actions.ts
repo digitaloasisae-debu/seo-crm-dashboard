@@ -10,6 +10,9 @@ import { encryptSecret } from "@/lib/crypto";
 import { logActivity } from "@/lib/activity";
 import { canEdit, requireClientAccess } from "@/lib/access";
 import { requireAdmin, requireSuperAdmin, requireUser } from "@/lib/session";
+import { runQuality } from "@/lib/quality";
+import { learn } from "@/lib/brain";
+import { after as afterResponse } from "next/server";
 import { addKeywords, processSubmission } from "@/lib/intake";
 import { ensureSlots } from "@/lib/posting";
 import { pushArticle, testConnection } from "@/lib/wordpress";
@@ -258,7 +261,73 @@ export async function saveArticleAction(articleId: string, fd: FormData) {
     },
   });
   await logActivity({ actorId: user.id, clientId: article.clientId, action: "article.edit", entity: "article", entityId: articleId, before: { metaTitle: article.metaTitle, slug: article.slug }, after: { metaTitle: after.metaTitle, slug: after.slug } });
+  await runQuality(articleId).catch(() => null);
   revalidatePath(`/articles/${articleId}`);
+}
+
+// ---------- SOP checker, notes and the client brain ----------
+
+export async function runAiReviewAction(articleId: string) {
+  const user = await requireUser();
+  const article = await db.article.findUniqueOrThrow({ where: { id: articleId }, select: { clientId: true } });
+  await requireClientAccess(user, article.clientId, "edit");
+  await runQuality(articleId, { ai: true });
+  revalidatePath(`/articles/${articleId}`);
+}
+
+export async function addNoteAction(articleId: string, _prev: string | null, fd: FormData): Promise<string | null> {
+  const user = await requireUser();
+  const article = await db.article.findUniqueOrThrow({ where: { id: articleId }, select: { clientId: true } });
+  await requireClientAccess(user, article.clientId, "view");
+  const body = str(fd, "body");
+  if (body.length < 3) return "Write a note first";
+  const kind = (["GENERAL", "CONTENT", "TITLE", "IMAGE"].includes(str(fd, "kind")) ? str(fd, "kind") : "GENERAL") as "GENERAL" | "CONTENT" | "TITLE" | "IMAGE";
+  await db.articleNote.create({ data: { articleId, clientId: article.clientId, authorId: user.id, kind, quote: str(fd, "quote") || null, body } });
+  await logActivity({ actorId: user.id, clientId: article.clientId, action: "note.add", entity: "article", entityId: articleId });
+  // Teach the client's brain in the background.
+  afterResponse(() => learn(article.clientId).catch((e) => console.error("brain.learn_failed", article.clientId, e)));
+  revalidatePath(`/articles/${articleId}`);
+  return null;
+}
+
+export async function deleteNoteAction(noteId: string) {
+  const user = await requireUser();
+  const note = await db.articleNote.findUniqueOrThrow({ where: { id: noteId } });
+  if (note.authorId !== user.id && user.role === "MEMBER") throw new Error("You can only delete your own notes");
+  await requireClientAccess(user, note.clientId, "view");
+  await db.articleNote.delete({ where: { id: noteId } });
+  revalidatePath(`/articles/${note.articleId}`);
+}
+
+export async function saveBrainAction(clientId: string, fd: FormData) {
+  const user = await requireUser();
+  await requireClientAccess(user, clientId, "edit");
+  const rules = String(fd.get("rules") ?? "").slice(0, 20000);
+  await db.clientBrain.upsert({ where: { clientId }, create: { clientId, rules, version: 1, updatedById: user.id }, update: { rules, version: { increment: 1 }, updatedById: user.id } });
+  await logActivity({ actorId: user.id, clientId, action: "brain.edit", entity: "client", entityId: clientId });
+  revalidatePath(`/clients/${clientId}/brain`);
+}
+
+export async function relearnBrainAction(clientId: string, all: boolean) {
+  const user = await requireUser();
+  await requireClientAccess(user, clientId, "edit");
+  let result = "ok";
+  try {
+    const r = await learn(clientId, { all });
+    result = r.skipped ? "nothing" : `ok:${r.changes.length}`;
+  } catch (e) {
+    result = `err:${e instanceof Error ? e.message : String(e)}`;
+  }
+  redirect(`/clients/${clientId}/brain?learn=${encodeURIComponent(result)}`);
+}
+
+export async function saveSopAction(fd: FormData) {
+  const user = await requireSuperAdmin();
+  const value = String(fd.get("sop") ?? "").trim();
+  if (value) await db.appSetting.upsert({ where: { key: "sop" }, create: { key: "sop", value }, update: { value } });
+  else await db.appSetting.deleteMany({ where: { key: "sop" } });
+  await logActivity({ actorId: user.id, action: "sop.edit", entity: "setting", entityId: "sop" });
+  revalidatePath("/sop");
 }
 
 export async function reviewArticleAction(articleId: string, decision: "APPROVED" | "CHANGES_REQUESTED", fd: FormData) {

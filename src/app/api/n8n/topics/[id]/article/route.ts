@@ -1,10 +1,13 @@
-import { NextResponse, type NextRequest } from "next/server";
+import { after, NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { logActivity } from "@/lib/activity";
 import { toSafeHtml } from "@/lib/content";
 import { checkN8nAuth } from "@/lib/n8n";
 import { slugify } from "@/lib/utils";
+import { runQuality } from "@/lib/quality";
+
+export const maxDuration = 60;
 
 const Body = z
   .object({
@@ -49,7 +52,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     update: data,
   });
   await logActivity({ actorTag: "n8n", clientId: topic.clientId, action: "article.ready", entity: "article", entityId: article.id });
+  // SOP check: rules now (fast), AI review after the response so n8n isn't kept waiting.
+  const quality = await runQuality(article.id).catch(() => null);
+  after(() => runQuality(article.id, { ai: true }).catch((e) => console.error("quality.ai_failed", article.id, e)));
 
   const url = process.env.APP_URL ? `${process.env.APP_URL.replace(/\/$/, "")}/articles/${article.id}` : undefined;
-  return NextResponse.json({ article_id: article.id, status: article.status, review_url: url });
+  return NextResponse.json({ article_id: article.id, status: article.status, review_url: url, sop_score: quality?.score ?? null });
 }

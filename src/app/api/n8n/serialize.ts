@@ -1,10 +1,10 @@
-import type { Client } from "@prisma/client";
+import type { Client, ClientBrain } from "@prisma/client";
 
 /**
  * Client profile for n8n, with the same field names the "Client Config" sheet used,
  * so existing Code nodes keep working. WordPress credentials are never included.
  */
-export function clientForN8n(c: Client) {
+export function clientForN8n(c: Client & { brain?: ClientBrain | null }) {
   return {
     id: c.id,
     slug: c.slug,
@@ -35,5 +35,7 @@ export function clientForN8n(c: Client) {
     brand_secondary_color: c.brandSecondaryColor ?? "",
     brand_accent_color: c.brandAccentColor ?? "",
     logo_url: c.logoUrl ?? "",
+    // The client's learning agent: rules distilled from the team's notes. Add this to the WF2 writing prompt.
+    brand_brain: c.brain?.rules ?? "",
   };
 }

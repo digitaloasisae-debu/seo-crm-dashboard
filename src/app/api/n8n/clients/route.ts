@@ -11,6 +11,7 @@ export async function GET(req: NextRequest) {
   const clients = await db.client.findMany({
     where: activeOnly ? { status: "ACTIVE" } : {},
     orderBy: { name: "asc" },
+    include: { brain: true },
   });
-  return NextResponse.json(clients.map(clientForN8n));
+  return NextResponse.json(clients.map((c) => clientForN8n(c)));
 }

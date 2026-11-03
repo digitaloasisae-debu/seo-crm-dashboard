@@ -5,7 +5,11 @@ import { accessLevel } from "@/lib/access";
 import { requireUser } from "@/lib/session";
 import { Field, StatusBadge } from "@/components/ui";
 import { fmtDate } from "@/lib/utils";
-import { pushArticleAction, reviewArticleAction, saveArticleAction } from "../../../actions";
+import { addNoteAction, deleteNoteAction, pushArticleAction, reviewArticleAction, runAiReviewAction, saveArticleAction } from "../../../actions";
+import { QualityCard } from "@/components/quality-card";
+import { NoteForm } from "./note-form";
+import { runQuality, type QualityReport } from "@/lib/quality";
+import { geminiConfigured } from "@/lib/gemini";
 import { SubmitButton } from "@/components/submit-button";
 
 export const maxDuration = 60; // WordPress push with retries and image upload
@@ -15,9 +19,14 @@ export default async function ArticleReview({ params }: { params: Promise<{ id: 
   const user = await requireUser();
   const article = await db.article.findUnique({
     where: { id },
-    include: { client: true, topic: true, postingSlot: true },
+    include: { client: true, topic: true, postingSlot: true, notes: { include: { author: { select: { name: true } } }, orderBy: { createdAt: "desc" } } },
   });
   if (!article) notFound();
+  // Articles from before the SOP checker existed get checked on first view.
+  if (!article.qualityReport && article.bodyHtml.length > 400) {
+    const q = await runQuality(article.id).catch(() => null);
+    if (q) { article.qualityScore = q.score; article.qualityReport = q.report as never; article.qualityCheckedAt = new Date(); }
+  }
   const level = await accessLevel(user, article.clientId);
   if (!level) notFound();
   const editable = level !== "VIEW";
@@ -29,7 +38,7 @@ export default async function ArticleReview({ params }: { params: Promise<{ id: 
     <>
       <div className="mb-4 text-sm"><Link className="text-indigo-600 hover:underline" href={`/clients/${article.clientId}/articles`}>← {article.client.name}</Link></div>
       <div className="mb-6 flex flex-wrap items-center gap-3">
-        <h1 className="text-2xl font-semibold">{article.metaTitle}</h1>
+        <h1 className="bg-gradient-to-r from-slate-900 via-indigo-900 to-violet-800 bg-clip-text text-2xl font-bold tracking-tight text-transparent">{article.metaTitle}</h1>
         <StatusBadge status={article.status} />
       </div>
 
@@ -68,6 +77,41 @@ export default async function ArticleReview({ params }: { params: Promise<{ id: 
               )}
             </section>
           )}
+
+          <section className="card space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="font-semibold">Notes</h2>
+              <span className="text-xs text-slate-400">{article.notes.length} note{article.notes.length === 1 ? "" : "s"}</span>
+            </div>
+            <NoteForm action={addNoteAction.bind(null, id)} />
+            {article.notes.length > 0 && (
+              <ul className="stagger space-y-2">
+                {article.notes.map((n) => (
+                  <li key={n.id} className="group rounded-xl border border-slate-100 bg-slate-50/60 p-3 text-sm">
+                    <div className="mb-1 flex items-center gap-2 text-xs text-slate-500">
+                      <span className="font-semibold text-slate-700">{n.author?.name ?? "Someone"}</span>
+                      <span>· {n.kind.toLowerCase()}</span>
+                      <span>· {fmtDate(n.createdAt)}</span>
+                      {n.learnedAt ? <span className="ml-auto rounded-full bg-violet-50 px-2 py-0.5 text-violet-700" title="The client's brain has learned from this note">🧠 learned</span> : <span className="ml-auto text-slate-400">learning…</span>}
+                      {(n.authorId === user.id || user.role !== "MEMBER") && (
+                        <form action={deleteNoteAction.bind(null, n.id)}><button className="cursor-pointer text-slate-300 opacity-0 transition group-hover:opacity-100 hover:text-red-600" title="Delete note">✕</button></form>
+                      )}
+                    </div>
+                    {n.quote && <blockquote className="mb-1 border-l-2 border-indigo-200 pl-2 text-xs text-slate-500 italic">{n.quote}</blockquote>}
+                    <p className="text-slate-800">{n.body}</p>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+          <QualityCard
+            score={article.qualityScore}
+            report={article.qualityReport as unknown as QualityReport | null}
+            checkedAt={article.qualityCheckedAt}
+            aiAction={runAiReviewAction.bind(null, id)}
+            canRun={editable}
+            aiReady={geminiConfigured()}
+          />
 
           {editable && !locked && (
             <form action={saveArticleAction.bind(null, id)} className="card space-y-3">
