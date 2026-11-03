@@ -6,6 +6,7 @@ import { fmtDate } from "@/lib/utils";
 import type { Issue, PsiSummary } from "@/lib/audit";
 import { runAuditAction } from "./actions";
 import { RunButton } from "./run-button";
+import { SearchPerformance } from "./search-performance";
 
 export const maxDuration = 60;
 
@@ -54,6 +55,7 @@ export default async function ClientSeo({ params }: { params: Promise<{ id: stri
 
   return (
     <div className="space-y-6">
+      <SearchPerformance clientId={id} editable={editable} />
       <section className="card flex flex-wrap items-center justify-between gap-4">
         <div>
           <h2 className="font-semibold">Site audit</h2>

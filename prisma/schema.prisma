@@ -49,6 +49,63 @@ enum AuditStatus {
   FAILED
 }
 
+// ---------- Google Search Console ----------
+
+model GoogleConnection {
+  id               String   @id @default(cuid())
+  email            String   @unique
+  refreshEncrypted String
+  iv               String
+  keyVersion       Int
+  connectedById    String?
+  lastError        String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  clients Client[]
+}
+
+// Daily site totals, for trend charts.
+model GscDaily {
+  clientId    String
+  date        DateTime @db.Date
+  clicks      Int
+  impressions Int
+  position    Float
+
+  client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@id([clientId, date])
+}
+
+// Top queries per week (week = Monday). Position is impression-weighted when summed.
+model GscQueryWeek {
+  clientId    String
+  weekStart   DateTime @db.Date
+  query       String
+  clicks      Int
+  impressions Int
+  position    Float
+
+  client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@id([clientId, weekStart, query])
+  @@index([clientId, query])
+}
+
+// Top pages over the latest 28 days (replaced on each sync).
+model GscPage {
+  clientId    String
+  page        String
+  clicks      Int
+  impressions Int
+  position    Float
+
+  client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@id([clientId, page])
+}
+
 model User {
   id           String   @id @default(cuid())
   name         String
@@ -153,14 +210,22 @@ model Client {
   createdAt           DateTime     @default(now())
   updatedAt           DateTime     @updatedAt
 
-  credentials    ClientCredential[]
-  assignments    ClientAssignment[]
-  accessRequests AccessRequest[]
-  postingSlots   PostingSlot[]
-  keywords       Keyword[]
-  topics         Topic[]
-  articles       Article[]
-  audits         SiteAudit[]
+  credentials     ClientCredential[]
+  assignments     ClientAssignment[]
+  accessRequests  AccessRequest[]
+  postingSlots    PostingSlot[]
+  keywords        Keyword[]
+  topics          Topic[]
+  articles        Article[]
+  audits          SiteAudit[]
+  gscProperty     String?
+  gscConnectionId String?
+  gscSyncedAt     DateTime?
+  gscError        String?
+  gscConnection   GoogleConnection?  @relation(fields: [gscConnectionId], references: [id], onDelete: SetNull)
+  gscDaily        GscDaily[]
+  gscQueries      GscQueryWeek[]
+  gscPages        GscPage[]
 }
 
 enum CredentialKind {

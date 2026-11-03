@@ -3,13 +3,15 @@ import { canEdit } from "@/lib/access";
 import { requireUser } from "@/lib/session";
 import { Empty, StatusBadge } from "@/components/ui";
 import { fmtDate } from "@/lib/utils";
+import { keywordPositions } from "@/lib/gsc-report";
 import { addKeywordsAction, deleteKeywordsAction, setKeywordStatusAction } from "../../../../actions";
 
 export default async function KeywordsPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ status?: string; used?: string }> }) {
   const { id } = await params;
   const { status, used } = await searchParams;
   const user = await requireUser();
-  const editable = await canEdit(user, id);
+  const [editable, ranks] = await Promise.all([canEdit(user, id), keywordPositions(id)]);
+  const hasGsc = ranks.size > 0;
   const keywords = await db.keyword.findMany({
     where: {
       clientId: id,
@@ -52,7 +54,7 @@ export default async function KeywordsPage({ params, searchParams }: { params: P
             </div>
           )}
           <table className="table">
-            <thead><tr>{editable && <th></th>}<th>Keyword</th><th>Category</th><th>Volume</th><th>KD</th><th>Status</th><th>Used</th><th>Added</th><th>Source</th></tr></thead>
+            <thead><tr>{editable && <th></th>}<th>Keyword</th><th>Category</th><th>Volume</th><th>KD</th>{hasGsc && <th title="Average Google position and clicks, last 4 weeks (Search Console)">Position</th>}{hasGsc && <th>Clicks 4w</th>}<th>Status</th><th>Used</th><th>Added</th><th>Source</th></tr></thead>
             <tbody>
               {keywords.map((k) => (
                 <tr key={k.id} className={k.used ? "text-slate-400" : ""}>
@@ -61,6 +63,8 @@ export default async function KeywordsPage({ params, searchParams }: { params: P
                   <td>{k.category}</td>
                   <td>{k.searchVolume ?? ""}</td>
                   <td>{k.difficulty ?? ""}</td>
+                  {hasGsc && <td>{ranks.get(k.keywordNorm) ? ranks.get(k.keywordNorm)!.position.toFixed(1) : <span className="text-slate-300">—</span>}</td>}
+                  {hasGsc && <td>{ranks.get(k.keywordNorm)?.clicks ?? ""}</td>}
                   <td><StatusBadge status={k.status} /></td>
                   <td>{k.used ? fmtDate(k.usedAt) || "yes" : ""}</td>
                   <td>{fmtDate(k.addedAt)}</td>

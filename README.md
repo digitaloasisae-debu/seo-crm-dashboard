@@ -99,6 +99,20 @@ After that call the article waits on the review screen. When someone approves it
 
 Command-line alternative: `npm run import:sheets -- "file.xlsx"` (preview) and add `--commit` to import.
 
+## 6. SEO: site audits and Search Console
+
+**Site audit** (each client's SEO tab, "Run audit"): reads robots.txt and the sitemap, checks up to 25 pages (titles, meta descriptions, H1s, canonicals, alt text, thin content, noindex, broken links up to 60 URLs) and runs PageSpeed Insights for mobile and desktop. Set `PAGESPEED_API_KEY` or Google rate-limits PageSpeed. The overview of every client is on the **SEO** page.
+
+**Search Console** (keyword performance):
+
+1. Google Cloud: enable the **Google Search Console API** and **PageSpeed Insights API**.
+2. OAuth consent screen: External, add the `webmasters.readonly` scope, then **Publish app** (in Testing mode Google expires the connection after 7 days).
+3. Credentials → OAuth client → Web application, redirect URI `<APP_URL>/api/google/callback`.
+4. Set `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` and `CRON_SECRET` in Vercel and redeploy.
+5. Super Admin → **Google** → Connect. Clients are linked to their property by domain automatically; fix any others with the dropdown. Several Google accounts can be connected.
+
+A daily Vercel cron (`/api/cron/gsc`, 05:00 UTC) refreshes the data; anyone with edit access can also press "Refresh now". Each client stores 90 days of daily totals, weekly top 250 queries and the top 100 pages. Keyword pages show the current Search Console position and clicks for each pool keyword.
+
 ## How access works
 
 | Capability | Super Admin | Admin | Member |
@@ -137,13 +151,14 @@ src/lib/wordpress.ts        test connection + draft push
 src/app/api/webhooks/tally  Tally endpoints
 src/app/api/n8n             n8n API
 src/app/(app)               dashboard screens
+src/lib/audit.ts            site audit + PageSpeed
+src/lib/google.ts           Google OAuth + Search Console sync
 src/app/actions.ts          all form actions (approve, push, assign…)
 ```
 
 ## Not in this version (next phases)
 
 - DataForSEO rank tracking and SERP metrics
-- Google Search Console clicks, impressions and indexing (the `gscAccount` field is already captured)
-- PageSpeed Insights / Lighthouse audits
+- URL inspection / indexing status from Search Console
 - Email notifications and client-facing reports
 - Background queue (Inngest) for pushes. Today a push runs in the request with 3 retries, up to 60 seconds.
