@@ -1,37 +1,38 @@
 import { BRAND } from "@/lib/brand";
 
 /**
- * Logo mark: three rising bars (rankings) with a flowing arrow sweeping up through them
- * (the keyword → topic → article → ranking pipeline), on an indigo-to-fuchsia tile.
+ * Logo mark ("Search Page"): a magnifying glass whose lens holds a blog page,
+ * with the top line in gold for the #1 result. Blog content that gets found on Google.
  */
 export function LogoMark({ size = 36, animated = false, className = "" }: { size?: number; animated?: boolean; className?: string }) {
   const id = `lg${size}`;
+  const a = (cls: string) => (animated ? cls : "");
   return (
-    <svg width={size} height={size} viewBox="0 0 48 48" className={className} aria-hidden>
+    <svg width={size} height={size} viewBox="0 0 64 64" className={className} aria-hidden>
       <defs>
-        <linearGradient id={`${id}-bg`} x1="0" y1="0" x2="48" y2="48" gradientUnits="userSpaceOnUse">
-          <stop offset="0" stopColor="#6366F1" />
-          <stop offset="0.55" stopColor="#8B5CF6" />
-          <stop offset="1" stopColor="#D946EF" />
+        <linearGradient id={`${id}-bg`} x1="0" y1="0" x2="64" y2="64" gradientUnits="userSpaceOnUse">
+          <stop offset="0" stopColor="#4F46E5" />
+          <stop offset="0.6" stopColor="#7C3AED" />
+          <stop offset="1" stopColor="#C026D3" />
         </linearGradient>
-        <linearGradient id={`${id}-shine`} x1="24" y1="0" x2="24" y2="30" gradientUnits="userSpaceOnUse">
-          <stop offset="0" stopColor="#fff" stopOpacity="0.35" />
+        <linearGradient id={`${id}-gold`} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor="#FDE68A" />
+          <stop offset="1" stopColor="#F59E0B" />
+        </linearGradient>
+        <linearGradient id={`${id}-shine`} x1="32" y1="0" x2="32" y2="34" gradientUnits="userSpaceOnUse">
+          <stop offset="0" stopColor="#fff" stopOpacity="0.28" />
           <stop offset="1" stopColor="#fff" stopOpacity="0" />
         </linearGradient>
       </defs>
-      <rect width="48" height="48" rx="13" fill={`url(#${id}-bg)`} />
-      <rect width="48" height="26" rx="13" fill={`url(#${id}-shine)`} />
-      <g fill="#fff" fillOpacity="0.38">
-        <rect x="11" y="28" width="6" height="9" rx="2" className={animated ? "logo-bar [animation-delay:0ms]" : ""} />
-        <rect x="21" y="22" width="6" height="15" rx="2" className={animated ? "logo-bar [animation-delay:120ms]" : ""} />
-        <rect x="31" y="15" width="6" height="22" rx="2" className={animated ? "logo-bar [animation-delay:240ms]" : ""} />
+      <rect width="64" height="64" rx="16" fill={`url(#${id}-bg)`} />
+      <rect width="64" height="34" rx="16" fill={`url(#${id}-shine)`} />
+      <g className={a("logo-lens")}>
+        <path d="M39 39 L49 49" stroke="#fff" strokeWidth="6" strokeLinecap="round" />
+        <circle cx="28" cy="28" r="15" fill="#fff" />
       </g>
-      <path
-        d="M9 31.5C15 31.5 17 23 24 23S31 13.5 38 12.5"
-        fill="none" stroke="#fff" strokeWidth="3.4" strokeLinecap="round"
-        className={animated ? "logo-flow" : ""}
-      />
-      <path d="M33.2 10.6 38.6 12.2 36.6 17.4" fill="none" stroke="#fff" strokeWidth="3.4" strokeLinecap="round" strokeLinejoin="round" />
+      <rect x="19.5" y="20" width="17" height="4.4" rx="2.2" fill={`url(#${id}-gold)`} className={a("logo-line [animation-delay:450ms]")} />
+      <rect x="19.5" y="27" width="13" height="3" rx="1.5" fill="#C7D2FE" className={a("logo-line [animation-delay:600ms]")} />
+      <rect x="19.5" y="32.5" width="15" height="3" rx="1.5" fill="#C7D2FE" className={a("logo-line [animation-delay:720ms]")} />
     </svg>
   );
 }

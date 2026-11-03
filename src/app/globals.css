@@ -130,8 +130,8 @@ details[open] > *:not(summary) { @apply animate-fade-in; }
 
 @keyframes ring-draw { from { stroke-dashoffset: var(--ring-c); } }
 
-/* Logo animation: bars grow, then the arrow draws itself */
-.logo-bar { transform-box: fill-box; transform-origin: bottom; animation: logo-bar 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) both; }
-.logo-flow { stroke-dasharray: 40; animation: logo-flow 0.9s 0.35s cubic-bezier(0.22, 1, 0.36, 1) both; }
-@keyframes logo-bar { from { transform: scaleY(0); } }
-@keyframes logo-flow { from { stroke-dashoffset: 40; } to { stroke-dashoffset: 0; } }
+/* Logo animation: the lens pops in, then the blog lines write themselves (gold #1 line first) */
+.logo-lens { transform-box: view-box; transform-origin: 28px 28px; animation: logo-lens 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) both; }
+.logo-line { transform-box: fill-box; transform-origin: left; animation: logo-line 0.5s cubic-bezier(0.22, 1, 0.36, 1) both; }
+@keyframes logo-lens { from { transform: scale(0.4) rotate(-20deg); opacity: 0; } }
+@keyframes logo-line { from { transform: scaleX(0); } }
