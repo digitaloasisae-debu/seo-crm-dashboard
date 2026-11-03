@@ -25,11 +25,21 @@ export function checkN8nAuth(req: NextRequest): NextResponse | null {
 export async function triggerN8n(which: "WF1" | "WF2", body: Record<string, unknown>) {
   const url = which === "WF1" ? process.env.N8N_WF1_WEBHOOK_URL : process.env.N8N_WF2_WEBHOOK_URL;
   if (!url) throw new Error(`${which === "WF1" ? "N8N_WF1_WEBHOOK_URL" : "N8N_WF2_WEBHOOK_URL"} is not configured`);
-  const res = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${process.env.N8N_API_TOKEN ?? ""}` },
-    body: JSON.stringify(body),
-    signal: AbortSignal.timeout(15_000),
-  });
-  if (!res.ok) throw new Error(`n8n responded ${res.status}`);
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${process.env.N8N_API_TOKEN ?? ""}` },
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(15_000),
+    });
+  } catch (e) {
+    const cause = e instanceof Error && e.cause instanceof Error ? e.cause.message : "";
+    const msg = e instanceof Error ? e.message : String(e);
+    throw new Error(`Could not reach n8n at ${new URL(url).host}: ${cause || msg}`);
+  }
+  if (!res.ok) {
+    const text = (await res.text().catch(() => "")).replace(/\s+/g, " ").slice(0, 200);
+    throw new Error(`n8n responded ${res.status}${text ? `: ${text}` : ""}`);
+  }
 }

@@ -211,9 +211,18 @@ export async function editTopicAction(topicId: string, fd: FormData) {
 export async function runN8nAction(clientId: string, which: "WF1" | "WF2") {
   const user = await requireUser();
   await requireClientAccess(user, clientId, "edit");
-  await triggerN8n(which, { client_id: clientId, requested_by: user.email });
-  await logActivity({ actorId: user.id, clientId, action: `n8n.trigger_${which.toLowerCase()}`, entity: "client", entityId: clientId });
+  let result: string;
+  try {
+    await triggerN8n(which, { client_id: clientId, requested_by: user.email });
+    await logActivity({ actorId: user.id, clientId, action: `n8n.trigger_${which.toLowerCase()}`, entity: "client", entityId: clientId });
+    result = `ok:${which}`;
+  } catch (e) {
+    const error = e instanceof Error ? e.message : String(e);
+    await logActivity({ actorId: user.id, clientId, action: `n8n.trigger_${which.toLowerCase()}_failed`, entity: "client", entityId: clientId, after: { error } });
+    result = `${which} failed: ${error}`;
+  }
   revalidatePath(`/clients/${clientId}`, "layout");
+  redirect(`/clients/${clientId}?n8n=${encodeURIComponent(result)}`);
 }
 
 // ---------- Articles ----------
