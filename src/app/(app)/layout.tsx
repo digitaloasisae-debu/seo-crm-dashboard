@@ -16,11 +16,11 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       ? ([
           { href: "/intake", label: "Intake", icon: "zap", group: "Admin" },
           { href: "/access", label: "Access", icon: "key", group: "Admin" },
+          { href: "/users", label: "Team", icon: "users", group: "Admin" },
         ] as NavItem[])
       : []),
     ...(user.role === "SUPER_ADMIN"
       ? ([
-          { href: "/users", label: "Team", icon: "users", group: "Admin" },
           { href: "/google", label: "Google", icon: "globe", group: "Admin" },
           { href: "/import", label: "Import", icon: "upload", group: "Admin" },
         ] as NavItem[])

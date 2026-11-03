@@ -1,13 +1,14 @@
 import { db } from "@/lib/db";
-import { requireSuperAdmin } from "@/lib/session";
+import { requireAdmin } from "@/lib/session";
 import { Field, PageHeader } from "@/components/ui";
 import { createUserAction, updateUserAction } from "../../actions";
 import { SubmitButton } from "@/components/submit-button";
 
 export default async function UsersPage() {
-  const me = await requireSuperAdmin();
+  const me = await requireAdmin();
   const users = await db.user.findMany({ orderBy: [{ role: "asc" }, { name: "asc" }], include: { _count: { select: { assignments: true } } } });
-  const roles = ["SUPER_ADMIN", "ADMIN", "MEMBER"] as const;
+  const isSuper = me.role === "SUPER_ADMIN";
+  const roles = (isSuper ? ["SUPER_ADMIN", "ADMIN", "MEMBER"] : ["ADMIN", "MEMBER"]) as readonly string[];
 
   return (
     <>
@@ -30,6 +31,7 @@ export default async function UsersPage() {
                 <td>{u.email}</td>
                 <td>{u._count.assignments}</td>
                 <td>
+                  {!isSuper && u.role === "SUPER_ADMIN" ? <span className="text-xs text-slate-500">super admin</span> : (
                   <form action={updateUserAction.bind(null, u.id)} className="flex flex-wrap items-center gap-2">
                     <select className="input w-36" name="role" defaultValue={u.role}>
                       {roles.map((r) => <option key={r} value={r}>{r.replace("_", " ").toLowerCase()}</option>)}
@@ -38,6 +40,7 @@ export default async function UsersPage() {
                     <input className="input w-40" name="password" placeholder="New password" minLength={10} />
                     <SubmitButton className="btn-secondary">Save</SubmitButton>
                   </form>
+                  )}
                 </td>
               </tr>
             ))}

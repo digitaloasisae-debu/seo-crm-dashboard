@@ -1,7 +1,7 @@
 import { db } from "@/lib/db";
 import { canEdit } from "@/lib/access";
 import { requireUser } from "@/lib/session";
-import { Empty, StatusBadge } from "@/components/ui";
+import { Empty, KeywordLink, StatusBadge } from "@/components/ui";
 import { fmtDate } from "@/lib/utils";
 import { keywordPositions } from "@/lib/gsc-report";
 import { addKeywordsAction, deleteKeywordsAction, setKeywordStatusAction } from "../../../../actions";
@@ -60,7 +60,7 @@ export default async function KeywordsPage({ params, searchParams }: { params: P
               {keywords.map((k) => (
                 <tr key={k.id} className={k.used ? "text-slate-400" : ""}>
                   {editable && <td><input type="checkbox" name="ids" value={k.id} /></td>}
-                  <td className="font-medium">{k.keyword}</td>
+                  <td className="font-medium"><KeywordLink keyword={k.keyword} /></td>
                   <td>{k.category}</td>
                   <td>{k.searchVolume ?? ""}</td>
                   <td>{k.difficulty ?? ""}</td>

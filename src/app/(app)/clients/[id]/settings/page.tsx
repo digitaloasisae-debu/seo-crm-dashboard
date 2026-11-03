@@ -4,19 +4,20 @@ import { requireUser } from "@/lib/session";
 import { ClientForm } from "@/components/client-form";
 import { Badge, Field, StatusBadge } from "@/components/ui";
 import { fmtDate } from "@/lib/utils";
-import { saveWordpressCredentialAction, setAssignmentAction, testWordpressAction, updateClientAction } from "../../../../actions";
+import { removeAssignmentAction, saveWordpressCredentialAction, setAssignmentAction, testWordpressAction, updateClientAction } from "../../../../actions";
 import { SubmitButton } from "@/components/submit-button";
 
 export default async function ClientSettings({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const user = await requireUser();
   const isSuper = user.role === "SUPER_ADMIN";
+  const isAdmin = isSuper || user.role === "ADMIN";
   const [client, editable, cred, assignments, team] = await Promise.all([
     db.client.findUniqueOrThrow({ where: { id } }),
     canEdit(user, id),
     db.clientCredential.findUnique({ where: { clientId_kind: { clientId: id, kind: "WORDPRESS" } } }),
     db.clientAssignment.findMany({ where: { clientId: id }, include: { user: true } }),
-    isSuper ? db.user.findMany({ where: { active: true, role: { not: "SUPER_ADMIN" } }, orderBy: { name: "asc" } }) : Promise.resolve([]),
+    isAdmin ? db.user.findMany({ where: { active: true, role: { not: "SUPER_ADMIN" } }, orderBy: { name: "asc" } }) : Promise.resolve([]),
   ]);
 
   return (
@@ -44,29 +45,45 @@ export default async function ClientSettings({ params }: { params: Promise<{ id:
         )}
       </section>
 
-      {isSuper && (
+      {isAdmin && (
         <section className="card space-y-4">
-          <h2 className="font-semibold">Team access</h2>
-          <ul className="space-y-1 text-sm">
+          <div>
+            <h2 className="font-semibold">Team access</h2>
+            <p className="text-sm text-slate-500">Assign one or more members. Remove someone with the ✕ button.</p>
+          </div>
+          <ul className="stagger flex flex-wrap gap-2 text-sm">
             {assignments.map((a) => (
-              <li key={a.id} className="flex items-center gap-3"><span className="w-40">{a.user.name}</span><StatusBadge status={a.access} />{a.expiresAt && <span className="text-xs text-slate-400">until {fmtDate(a.expiresAt)}</span>}</li>
+              <li key={a.id} className="group flex items-center gap-2 rounded-full border border-slate-200 bg-white py-1 pr-1 pl-1 shadow-xs transition hover:border-indigo-200 hover:shadow-md">
+                <span className="flex h-7 w-7 items-center justify-center rounded-full bg-gradient-to-br from-indigo-400 to-violet-500 text-[11px] font-semibold text-white">{a.user.name.split(/\s+/).map((w) => w[0]).slice(0, 2).join("").toUpperCase()}</span>
+                <span className="font-medium">{a.user.name}</span>
+                <StatusBadge status={a.access} />
+                {a.expiresAt && <span className="text-xs text-slate-400">until {fmtDate(a.expiresAt)}</span>}
+                <form action={removeAssignmentAction.bind(null, id, a.userId)}>
+                  <SubmitButton title={`Remove ${a.user.name}`} className="flex h-6 w-6 cursor-pointer items-center justify-center rounded-full text-slate-400 transition hover:bg-red-50 hover:text-red-600">✕</SubmitButton>
+                </form>
+              </li>
             ))}
             {assignments.length === 0 && <li className="text-slate-500">No one assigned yet.</li>}
           </ul>
-          <form action={setAssignmentAction.bind(null, id)} className="flex flex-wrap items-end gap-3">
-            <Field label="Team member">
-              <select className="input" name="userId" required>
-                <option value="">Choose…</option>
-                {team.map((u) => <option key={u.id} value={u.id}>{u.name} ({u.role.toLowerCase()})</option>)}
-              </select>
-            </Field>
-            <Field label="Access">
-              <select className="input" name="access" defaultValue="OWNER">
-                <option value="OWNER">Owner</option><option value="EDIT">Edit</option><option value="VIEW">View</option><option value="REMOVE">Remove access</option>
-              </select>
-            </Field>
-            <Field label="Expires (optional)"><input className="input" type="date" name="expiresAt" /></Field>
-            <SubmitButton className="btn-primary">Save</SubmitButton>
+          <form action={setAssignmentAction.bind(null, id)} className="space-y-3 rounded-2xl bg-slate-50/80 p-4">
+            <div className="label">Add or change members</div>
+            <div className="flex flex-wrap gap-2">
+              {team.map((u) => (
+                <label key={u.id} className="flex cursor-pointer items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-sm transition select-none hover:border-indigo-300 has-[:checked]:border-indigo-500 has-[:checked]:bg-indigo-50 has-[:checked]:text-indigo-700">
+                  <input type="checkbox" name="userId" value={u.id} className="accent-indigo-600" />
+                  {u.name} <span className="text-xs text-slate-400">{u.role.toLowerCase()}</span>
+                </label>
+              ))}
+            </div>
+            <div className="flex flex-wrap items-end gap-3">
+              <Field label="Access">
+                <select className="input" name="access" defaultValue="EDIT">
+                  <option value="OWNER">Owner</option><option value="EDIT">Edit</option><option value="VIEW">View</option><option value="REMOVE">Remove access</option>
+                </select>
+              </Field>
+              <Field label="Expires (optional)"><input className="input" type="date" name="expiresAt" /></Field>
+              <SubmitButton className="btn-primary">Save</SubmitButton>
+            </div>
           </form>
         </section>
       )}

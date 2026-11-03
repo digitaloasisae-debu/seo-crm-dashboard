@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { db } from "@/lib/db";
 import { canEdit } from "@/lib/access";
 import { requireUser } from "@/lib/session";
@@ -13,7 +14,7 @@ export default async function ClientOverview({ params, searchParams }: { params:
   const [client, editable, slots, activity, counts] = await Promise.all([
     db.client.findUniqueOrThrow({ where: { id }, include: { assignments: { include: { user: true } }, credentials: true } }),
     canEdit(user, id),
-    db.postingSlot.findMany({ where: { clientId: id, scheduledDate: { gte: new Date(Date.now() - 31 * 864e5) } }, orderBy: { scheduledDate: "asc" }, include: { article: { select: { metaTitle: true, status: true } } }, take: 12 }),
+    db.postingSlot.findMany({ where: { clientId: id, scheduledDate: { gte: new Date(Date.now() - 31 * 864e5) } }, orderBy: { scheduledDate: "asc" }, include: { article: { select: { id: true, metaTitle: true, status: true } } }, take: 12 }),
     db.activityLog.findMany({ where: { clientId: id }, orderBy: { at: "desc" }, take: 15, include: { actor: { select: { name: true } } } }),
     db.keyword.groupBy({ by: ["status", "used"], where: { clientId: id }, _count: true }),
   ]);
@@ -46,7 +47,7 @@ export default async function ClientOverview({ params, searchParams }: { params:
               {slots.map((s) => (
                 <li key={s.id} className="flex items-center justify-between py-2">
                   <span>{fmtDate(s.scheduledDate)}</span>
-                  {s.article ? <span className="flex items-center gap-2"><span className="max-w-xs truncate">{s.article.metaTitle}</span><StatusBadge status={s.article.status} /></span> : <span className="text-slate-400">open</span>}
+                  {s.article ? <span className="flex items-center gap-2"><Link href={`/articles/${s.article.id}`} className="max-w-xs truncate text-indigo-700 hover:underline">{s.article.metaTitle}</Link><StatusBadge status={s.article.status} /></span> : <span className="text-slate-400">open</span>}
                 </li>
               ))}
             </ul>
@@ -70,7 +71,10 @@ export default async function ClientOverview({ params, searchParams }: { params:
 
       <div className="space-y-6">
         <section className="card">
-          <h2 className="mb-3 font-semibold">Team</h2>
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="font-semibold">Team</h2>
+            {user.role !== "MEMBER" && <Link href={`/clients/${id}/settings`} className="text-xs font-medium text-indigo-600 hover:underline">Manage →</Link>}
+          </div>
           <ul className="space-y-2 text-sm">
             {client.assignments.map((a) => (
               <li key={a.id} className="flex items-center justify-between">

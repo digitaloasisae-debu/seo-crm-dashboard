@@ -24,6 +24,12 @@ export async function requireUser(): Promise<SessionUser> {
   return user;
 }
 
+export async function requireAdmin(): Promise<SessionUser> {
+  const user = await requireUser();
+  if (user.role !== "SUPER_ADMIN" && user.role !== "ADMIN") throw new Error("Only admins can do this");
+  return user;
+}
+
 export async function requireSuperAdmin(): Promise<SessionUser> {
   const user = await requireUser();
   if (user.role !== "SUPER_ADMIN") throw new Error("Only the Super Admin can do this");

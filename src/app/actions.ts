@@ -9,7 +9,7 @@ import { db } from "@/lib/db";
 import { encryptSecret } from "@/lib/crypto";
 import { logActivity } from "@/lib/activity";
 import { canEdit, requireClientAccess } from "@/lib/access";
-import { requireSuperAdmin, requireUser } from "@/lib/session";
+import { requireAdmin, requireSuperAdmin, requireUser } from "@/lib/session";
 import { addKeywords, processSubmission } from "@/lib/intake";
 import { ensureSlots } from "@/lib/posting";
 import { pushArticle, testConnection } from "@/lib/wordpress";
@@ -125,22 +125,31 @@ export async function testWordpressAction(clientId: string) {
 }
 
 export async function setAssignmentAction(clientId: string, fd: FormData) {
-  const admin = await requireSuperAdmin();
-  const userId = str(fd, "userId");
+  const admin = await requireAdmin();
+  const userIds = fd.getAll("userId").map(String).filter(Boolean);
   const access = str(fd, "access") as AccessLevel | "REMOVE";
   const expires = str(fd, "expiresAt");
-  if (!userId) throw new Error("Pick a team member");
-  if (access === "REMOVE") {
-    await db.clientAssignment.deleteMany({ where: { clientId, userId } });
-  } else {
-    const data = { access, grantedById: admin.id, expiresAt: expires ? new Date(`${expires}T23:59:59Z`) : null };
-    await db.clientAssignment.upsert({
-      where: { clientId_userId: { clientId, userId } },
-      create: { clientId, userId, ...data },
-      update: data,
-    });
+  if (!userIds.length) throw new Error("Pick at least one team member");
+  for (const userId of userIds) {
+    if (access === "REMOVE") {
+      await db.clientAssignment.deleteMany({ where: { clientId, userId } });
+    } else {
+      const data = { access, grantedById: admin.id, expiresAt: expires ? new Date(`${expires}T23:59:59Z`) : null };
+      await db.clientAssignment.upsert({
+        where: { clientId_userId: { clientId, userId } },
+        create: { clientId, userId, ...data },
+        update: data,
+      });
+    }
+    await logActivity({ actorId: admin.id, clientId, action: "assignment.set", entity: "client", entityId: clientId, after: { userId, access, expires } });
   }
-  await logActivity({ actorId: admin.id, clientId, action: "assignment.set", entity: "client", entityId: clientId, after: { userId, access, expires } });
+  revalidatePath(`/clients/${clientId}`, "layout");
+}
+
+export async function removeAssignmentAction(clientId: string, userId: string) {
+  const admin = await requireAdmin();
+  await db.clientAssignment.deleteMany({ where: { clientId, userId } });
+  await logActivity({ actorId: admin.id, clientId, action: "assignment.remove", entity: "client", entityId: clientId, after: { userId } });
   revalidatePath(`/clients/${clientId}`, "layout");
 }
 
@@ -304,20 +313,26 @@ export async function retrySubmissionAction(submissionId: string, fd: FormData) 
 // ---------- Users (Super Admin) ----------
 
 export async function createUserAction(fd: FormData) {
-  const admin = await requireSuperAdmin();
+  const admin = await requireAdmin();
+  const wanted = (str(fd, "role") || "MEMBER") as Role;
+  if (wanted === "SUPER_ADMIN" || (admin.role === "ADMIN" && wanted !== "MEMBER" && wanted !== "ADMIN")) throw new Error("You can't create that role");
   const email = str(fd, "email").toLowerCase();
   const password = str(fd, "password");
   if (!email || password.length < 10) throw new Error("Email and a password of at least 10 characters are required");
   const user = await db.user.create({
-    data: { name: str(fd, "name"), email, role: (str(fd, "role") || "MEMBER") as Role, passwordHash: await bcrypt.hash(password, 12) },
+    data: { name: str(fd, "name"), email, role: wanted, passwordHash: await bcrypt.hash(password, 12) },
   });
   await logActivity({ actorId: admin.id, action: "user.create", entity: "user", entityId: user.id, after: { email, role: user.role } });
   revalidatePath("/users");
 }
 
 export async function updateUserAction(userId: string, fd: FormData) {
-  const admin = await requireSuperAdmin();
+  const admin = await requireAdmin();
   const role = str(fd, "role") as Role;
+  if (admin.role === "ADMIN") {
+    const target = await db.user.findUniqueOrThrow({ where: { id: userId } });
+    if (target.role === "SUPER_ADMIN" || role === "SUPER_ADMIN") throw new Error("Only the Super Admin can change a Super Admin");
+  }
   const password = str(fd, "password");
   if (userId === admin.id && role !== "SUPER_ADMIN") throw new Error("You can't remove your own Super Admin role");
   await db.user.update({

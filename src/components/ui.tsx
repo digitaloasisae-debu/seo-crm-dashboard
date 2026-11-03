@@ -72,7 +72,9 @@ export function Empty({ children }: { children: ReactNode }) {
   );
 }
 
-export function Stat({ label, value, href, icon, alert }: { label: string; value: number; href?: string; icon?: IconName; alert?: boolean }) {
+export type PeekItem = { label: string; sub?: string; href: string };
+
+export function Stat({ label, value, href, icon, alert, items }: { label: string; value: number; href?: string; icon?: IconName; alert?: boolean; items?: PeekItem[] }) {
   const hot = alert && value > 0;
   const body = (
     <div className={`card group relative h-full overflow-hidden ${hot ? "border-red-200" : ""}`}>
@@ -88,7 +90,33 @@ export function Stat({ label, value, href, icon, alert }: { label: string; value
       <div className={`relative mt-2 text-3xl font-bold tracking-tight tabular-nums ${hot ? "text-red-600" : value > 0 ? "text-slate-900" : "text-slate-300"}`}><CountUp value={value} /></div>
     </div>
   );
-  return href ? <Link href={href}>{body}</Link> : body;
+  const card = href ? <Link href={href} className="block h-full">{body}</Link> : body;
+  if (!items) return card;
+  return (
+    <div className="group/peek relative h-full hover:z-40 focus-within:z-40" tabIndex={0}>
+      {card}
+      <div className="invisible absolute top-full right-0 left-0 z-30 mt-2 translate-y-1 scale-95 rounded-2xl border border-slate-200 bg-white/95 p-2 opacity-0 shadow-xl shadow-indigo-500/10 backdrop-blur transition-all duration-200 group-hover/peek:visible group-hover/peek:translate-y-0 group-hover/peek:scale-100 group-hover/peek:opacity-100 group-focus-within/peek:visible group-focus-within/peek:opacity-100">
+        <div className="absolute -top-1.5 left-8 h-3 w-3 rotate-45 border-t border-l border-slate-200 bg-white" />
+        {items.length === 0 ? (
+          <p className="px-2 py-3 text-center text-sm text-slate-500">🎉 Nothing here. You&apos;re all clear!</p>
+        ) : (
+          <ul className="relative max-h-72 overflow-y-auto">
+            {items.map((it, i) => (
+              <li key={i}>
+                <Link href={it.href} className="flex items-center gap-2 rounded-xl px-2.5 py-2 text-sm transition hover:bg-indigo-50">
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate font-medium text-slate-800">{it.label}</span>
+                    {it.sub && <span className="block truncate text-xs text-slate-500">{it.sub}</span>}
+                  </span>
+                  <span className="text-slate-300">→</span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </div>
+  );
 }
 
 export function Field({ label, children, hint }: { label: string; children: ReactNode; hint?: string }) {
@@ -122,5 +150,21 @@ export function ScoreRing({ score, size = 132, color: fixed, suffix }: { score: 
         {size >= 100 && !suffix && <span className="mt-1 text-[10px] font-semibold tracking-widest text-slate-400 uppercase">/ 100</span>}
       </div>
     </div>
+  );
+}
+
+/** A keyword that opens its live Google results in a new tab. */
+export function KeywordLink({ keyword, className = "" }: { keyword: string; className?: string }) {
+  return (
+    <a
+      href={`https://www.google.com/search?q=${encodeURIComponent(keyword)}`}
+      target="_blank"
+      rel="noreferrer"
+      title="See who ranks on Google for this keyword"
+      className={`group/kw inline-flex items-center gap-1 text-slate-800 decoration-indigo-300 decoration-2 underline-offset-4 transition-colors hover:text-indigo-700 hover:underline ${className}`}
+    >
+      {keyword}
+      <Icon name="search" className="h-3 w-3 shrink-0 text-slate-300 transition group-hover/kw:translate-x-0.5 group-hover/kw:text-indigo-500" />
+    </a>
   );
 }

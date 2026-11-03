@@ -27,7 +27,18 @@ export default async function Home() {
       take: 20,
     }),
   ]);
-  const wins = await weeklyWins(user.id);
+  const [wins, kwPeek, topicPeek, failedPeek] = await Promise.all([
+    weeklyWins(user.id),
+    db.keyword.findMany({ where: { ...scope, status: "PENDING" }, select: { keyword: true, clientId: true, client: { select: { name: true } } }, orderBy: { addedAt: "asc" }, take: 8 }),
+    db.topic.findMany({ where: { ...scope, status: "GENERATED" }, select: { title: true, clientId: true, client: { select: { name: true } } }, orderBy: { generatedAt: "asc" }, take: 8 }),
+    db.article.findMany({ where: { ...scope, status: "PUSH_FAILED" }, select: { id: true, metaTitle: true, client: { select: { name: true } } }, take: 8 }),
+  ]);
+  const peek = {
+    keywords: kwPeek.map((k) => ({ label: k.keyword, sub: k.client.name, href: `/clients/${k.clientId}/keywords?status=PENDING` })),
+    topics: topicPeek.map((t) => ({ label: t.title, sub: t.client.name, href: `/clients/${t.clientId}/topics?status=GENERATED` })),
+    articles: articles.filter((a) => a.status !== "PUSH_FAILED").slice(0, 8).map((a) => ({ label: a.metaTitle, sub: `${a.client.name} · ${a.status.replace(/_/g, " ").toLowerCase()}`, href: `/articles/${a.id}` })),
+    failed: failedPeek.map((a) => ({ label: a.metaTitle, sub: a.client.name, href: `/articles/${a.id}` })),
+  };
   const waiting = pendingKeywords + topicsToReview + articlesToReview + failedPushes;
   const goal = 25;
   const pct = Math.min(100, Math.round((wins.total / goal) * 100));
@@ -95,10 +106,10 @@ export default async function Home() {
 
       <h2 className="mb-3 text-lg font-semibold">Waiting on you</h2>
       <div className="stagger mb-8 grid grid-cols-2 gap-4 md:grid-cols-4">
-        <Stat label="Keywords to approve" value={pendingKeywords} icon="tag" />
-        <Stat label="Topics to review" value={topicsToReview} icon="lightbulb" />
-        <Stat label="Articles to review or push" value={articlesToReview} icon="file" />
-        <Stat label="Failed pushes" value={failedPushes} icon="alert" alert />
+        <Stat label="Keywords to approve" value={pendingKeywords} icon="tag" items={peek.keywords} />
+        <Stat label="Topics to review" value={topicsToReview} icon="lightbulb" items={peek.topics} />
+        <Stat label="Articles to review or push" value={articlesToReview} icon="file" items={peek.articles} />
+        <Stat label="Failed pushes" value={failedPushes} icon="alert" alert items={peek.failed} />
         {user.role === "SUPER_ADMIN" && <Stat label="Access requests" value={openRequests} icon="key" href="/access" />}
         {user.role !== "MEMBER" && <Stat label="Intake errors" value={failedIntake} icon="zap" alert href="/intake" />}
       </div>

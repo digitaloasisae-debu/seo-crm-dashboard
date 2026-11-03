@@ -2,7 +2,7 @@ import Link from "next/link";
 import { db } from "@/lib/db";
 import { canEdit } from "@/lib/access";
 import { requireUser } from "@/lib/session";
-import { Empty, StatusBadge } from "@/components/ui";
+import { Empty, KeywordLink, StatusBadge } from "@/components/ui";
 import { fmtDate } from "@/lib/utils";
 import { editTopicAction, setTopicStatusAction } from "../../../../actions";
 import { SubmitButton } from "@/components/submit-button";
@@ -42,10 +42,14 @@ export default async function TopicsPage({ params, searchParams }: { params: Pro
                 <tr key={t.id}>
                   {editable && <td>{!t.article && <input type="checkbox" name="ids" value={t.id} />}</td>}
                   <td>
-                    <div className="font-medium">{t.title}</div>
+                    {t.article ? (
+                      <Link className="font-medium text-indigo-700 decoration-indigo-300 decoration-2 underline-offset-4 hover:underline" href={`/articles/${t.article.id}`}>{t.title}</Link>
+                    ) : editable ? (
+                      <Link className="font-medium text-slate-900 decoration-indigo-300 decoration-2 underline-offset-4 hover:text-indigo-700 hover:underline" href={`/clients/${id}/topics?edit=${t.id}`} title="Edit this topic">{t.title}</Link>
+                    ) : <div className="font-medium">{t.title}</div>}
                     {t.angle && <div className="text-xs text-slate-500">{t.angle}</div>}
                   </td>
-                  <td>{t.keyword}</td>
+                  <td>{t.keyword ? <KeywordLink keyword={t.keyword} /> : ""}</td>
                   <td>{t.category}</td>
                   <td><StatusBadge status={t.status} /></td>
                   <td>{t.article ? <Link className="text-indigo-600 hover:underline" href={`/articles/${t.article.id}`}><StatusBadge status={t.article.status} /></Link> : ""}</td>
