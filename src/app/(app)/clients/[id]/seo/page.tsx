@@ -1,7 +1,8 @@
 import { db } from "@/lib/db";
 import { canEdit } from "@/lib/access";
 import { requireUser } from "@/lib/session";
-import { Badge, Empty } from "@/components/ui";
+import { Badge, Empty, ScoreRing } from "@/components/ui";
+import { Icon } from "@/components/icons";
 import { fmtDate } from "@/lib/utils";
 import type { Issue, PsiSummary } from "@/lib/audit";
 import { runAuditAction } from "./actions";
@@ -20,10 +21,10 @@ function scoreColor(n: number | null | undefined) {
 function Psi({ label, p }: { label: string; p: PsiSummary | null }) {
   if (!p) return null;
   const cell = (name: string, v: number | null) => (
-    <div className="text-center"><div className={`text-2xl font-semibold ${scoreColor(v)}`}>{v ?? "—"}</div><div className="text-xs text-slate-500">{name}</div></div>
+    <div className="text-center"><ScoreRing score={v} size={64} /><div className="mt-1 text-xs text-slate-500">{name}</div></div>
   );
   return (
-    <div className="rounded border border-slate-200 p-4">
+    <div className="card">
       <div className="mb-3 text-sm font-medium">{label}</div>
       {p.error ? <p className="text-sm text-amber-700">{p.error}</p> : (
         <>
@@ -58,7 +59,7 @@ export default async function ClientSeo({ params }: { params: Promise<{ id: stri
       <SearchPerformance clientId={id} editable={editable} />
       <section className="card flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h2 className="font-semibold">Site audit</h2>
+          <h2 className="flex items-center gap-2 font-semibold"><span className="flex h-7 w-7 items-center justify-center rounded-lg bg-indigo-50 text-indigo-500"><Icon name="search" className="h-4 w-4" /></span>Site audit</h2>
           <p className="text-sm text-slate-500">PageSpeed for the home page, plus on-page checks on up to 25 pages from the sitemap.</p>
           {last?.status === "FAILED" && <p className="mt-1 text-sm text-red-700">Last run failed: {last.error}</p>}
         </div>
@@ -69,8 +70,8 @@ export default async function ClientSeo({ params }: { params: Promise<{ id: stri
         <>
           <section className="grid gap-4 md:grid-cols-3">
             <div className="card text-center">
-              <div className="text-sm text-slate-500">Health score</div>
-              <div className={`text-5xl font-bold ${scoreColor(latest.score)}`}>{latest.score}</div>
+              <div className="mb-3 text-xs font-semibold tracking-wide text-slate-500 uppercase">Health score</div>
+              <ScoreRing score={latest.score} />
               <div className="mt-1 text-xs text-slate-500">{latest.pagesChecked} pages checked · {fmtDate(latest.finishedAt)}</div>
               <div className="mt-3 flex justify-center gap-2 text-xs"><Badge color="red">{counts.error} errors</Badge><Badge color="yellow">{counts.warning} warnings</Badge><Badge>{counts.notice} notices</Badge></div>
             </div>
@@ -85,7 +86,7 @@ export default async function ClientSeo({ params }: { params: Promise<{ id: stri
             {issues.length === 0 ? <p className="p-4 pt-0 text-sm text-slate-500">Nothing found. Nice.</p> : (
               <ul className="divide-y divide-slate-100">
                 {issues.map((i) => (
-                  <li key={i.code} className="px-4 py-3">
+                  <li key={i.code} className="px-4 py-3 transition-colors hover:bg-slate-50/80">
                     <details>
                       <summary className="flex cursor-pointer items-center gap-3 text-sm">
                         <Badge color={sevColor[i.severity]}>{i.severity}</Badge>

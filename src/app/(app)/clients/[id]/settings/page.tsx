@@ -5,6 +5,7 @@ import { ClientForm } from "@/components/client-form";
 import { Badge, Field, StatusBadge } from "@/components/ui";
 import { fmtDate } from "@/lib/utils";
 import { saveWordpressCredentialAction, setAssignmentAction, testWordpressAction, updateClientAction } from "../../../../actions";
+import { SubmitButton } from "@/components/submit-button";
 
 export default async function ClientSettings({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -33,13 +34,13 @@ export default async function ClientSettings({ params }: { params: Promise<{ id:
             <Field label="Application password" hint={cred ? "Saved and encrypted. Leave empty to keep it." : "Stored encrypted. Never shown again."}>
               <input className="input" name="password" type="password" autoComplete="new-password" placeholder={cred ? "••••••••" : ""} />
             </Field>
-            <div className="md:col-span-3"><button className="btn-primary">Save</button></div>
+            <div className="md:col-span-3"><SubmitButton className="btn-primary">Save</SubmitButton></div>
           </form>
         ) : (
           <p className="text-sm text-slate-600">{cred ? `${cred.endpoint} as ${cred.username}` : "Ask the Super Admin to add WordPress access."}</p>
         )}
         {cred && editable && (
-          <form action={testWordpressAction.bind(null, id)}><button className="btn-secondary">Test connection</button></form>
+          <form action={testWordpressAction.bind(null, id)}><SubmitButton className="btn-secondary">Test connection</SubmitButton></form>
         )}
       </section>
 
@@ -65,7 +66,7 @@ export default async function ClientSettings({ params }: { params: Promise<{ id:
               </select>
             </Field>
             <Field label="Expires (optional)"><input className="input" type="date" name="expiresAt" /></Field>
-            <button className="btn-primary">Save</button>
+            <SubmitButton className="btn-primary">Save</SubmitButton>
           </form>
         </section>
       )}

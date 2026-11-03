@@ -4,6 +4,7 @@ import { requireUser } from "@/lib/session";
 import { Badge, StatusBadge } from "@/components/ui";
 import { fmtDate } from "@/lib/utils";
 import { runN8nAction } from "../../../actions";
+import { SubmitButton } from "@/components/submit-button";
 
 export default async function ClientOverview({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ n8n?: string }> }) {
   const { id } = await params;
@@ -87,8 +88,8 @@ export default async function ClientOverview({ params, searchParams }: { params:
             <p className="text-xs text-slate-500">Starts the workflow for this client only, outside the monthly schedule.</p>
             {n8n?.startsWith("ok:") && <p className="rounded bg-green-50 p-2 text-xs text-green-800">{n8n.slice(3)} started. Check n8n Executions; results show up here when it finishes.</p>}
             {n8n && !n8n.startsWith("ok:") && <p className="rounded bg-red-50 p-2 text-xs break-words text-red-800">{n8n}</p>}
-            <form action={runN8nAction.bind(null, id, "WF1")}><button className="btn-secondary w-full">Generate topics (WF1)</button></form>
-            <form action={runN8nAction.bind(null, id, "WF2")}><button className="btn-secondary w-full">Write approved topics (WF2)</button></form>
+            <form action={runN8nAction.bind(null, id, "WF1")}><SubmitButton className="btn-secondary w-full">Generate topics (WF1)</SubmitButton></form>
+            <form action={runN8nAction.bind(null, id, "WF2")}><SubmitButton className="btn-secondary w-full">Write approved topics (WF2)</SubmitButton></form>
           </section>
         )}
       </div>

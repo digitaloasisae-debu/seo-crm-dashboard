@@ -4,6 +4,7 @@ import { requireUser } from "@/lib/session";
 import { Empty, Field, PageHeader, StatusBadge } from "@/components/ui";
 import { fmtDate } from "@/lib/utils";
 import { decideAccessAction, requestAccessAction } from "../../actions";
+import { SubmitButton } from "@/components/submit-button";
 
 export default async function AccessPage() {
   const user = await requireUser();
@@ -34,8 +35,8 @@ export default async function AccessPage() {
                       {r.status === "PENDING" ? (
                         <form className="flex flex-wrap gap-2">
                           <input className="input w-36" type="date" name="expiresAt" title="Optional expiry" />
-                          <button formAction={decideAccessAction.bind(null, r.id, true)} className="btn-primary">Approve</button>
-                          <button formAction={decideAccessAction.bind(null, r.id, false)} className="btn-danger">Deny</button>
+                          <SubmitButton formAction={decideAccessAction.bind(null, r.id, true)} className="btn-primary">Approve</SubmitButton>
+                          <SubmitButton formAction={decideAccessAction.bind(null, r.id, false)} className="btn-danger">Deny</SubmitButton>
                         </form>
                       ) : <StatusBadge status={r.status} />}
                     </td>
@@ -70,7 +71,7 @@ export default async function AccessPage() {
         </Field>
         <Field label="Access"><select className="input" name="access" defaultValue="VIEW"><option value="VIEW">View</option><option value="EDIT">Edit (approve and push)</option></select></Field>
         <Field label="Reason"><input className="input" name="reason" placeholder="Review Aiman's approved topics" /></Field>
-        <button className="btn-primary">Send request</button>
+        <SubmitButton className="btn-primary">Send request</SubmitButton>
       </form>
       <h2 className="mb-3 font-semibold">My requests</h2>
       {mine.length === 0 ? <Empty>No requests yet.</Empty> : (

@@ -4,6 +4,7 @@ import { googleConfigured, listSites, redirectUri } from "@/lib/google";
 import { PageHeader } from "@/components/ui";
 import { fmtDate } from "@/lib/utils";
 import { autoMatchAction, removeConnectionAction, setPropertyAction } from "./actions";
+import { SubmitButton } from "@/components/submit-button";
 
 export const maxDuration = 60;
 
@@ -46,7 +47,7 @@ export default async function GooglePage({ searchParams }: { searchParams: Promi
       <section className="card p-0">
         <div className="flex flex-wrap items-center justify-between gap-3 p-4">
           <h2 className="font-semibold">Clients ({linked} of {clients.length} linked)</h2>
-          {connections.length > 0 && <form action={autoMatchAction}><button className="btn-secondary">Auto-match unlinked</button></form>}
+          {connections.length > 0 && <form action={autoMatchAction}><SubmitButton className="btn-secondary">Auto-match unlinked</SubmitButton></form>}
         </div>
         <div className="overflow-x-auto">
           <table className="table">
@@ -62,7 +63,7 @@ export default async function GooglePage({ searchParams }: { searchParams: Promi
                         {c.gscProperty && !sites.some((s) => s.siteUrl === c.gscProperty && s.connectionId === c.gscConnectionId) && <option value={`${c.gscConnectionId}|${c.gscProperty}`}>{c.gscProperty} (no access now)</option>}
                         {sites.map((s) => <option key={`${s.connectionId}|${s.siteUrl}`} value={`${s.connectionId}|${s.siteUrl}`}>{s.siteUrl}{connections.length > 1 ? ` (${s.email})` : ""}</option>)}
                       </select>
-                      <button className="btn-secondary">Save</button>
+                      <SubmitButton className="btn-secondary">Save</SubmitButton>
                     </form>
                   </td>
                   <td className="text-xs text-slate-500">{c.gscError ? <span className="text-red-700">{c.gscError}</span> : c.gscSyncedAt ? fmtDate(c.gscSyncedAt) : "—"}</td>

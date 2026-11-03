@@ -1,4 +1,5 @@
 "use client";
+import { Spinner } from "@/components/spinner";
 import { useActionState } from "react";
 import { changePasswordAction, updateProfileAction, type ProfileState } from "./actions";
 
@@ -21,7 +22,7 @@ export function ProfileForm({ name, email }: { name: string; email: string }) {
         <span className="mt-1 block text-xs text-slate-400">Only needed if you change your email.</span>
       </label>
       <Msg state={state} />
-      <button className="btn-primary" disabled={pending}>{pending ? "Saving…" : "Save"}</button>
+      <button className="btn-primary" disabled={pending}>{pending ? <><Spinner /> Saving…</> : "Save"}</button>
     </form>
   );
 }
@@ -35,7 +36,7 @@ export function PasswordForm() {
       <label className="block"><span className="label">New password (10+ characters)</span><input className="input" type="password" name="newPassword" autoComplete="new-password" minLength={10} required /></label>
       <label className="block"><span className="label">Repeat new password</span><input className="input" type="password" name="confirmPassword" autoComplete="new-password" minLength={10} required /></label>
       <Msg state={state} />
-      <button className="btn-primary" disabled={pending}>{pending ? "Saving…" : "Change password"}</button>
+      <button className="btn-primary" disabled={pending}>{pending ? <><Spinner /> Saving…</> : "Change password"}</button>
     </form>
   );
 }

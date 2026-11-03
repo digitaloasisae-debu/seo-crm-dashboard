@@ -5,6 +5,7 @@ import { Empty, StatusBadge } from "@/components/ui";
 import { fmtDate } from "@/lib/utils";
 import { keywordPositions } from "@/lib/gsc-report";
 import { addKeywordsAction, deleteKeywordsAction, setKeywordStatusAction } from "../../../../actions";
+import { SubmitButton } from "@/components/submit-button";
 
 export default async function KeywordsPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ status?: string; used?: string }> }) {
   const { id } = await params;
@@ -36,7 +37,7 @@ export default async function KeywordsPage({ params, searchParams }: { params: P
         <form action={addKeywordsAction.bind(null, id)} className="card flex flex-wrap items-end gap-3">
           <label className="min-w-64 flex-1"><span className="label">Add keywords (comma or one per line)</span><textarea className="input" name="keywords" rows={2} required /></label>
           <label className="w-48"><span className="label">Category (optional)</span><input className="input" name="category" /></label>
-          <button className="btn-primary">Add</button>
+          <SubmitButton className="btn-primary">Add</SubmitButton>
         </form>
       )}
 
@@ -48,9 +49,9 @@ export default async function KeywordsPage({ params, searchParams }: { params: P
         <form className="card overflow-x-auto p-0">
           {editable && (
             <div className="flex flex-wrap gap-2 border-b border-slate-200 p-3">
-              <button formAction={setKeywordStatusAction.bind(null, id, "APPROVED")} className="btn-primary">Approve selected</button>
-              <button formAction={setKeywordStatusAction.bind(null, id, "REJECTED")} className="btn-danger">Reject selected</button>
-              <button formAction={deleteKeywordsAction.bind(null, id)} className="btn-secondary">Delete selected (unused only)</button>
+              <SubmitButton formAction={setKeywordStatusAction.bind(null, id, "APPROVED")} className="btn-primary">Approve selected</SubmitButton>
+              <SubmitButton formAction={setKeywordStatusAction.bind(null, id, "REJECTED")} className="btn-danger">Reject selected</SubmitButton>
+              <SubmitButton formAction={deleteKeywordsAction.bind(null, id)} className="btn-secondary">Delete selected (unused only)</SubmitButton>
             </div>
           )}
           <table className="table">

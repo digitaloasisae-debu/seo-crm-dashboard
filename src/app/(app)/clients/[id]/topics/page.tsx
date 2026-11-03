@@ -5,6 +5,7 @@ import { requireUser } from "@/lib/session";
 import { Empty, StatusBadge } from "@/components/ui";
 import { fmtDate } from "@/lib/utils";
 import { editTopicAction, setTopicStatusAction } from "../../../../actions";
+import { SubmitButton } from "@/components/submit-button";
 
 export default async function TopicsPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ status?: string; edit?: string }> }) {
   const { id } = await params;
@@ -30,8 +31,8 @@ export default async function TopicsPage({ params, searchParams }: { params: Pro
         <form className="card overflow-x-auto p-0">
           {editable && (
             <div className="flex flex-wrap items-center gap-2 border-b border-slate-200 p-3">
-              <button formAction={setTopicStatusAction.bind(null, id, "APPROVED")} className="btn-primary">Approve selected</button>
-              <button formAction={setTopicStatusAction.bind(null, id, "REJECTED")} className="btn-danger">Reject selected</button>
+              <SubmitButton formAction={setTopicStatusAction.bind(null, id, "APPROVED")} className="btn-primary">Approve selected</SubmitButton>
+              <SubmitButton formAction={setTopicStatusAction.bind(null, id, "REJECTED")} className="btn-danger">Reject selected</SubmitButton>
             </div>
           )}
           <table className="table">
@@ -67,7 +68,7 @@ export default async function TopicsPage({ params, searchParams }: { params: Pro
             <label className="block"><span className="label">Angle</span><textarea className="input" name="angle" rows={2} defaultValue={t.angle ?? ""} /></label>
             <label className="block"><span className="label">Category</span><input className="input" name="category" defaultValue={t.category ?? ""} /></label>
             <p className="text-xs text-slate-500">Saving puts the topic back to &quot;to review&quot;.</p>
-            <button className="btn-primary">Save</button>
+            <SubmitButton className="btn-primary">Save</SubmitButton>
           </form>
         );
       })()}

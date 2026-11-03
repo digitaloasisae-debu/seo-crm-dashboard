@@ -3,6 +3,7 @@ import { requireUser } from "@/lib/session";
 import { Badge, Empty, PageHeader } from "@/components/ui";
 import { fmtDate } from "@/lib/utils";
 import { retrySubmissionAction } from "../../actions";
+import { SubmitButton } from "@/components/submit-button";
 
 export default async function IntakePage({ searchParams }: { searchParams: Promise<{ all?: string }> }) {
   const user = await requireUser();
@@ -41,7 +42,7 @@ export default async function IntakePage({ searchParams }: { searchParams: Promi
                             {clients.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
                           </select>
                         )}
-                        <button className="btn-secondary">Retry</button>
+                        <SubmitButton className="btn-secondary">Retry</SubmitButton>
                       </form>
                     )}
                   </td>

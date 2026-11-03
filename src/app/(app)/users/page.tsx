@@ -2,6 +2,7 @@ import { db } from "@/lib/db";
 import { requireSuperAdmin } from "@/lib/session";
 import { Field, PageHeader } from "@/components/ui";
 import { createUserAction, updateUserAction } from "../../actions";
+import { SubmitButton } from "@/components/submit-button";
 
 export default async function UsersPage() {
   const me = await requireSuperAdmin();
@@ -16,7 +17,7 @@ export default async function UsersPage() {
         <Field label="Email"><input className="input" name="email" type="email" required /></Field>
         <Field label="Temporary password" hint="10+ characters"><input className="input" name="password" type="text" minLength={10} required /></Field>
         <Field label="Role"><select className="input" name="role" defaultValue="MEMBER"><option value="MEMBER">Member</option><option value="ADMIN">Admin</option></select></Field>
-        <button className="btn-primary">Add team member</button>
+        <SubmitButton className="btn-primary">Add team member</SubmitButton>
       </form>
 
       <div className="card overflow-x-auto p-0">
@@ -35,7 +36,7 @@ export default async function UsersPage() {
                     </select>
                     <label className="flex items-center gap-1 text-xs"><input type="checkbox" name="active" defaultChecked={u.active} disabled={u.id === me.id} /> active</label>
                     <input className="input w-40" name="password" placeholder="New password" minLength={10} />
-                    <button className="btn-secondary">Save</button>
+                    <SubmitButton className="btn-secondary">Save</SubmitButton>
                   </form>
                 </td>
               </tr>

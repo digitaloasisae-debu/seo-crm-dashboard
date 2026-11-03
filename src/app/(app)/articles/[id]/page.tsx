@@ -6,6 +6,7 @@ import { requireUser } from "@/lib/session";
 import { Field, StatusBadge } from "@/components/ui";
 import { fmtDate } from "@/lib/utils";
 import { pushArticleAction, reviewArticleAction, saveArticleAction } from "../../../actions";
+import { SubmitButton } from "@/components/submit-button";
 
 export const maxDuration = 60; // WordPress push with retries and image upload
 
@@ -56,12 +57,12 @@ export default async function ArticleReview({ params }: { params: Promise<{ id: 
               <h2 className="font-semibold">Review</h2>
               {article.status !== "APPROVED" && article.status !== "PUSH_FAILED" && (
                 <form action={reviewArticleAction.bind(null, id, "APPROVED")}>
-                  <button className="btn-primary w-full">Approve</button>
+                  <SubmitButton className="btn-primary w-full">Approve</SubmitButton>
                 </form>
               )}
               {(article.status === "APPROVED" || article.status === "PUSH_FAILED") && (
                 <form action={pushArticleAction.bind(null, id)}>
-                  <button className="btn-primary w-full" disabled={!hasCred}>{article.status === "PUSH_FAILED" ? "Retry push to WordPress" : "Push to WordPress as draft"}</button>
+                  <SubmitButton className="btn-primary w-full" disabled={!hasCred}>{article.status === "PUSH_FAILED" ? "Retry push to WordPress" : "Push to WordPress as draft"}</SubmitButton>
                   {!hasCred && <p className="mt-1 text-xs text-red-600">No WordPress access saved for this client.</p>}
                 </form>
               )}
@@ -77,7 +78,7 @@ export default async function ArticleReview({ params }: { params: Promise<{ id: 
               <Field label="Focus keyword"><input className="input" name="focusKeyword" defaultValue={article.focusKeyword} /></Field>
               <Field label="Featured image URL"><input className="input" name="featuredImageUrl" defaultValue={article.featuredImageUrl ?? ""} /></Field>
               <Field label="Body HTML"><textarea className="input font-mono text-xs" name="bodyHtml" rows={14} defaultValue={article.bodyHtml} /></Field>
-              <button className="btn-secondary">Save changes</button>
+              <SubmitButton className="btn-secondary">Save changes</SubmitButton>
             </form>
           )}
         </aside>

@@ -1,5 +1,6 @@
 import type { Client } from "@prisma/client";
 import { Field } from "./ui";
+import { SubmitButton } from "./submit-button";
 
 /** Shared create/edit form for a client's profile. Lists are one per line. */
 export function ClientForm({ client, action, submitLabel, showStatus }: { client?: Client; action: (fd: FormData) => Promise<void>; submitLabel: string; showStatus?: boolean }) {
@@ -55,7 +56,7 @@ export function ClientForm({ client, action, submitLabel, showStatus }: { client
         <Field label="GSC account"><input className="input" name="gscAccount" defaultValue={client?.gscAccount ?? ""} /></Field>
       </section>
 
-      <button className="btn-primary">{submitLabel}</button>
+      <SubmitButton className="btn-primary">{submitLabel}</SubmitButton>
     </form>
   );
 }

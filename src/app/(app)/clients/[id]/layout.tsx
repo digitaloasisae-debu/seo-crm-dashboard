@@ -1,9 +1,10 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { accessLevel } from "@/lib/access";
 import { requireUser } from "@/lib/session";
 import { Badge, StatusBadge } from "@/components/ui";
+import { Tabs } from "@/components/nav";
+import { Icon } from "@/components/icons";
 
 export default async function ClientLayout({ children, params }: { children: React.ReactNode; params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -14,26 +15,31 @@ export default async function ClientLayout({ children, params }: { children: Rea
   if (!client) notFound();
 
   const tabs = [
-    { href: `/clients/${id}`, label: "Overview" },
-    { href: `/clients/${id}/keywords`, label: "Keywords" },
-    { href: `/clients/${id}/topics`, label: "Topics" },
-    { href: `/clients/${id}/articles`, label: "Articles" },
-    { href: `/clients/${id}/seo`, label: "SEO" },
-    { href: `/clients/${id}/settings`, label: "Settings" },
+    { href: `/clients/${id}`, label: "Overview", icon: "briefcase" as const },
+    { href: `/clients/${id}/keywords`, label: "Keywords", icon: "tag" as const },
+    { href: `/clients/${id}/topics`, label: "Topics", icon: "lightbulb" as const },
+    { href: `/clients/${id}/articles`, label: "Articles", icon: "file" as const },
+    { href: `/clients/${id}/seo`, label: "SEO", icon: "chart" as const },
+    { href: `/clients/${id}/settings`, label: "Settings", icon: "shield" as const },
   ];
+  const initials = client.name.split(/\s+/).map((w) => w[0]).slice(0, 2).join("").toUpperCase();
   return (
     <>
-      <div className="mb-4 flex flex-wrap items-center gap-3">
-        <h1 className="text-2xl font-semibold">{client.name}</h1>
-        <StatusBadge status={client.status} />
-        {level === "VIEW" && <Badge>view only</Badge>}
-        <a className="text-sm text-slate-500 hover:underline" href={client.siteUrl} target="_blank" rel="noreferrer">{client.siteUrl.replace(/^https?:\/\//, "")}</a>
+      <div className="mb-5 flex flex-wrap items-center gap-4">
+        <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-500 to-fuchsia-500 text-base font-bold text-white shadow-lg shadow-indigo-500/25">{initials}</span>
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <h1 className="bg-gradient-to-r from-slate-900 via-indigo-900 to-violet-800 bg-clip-text text-2xl font-bold tracking-tight text-transparent md:text-3xl">{client.name}</h1>
+            <StatusBadge status={client.status} />
+            {level === "VIEW" && <Badge>view only</Badge>}
+          </div>
+          <a className="mt-0.5 inline-flex items-center gap-1 text-sm text-slate-500 transition-colors hover:text-indigo-600" href={client.siteUrl} target="_blank" rel="noreferrer">
+            <Icon name="globe" className="h-3.5 w-3.5" />
+            {client.siteUrl.replace(/^https?:\/\//, "")}
+          </a>
+        </div>
       </div>
-      <nav className="mb-6 flex gap-1 overflow-x-auto border-b border-slate-200">
-        {tabs.map((t) => (
-          <Link key={t.href} href={t.href} className="-mb-px border-b-2 border-transparent px-3 py-2 text-sm whitespace-nowrap text-slate-600 hover:border-slate-300 hover:text-slate-900">{t.label}</Link>
-        ))}
-      </nav>
+      <Tabs items={tabs} />
       {children}
     </>
   );

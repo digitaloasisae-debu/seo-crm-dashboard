@@ -26,7 +26,14 @@ function Chart({ daily }: { daily: { date: Date; clicks: number; impressions: nu
     <div>
       <svg viewBox={`0 0 ${W} ${H}`} className="h-36 w-full" preserveAspectRatio="none" role="img" aria-label="Daily clicks and impressions">
         <path d={line(daily.map((d) => d.impressions), maxI)} fill="none" stroke="#a78bfa" strokeWidth="1.5" vectorEffect="non-scaling-stroke" />
-        <path d={line(daily.map((d) => d.clicks), maxC)} fill="none" stroke="#4f46e5" strokeWidth="2" vectorEffect="non-scaling-stroke" />
+        <defs>
+          <linearGradient id="gscFill" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#6366f1" stopOpacity="0.28" />
+            <stop offset="100%" stopColor="#6366f1" stopOpacity="0" />
+          </linearGradient>
+        </defs>
+        <path d={`${line(daily.map((d) => d.clicks), maxC)} L${W},${H} L0,${H} Z`} fill="url(#gscFill)" className="animate-fade-in" />
+        <path d={line(daily.map((d) => d.clicks), maxC)} fill="none" stroke="#4f46e5" strokeWidth="2.5" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
       </svg>
       <div className="flex justify-between text-xs text-slate-500">
         <span>{fmtDate(daily[0].date)}</span>
@@ -57,15 +64,15 @@ export async function SearchPerformance({ clientId, editable }: { clientId: stri
             <p className="text-sm text-slate-500">Google Search Console · {client.gscProperty} · {client.gscSyncedAt ? `updated ${fmtDate(client.gscSyncedAt)}` : "not synced yet"}</p>
             {client.gscError && <p className="mt-1 text-sm text-red-700">{client.gscError}</p>}
           </div>
-          {editable && <form action={syncGscAction.bind(null, clientId)}><RunButton label={client.gscSyncedAt ? "Refresh now" : "Load data"} /></form>}
+          {editable && <form action={syncGscAction.bind(null, clientId)}><RunButton label={client.gscSyncedAt ? "Refresh now" : "Load data"} pendingLabel="Loading Search Console…" /></form>}
         </div>
         {daily.length > 0 && (
           <>
             <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-              <div className="rounded border border-slate-200 p-3"><div className="text-xs text-slate-500">Clicks (28 days)</div><div className="text-xl font-semibold">{totals.clicks}</div><Delta cur={totals.clicks} prev={prevTotals?.clicks} /></div>
-              <div className="rounded border border-slate-200 p-3"><div className="text-xs text-slate-500">Impressions</div><div className="text-xl font-semibold">{totals.impressions}</div><Delta cur={totals.impressions} prev={prevTotals?.impressions} /></div>
-              <div className="rounded border border-slate-200 p-3"><div className="text-xs text-slate-500">CTR</div><div className="text-xl font-semibold">{(totals.ctr * 100).toFixed(1)}%</div><Delta cur={totals.ctr} prev={prevTotals?.ctr} pct digits={1} /></div>
-              <div className="rounded border border-slate-200 p-3"><div className="text-xs text-slate-500">Avg. position</div><div className="text-xl font-semibold">{totals.position.toFixed(1)}</div><Delta cur={totals.position} prev={prevTotals?.position} invert digits={1} /></div>
+              <div className="rounded-xl border border-indigo-100 bg-gradient-to-br from-white to-indigo-50/60 p-3 transition duration-200 hover:-translate-y-0.5 hover:shadow-md hover:shadow-indigo-500/10"><div className="text-xs font-medium text-slate-500">Clicks (28 days)</div><div className="text-2xl font-bold tracking-tight tabular-nums">{totals.clicks}</div><Delta cur={totals.clicks} prev={prevTotals?.clicks} /></div>
+              <div className="rounded-xl border border-indigo-100 bg-gradient-to-br from-white to-indigo-50/60 p-3 transition duration-200 hover:-translate-y-0.5 hover:shadow-md hover:shadow-indigo-500/10"><div className="text-xs font-medium text-slate-500">Impressions</div><div className="text-2xl font-bold tracking-tight tabular-nums">{totals.impressions}</div><Delta cur={totals.impressions} prev={prevTotals?.impressions} /></div>
+              <div className="rounded-xl border border-indigo-100 bg-gradient-to-br from-white to-indigo-50/60 p-3 transition duration-200 hover:-translate-y-0.5 hover:shadow-md hover:shadow-indigo-500/10"><div className="text-xs font-medium text-slate-500">CTR</div><div className="text-2xl font-bold tracking-tight tabular-nums">{(totals.ctr * 100).toFixed(1)}%</div><Delta cur={totals.ctr} prev={prevTotals?.ctr} pct digits={1} /></div>
+              <div className="rounded-xl border border-indigo-100 bg-gradient-to-br from-white to-indigo-50/60 p-3 transition duration-200 hover:-translate-y-0.5 hover:shadow-md hover:shadow-indigo-500/10"><div className="text-xs font-medium text-slate-500">Avg. position</div><div className="text-2xl font-bold tracking-tight tabular-nums">{totals.position.toFixed(1)}</div><Delta cur={totals.position} prev={prevTotals?.position} invert digits={1} /></div>
             </div>
             <Chart daily={daily} />
           </>

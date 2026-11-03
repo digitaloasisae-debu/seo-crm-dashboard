@@ -26,14 +26,14 @@ export default async function Home() {
 
   return (
     <>
-      <PageHeader title={`Hi ${user.name}`} subtitle="Everything waiting on you across your clients." />
-      <div className="mb-8 grid grid-cols-2 gap-4 md:grid-cols-4">
-        <Stat label="Keywords to approve" value={pendingKeywords} />
-        <Stat label="Topics to review" value={topicsToReview} />
-        <Stat label="Articles to review or push" value={articlesToReview} />
-        <Stat label="Failed pushes" value={failedPushes} />
-        {user.role === "SUPER_ADMIN" && <Stat label="Access requests" value={openRequests} href="/access" />}
-        {user.role !== "MEMBER" && <Stat label="Intake errors" value={failedIntake} href="/intake" />}
+      <PageHeader title={`Hi ${user.name.split(" ")[0]}`} subtitle="Everything waiting on you across your clients." />
+      <div className="stagger mb-8 grid grid-cols-2 gap-4 md:grid-cols-4">
+        <Stat label="Keywords to approve" value={pendingKeywords} icon="tag" />
+        <Stat label="Topics to review" value={topicsToReview} icon="lightbulb" />
+        <Stat label="Articles to review or push" value={articlesToReview} icon="file" />
+        <Stat label="Failed pushes" value={failedPushes} icon="alert" alert />
+        {user.role === "SUPER_ADMIN" && <Stat label="Access requests" value={openRequests} icon="key" href="/access" />}
+        {user.role !== "MEMBER" && <Stat label="Intake errors" value={failedIntake} icon="zap" alert href="/intake" />}
       </div>
 
       <h2 className="mb-3 text-lg font-semibold">Articles</h2>
