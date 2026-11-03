@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { Icon, type IconName } from "./icons";
+import { CountUp } from "./fun";
 
 const tone: Record<string, string> = {
   gray: "bg-slate-100 text-slate-700 ring-slate-500/15 [--dot:var(--color-slate-400)]",
@@ -63,7 +64,7 @@ export function PageHeader({ title, subtitle, actions }: { title: string; subtit
 export function Empty({ children }: { children: ReactNode }) {
   return (
     <div className="flex flex-col items-center gap-3 rounded-2xl border border-dashed border-slate-300 bg-white/50 p-10 text-center text-sm text-slate-500">
-      <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-50 to-violet-100 text-indigo-500">
+      <span className="bob flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-50 to-violet-100 text-indigo-500">
         <Icon name="sparkles" className="h-5 w-5" />
       </span>
       <div>{children}</div>
@@ -84,7 +85,7 @@ export function Stat({ label, value, href, icon, alert }: { label: string; value
           </span>
         )}
       </div>
-      <div className={`relative mt-2 text-3xl font-bold tracking-tight tabular-nums ${hot ? "text-red-600" : value > 0 ? "text-slate-900" : "text-slate-300"}`}>{value}</div>
+      <div className={`relative mt-2 text-3xl font-bold tracking-tight tabular-nums ${hot ? "text-red-600" : value > 0 ? "text-slate-900" : "text-slate-300"}`}><CountUp value={value} /></div>
     </div>
   );
   return href ? <Link href={href}>{body}</Link> : body;
@@ -101,11 +102,11 @@ export function Field({ label, children, hint }: { label: string; children: Reac
 }
 
 /** Circular 0–100 score that draws itself in on load. */
-export function ScoreRing({ score, size = 132 }: { score: number | null | undefined; size?: number }) {
+export function ScoreRing({ score, size = 132, color: fixed, suffix }: { score: number | null | undefined; size?: number; color?: string; suffix?: string }) {
   const v = Math.max(0, Math.min(100, score ?? 0));
   const r = 52;
   const c = 2 * Math.PI * r;
-  const color = score == null ? "#cbd5e1" : v >= 90 ? "#10b981" : v >= 50 ? "#f59e0b" : "#ef4444";
+  const color = fixed ?? (score == null ? "#cbd5e1" : v >= 90 ? "#10b981" : v >= 50 ? "#f59e0b" : "#ef4444");
   return (
     <div className="relative mx-auto" style={{ width: size, height: size }}>
       <svg viewBox="0 0 120 120" className="h-full w-full -rotate-90">
@@ -117,8 +118,8 @@ export function ScoreRing({ score, size = 132 }: { score: number | null | undefi
         />
       </svg>
       <div className="absolute inset-0 flex animate-pop flex-col items-center justify-center [animation-delay:300ms]">
-        <span className="leading-none font-bold tracking-tight tabular-nums" style={{ color, fontSize: Math.round(size * 0.28) }}>{score ?? "—"}</span>
-        {size >= 100 && <span className="mt-1 text-[10px] font-semibold tracking-widest text-slate-400 uppercase">/ 100</span>}
+        <span className="leading-none font-bold tracking-tight tabular-nums" style={{ color, fontSize: Math.round(size * 0.28) }}>{score ?? "—"}{suffix}</span>
+        {size >= 100 && !suffix && <span className="mt-1 text-[10px] font-semibold tracking-widest text-slate-400 uppercase">/ 100</span>}
       </div>
     </div>
   );

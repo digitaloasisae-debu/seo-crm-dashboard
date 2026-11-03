@@ -31,7 +31,7 @@ export default async function TopicsPage({ params, searchParams }: { params: Pro
         <form className="card overflow-x-auto p-0">
           {editable && (
             <div className="flex flex-wrap items-center gap-2 border-b border-slate-200 p-3">
-              <SubmitButton formAction={setTopicStatusAction.bind(null, id, "APPROVED")} className="btn-primary">Approve selected</SubmitButton>
+              <SubmitButton data-celebrate="approved" formAction={setTopicStatusAction.bind(null, id, "APPROVED")} className="btn-primary">Approve selected</SubmitButton>
               <SubmitButton formAction={setTopicStatusAction.bind(null, id, "REJECTED")} className="btn-danger">Reject selected</SubmitButton>
             </div>
           )}

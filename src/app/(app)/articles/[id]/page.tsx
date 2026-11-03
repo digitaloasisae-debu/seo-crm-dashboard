@@ -57,12 +57,12 @@ export default async function ArticleReview({ params }: { params: Promise<{ id: 
               <h2 className="font-semibold">Review</h2>
               {article.status !== "APPROVED" && article.status !== "PUSH_FAILED" && (
                 <form action={reviewArticleAction.bind(null, id, "APPROVED")}>
-                  <SubmitButton className="btn-primary w-full">Approve</SubmitButton>
+                  <SubmitButton data-celebrate="approved" className="btn-primary w-full">Approve</SubmitButton>
                 </form>
               )}
               {(article.status === "APPROVED" || article.status === "PUSH_FAILED") && (
                 <form action={pushArticleAction.bind(null, id)}>
-                  <SubmitButton className="btn-primary w-full" disabled={!hasCred}>{article.status === "PUSH_FAILED" ? "Retry push to WordPress" : "Push to WordPress as draft"}</SubmitButton>
+                  <SubmitButton data-celebrate="pushed" className="btn-primary w-full" disabled={!hasCred}>{article.status === "PUSH_FAILED" ? "Retry push to WordPress" : "Push to WordPress as draft"}</SubmitButton>
                   {!hasCred && <p className="mt-1 text-xs text-red-600">No WordPress access saved for this client.</p>}
                 </form>
               )}

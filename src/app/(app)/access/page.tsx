@@ -35,7 +35,7 @@ export default async function AccessPage() {
                       {r.status === "PENDING" ? (
                         <form className="flex flex-wrap gap-2">
                           <input className="input w-36" type="date" name="expiresAt" title="Optional expiry" />
-                          <SubmitButton formAction={decideAccessAction.bind(null, r.id, true)} className="btn-primary">Approve</SubmitButton>
+                          <SubmitButton data-celebrate="approved" formAction={decideAccessAction.bind(null, r.id, true)} className="btn-primary">Approve</SubmitButton>
                           <SubmitButton formAction={decideAccessAction.bind(null, r.id, false)} className="btn-danger">Deny</SubmitButton>
                         </form>
                       ) : <StatusBadge status={r.status} />}

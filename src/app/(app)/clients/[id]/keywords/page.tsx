@@ -49,7 +49,7 @@ export default async function KeywordsPage({ params, searchParams }: { params: P
         <form className="card overflow-x-auto p-0">
           {editable && (
             <div className="flex flex-wrap gap-2 border-b border-slate-200 p-3">
-              <SubmitButton formAction={setKeywordStatusAction.bind(null, id, "APPROVED")} className="btn-primary">Approve selected</SubmitButton>
+              <SubmitButton data-celebrate="approved" formAction={setKeywordStatusAction.bind(null, id, "APPROVED")} className="btn-primary">Approve selected</SubmitButton>
               <SubmitButton formAction={setKeywordStatusAction.bind(null, id, "REJECTED")} className="btn-danger">Reject selected</SubmitButton>
               <SubmitButton formAction={deleteKeywordsAction.bind(null, id)} className="btn-secondary">Delete selected (unused only)</SubmitButton>
             </div>

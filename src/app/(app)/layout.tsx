@@ -4,6 +4,7 @@ import { logoutAction } from "../actions";
 import { SideNav, type NavItem } from "@/components/nav";
 import { Icon } from "@/components/icons";
 import { Logo } from "@/components/logo";
+import { Celebrate } from "@/components/celebrate";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const user = await requireUser();
@@ -68,6 +69,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           </form>
         </div>
       </aside>
+      <Celebrate />
       <main className="page-enter mx-auto w-full max-w-6xl flex-1 p-4 md:p-8">{children}</main>
     </div>
   );
