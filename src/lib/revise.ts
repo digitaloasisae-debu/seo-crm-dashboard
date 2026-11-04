@@ -138,3 +138,85 @@ Return JSON: {"options":[{"title":"...","description":"...","why":"<5-10 words o
   );
   return (out.options ?? []).filter((o) => o.title).slice(0, 3).map((o) => ({ title: o.title!.trim(), description: (o.description ?? "").trim(), why: (o.why ?? "").trim() }));
 }
+
+// ---------- SOP auto-fix: check → fix → check again ----------
+
+const FIX_SYSTEM = `You are the agency's SEO editor doing the final SOP pass on a blog draft before human review.
+You get the SOP, the client's brain rules, and a list of SOP checker issues. Fix EVERY issue you can, and change nothing else:
+keep the facts, voice, structure and the parts that already pass. Never invent facts about the business (prices, years in business, awards, addresses, phone numbers).
+Typical fixes: put the focus keyword in the H1/title and first 100 words, adjust keyword density, shorten long sentences and paragraphs, add bullet lists,
+add missing H2s, fix heading levels, write a 150–160 character meta description and a meta title under 60 characters (both with the keyword, and the city for local clients),
+add or complete an FAQ section (at least 5 distinct questions), add a local CTA, name the city in the intro/H2s/conclusion, replace outdated years with 2026.
+Links: add internal links ONLY to URLs from the "INTERNAL PAGES" list (descriptive 2–3 word anchors, first one in the intro). Add at most one external link, only to a well-known authority site (government, standards body, major publication), with target="_blank" rel="noopener".
+The body is HTML. Images are placeholders like [[IMG1]]: keep each one on its own line, exactly as written.
+Return JSON: {"meta_title":"...","meta_description":"...","body_html":"...","changes":["<one short line per fix>"]}`;
+
+/** Checker items the AI can't fix in text (images, the URL slug). */
+const NOT_FIXABLE = new Set(["images", "alt_text", "slug"]);
+
+/**
+ * The SOP pass every new draft gets: full SOP check (rules + AI review), AI fixes what failed,
+ * then the check runs again. If the fix doesn't raise the score, the original is kept.
+ */
+export async function autoFixSop(articleId: string, opts: { userId?: string; minScore?: number } = {}) {
+  const target = opts.minScore ?? 95;
+  const before = await runQuality(articleId, { ai: true });
+  const issues = [
+    ...before.report.items.filter((i) => i.status !== "pass" && !NOT_FIXABLE.has(i.id)).map((i) => `${i.status.toUpperCase()}: ${i.label}${i.detail ? ` (${i.detail})` : ""}`),
+    ...(before.report.ai?.items ?? []).filter((i) => i.status !== "pass").map((i) => `${i.status.toUpperCase()}: ${i.label}${i.detail ? ` (${i.detail})` : ""}`),
+    ...(before.report.ai?.topFixes ?? []).map((f) => `FIX: ${f}`),
+  ];
+  const mark = (note: string) => db.article.update({ where: { id: articleId }, data: { sopFixFrom: before.score, sopFixAt: new Date(), sopFixNote: note, revisingAt: null } });
+  if (before.score >= target || issues.length === 0) {
+    await mark(before.score >= target ? "Already met the SOP" : "Nothing the AI can fix");
+    return { before: before.score, after: before.score, fixed: false };
+  }
+
+  await db.article.update({ where: { id: articleId }, data: { revisingAt: new Date(), reviseError: null } });
+  try {
+    const { article, head } = await context(articleId);
+    const client = await db.client.findUniqueOrThrow({ where: { id: article.clientId }, select: { linkPool: true, siteUrl: true, gscPages: { select: { page: true }, orderBy: { clicks: "desc" }, take: 30 } } });
+    const pages = [...new Set([...client.linkPool, ...client.gscPages.map((p) => p.page)])].filter((u) => /^https?:\/\//.test(u) || u.startsWith("/")).slice(0, 40);
+    const p = pack(article.bodyHtml);
+    const out = await geminiJson<{ meta_title?: string; meta_description?: string; body_html?: string; changes?: string[] }>(
+      `${head}
+
+SOP CHECKER ISSUES TO FIX (score ${before.score}/100):
+${issues.slice(0, 40).map((i) => `- ${i}`).join("\n")}
+
+INTERNAL PAGES (the only URLs you may link internally):
+${pages.length ? pages.map((u) => `- ${u}`).join("\n") : "(none known: do not add internal links)"}
+
+CURRENT ARTICLE
+Meta title: ${article.metaTitle}
+Meta description: ${article.metaDescription ?? ""}
+Body:
+${p.body}`,
+      { system: FIX_SYSTEM, timeoutMs: 200_000, model: writerModel(), temperature: 0.3 },
+    );
+    const body = (out.body_html ?? "").trim();
+    if (body.length < p.body.length * 0.6) throw new Error("The fixed draft came back much shorter, so the original was kept");
+
+    const original = { metaTitle: article.metaTitle, metaDescription: article.metaDescription, bodyHtml: article.bodyHtml };
+    await db.article.update({
+      where: { id: articleId },
+      data: { metaTitle: out.meta_title?.trim() || article.metaTitle, metaDescription: out.meta_description?.trim() || article.metaDescription, bodyHtml: unpack(body, p) },
+    });
+    const after = await runQuality(articleId, { ai: true });
+    if (after.score <= before.score) {
+      await db.article.update({ where: { id: articleId }, data: original });
+      await runQuality(articleId, { ai: true });
+      await mark(`The fix scored ${after.score}, not better than the original ${before.score}, so the original was kept`);
+      return { before: before.score, after: before.score, fixed: false };
+    }
+    await db.articleRevision.create({
+      data: { articleId, ...original, request: `- SOP auto-fix (score ${before.score} → ${after.score})`, changes: (out.changes ?? []).slice(0, 25).map(String), createdById: opts.userId ?? null },
+    });
+    await mark(`Fixed ${out.changes?.length ?? 0} issue${out.changes?.length === 1 ? "" : "s"}`);
+    await logActivity({ actorId: opts.userId, actorTag: opts.userId ? undefined : "sop-autofix", clientId: article.clientId, action: "article.sop_fix", entity: "article", entityId: articleId, after: { before: before.score, after: after.score } });
+    return { before: before.score, after: after.score, fixed: true };
+  } catch (e) {
+    await db.article.update({ where: { id: articleId }, data: { revisingAt: null, sopFixFrom: before.score, sopFixAt: new Date(), sopFixNote: null, reviseError: `SOP auto-fix: ${e instanceof Error ? e.message : String(e)}` } });
+    return { before: before.score, after: before.score, fixed: false };
+  }
+}

@@ -12,7 +12,7 @@ import { canEdit, requireClientAccess } from "@/lib/access";
 import { requireAdmin, requireSuperAdmin, requireUser } from "@/lib/session";
 import { runQuality } from "@/lib/quality";
 import { learn, learnFromRankings } from "@/lib/brain";
-import { REVISE_STALE_MS, reviseArticle, suggestTitles, type TitleOption } from "@/lib/revise";
+import { REVISE_STALE_MS, autoFixSop, reviseArticle, suggestTitles, type TitleOption } from "@/lib/revise";
 import { geminiConfigured } from "@/lib/gemini";
 import { checkKeywords } from "@/lib/dataforseo";
 import { after as afterResponse } from "next/server";
@@ -311,6 +311,16 @@ export async function rewriteArticleAction(articleId: string, _prev: string | nu
   });
   revalidatePath(`/articles/${articleId}`);
   return null;
+}
+
+export async function fixSopAction(articleId: string) {
+  const { user, article } = await articleForEdit(articleId);
+  if (["PUSHING", "PUSHED_DRAFT"].includes(article.status)) throw new Error("This article is already in WordPress; edit it there");
+  if (!geminiConfigured()) throw new Error("Add GEMINI_API_KEY in Vercel first");
+  if (article.revisingAt && Date.now() - article.revisingAt.getTime() < REVISE_STALE_MS) return;
+  await db.article.update({ where: { id: articleId }, data: { revisingAt: new Date(), reviseError: null } });
+  afterResponse(() => autoFixSop(articleId, { userId: user.id, minScore: 100 }).then(() => undefined));
+  revalidatePath(`/articles/${articleId}`);
 }
 
 export type TitleState = { options?: TitleOption[]; error?: string } | null;

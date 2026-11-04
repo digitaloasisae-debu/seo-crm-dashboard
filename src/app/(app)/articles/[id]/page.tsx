@@ -6,7 +6,7 @@ import { requireUser } from "@/lib/session";
 import { Field, RankChange, RankSparkline, StatusBadge } from "@/components/ui";
 import { articleHistory } from "@/lib/gsc-report";
 import { fmtDate } from "@/lib/utils";
-import { addNoteAction, applyTitleAction, deleteNoteAction, pushArticleAction, restoreRevisionAction, reviewArticleAction, rewriteArticleAction, runAiReviewAction, saveArticleAction, titleOptionsAction } from "../../../actions";
+import { addNoteAction, applyTitleAction, deleteNoteAction, pushArticleAction, fixSopAction, restoreRevisionAction, reviewArticleAction, rewriteArticleAction, runAiReviewAction, saveArticleAction, titleOptionsAction } from "../../../actions";
 import { RefreshWhile, RewriteForm, TitleOptions } from "./rewrite";
 import { REVISE_STALE_MS } from "@/lib/revise";
 import { QualityCard } from "@/components/quality-card";
@@ -60,7 +60,7 @@ export default async function ArticleReview({ params }: { params: Promise<{ id: 
         <div className="mb-6 flex items-center gap-3 rounded-2xl border border-violet-200 bg-gradient-to-r from-indigo-50 to-violet-50 p-4 text-sm text-violet-900">
           <RefreshWhile />
           <Spinner className="h-5 w-5 text-violet-600" />
-          <div><span className="font-semibold">✨ Rewriting this article…</span> This takes 1 to 3 minutes. The page updates by itself, so you can keep working elsewhere.</div>
+          <div><span className="font-semibold">✨ AI is working on this article…</span> SOP check and fixes or your rewrite take 1 to 3 minutes. The page updates by itself, so you can keep working elsewhere.</div>
         </div>
       )}
 
@@ -192,6 +192,9 @@ export default async function ArticleReview({ params }: { params: Promise<{ id: 
             report={article.qualityReport as unknown as QualityReport | null}
             checkedAt={article.qualityCheckedAt}
             aiAction={runAiReviewAction.bind(null, id)}
+            fixAction={!locked ? fixSopAction.bind(null, id) : undefined}
+            fix={{ from: article.sopFixFrom, at: article.sopFixAt, note: article.sopFixNote }}
+            busy={revising}
             canRun={editable}
             aiReady={geminiConfigured()}
           />

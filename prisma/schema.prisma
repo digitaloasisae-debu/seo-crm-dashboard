@@ -392,6 +392,10 @@ model Article {
   aiReviewedAt     DateTime?
   revisingAt       DateTime?
   reviseError      String?
+  /// SOP auto-fix: score before the fix, and when it ran. The score after is qualityScore.
+  sopFixFrom       Int?
+  sopFixAt         DateTime?
+  sopFixNote       String?
 
   client      Client        @relation(fields: [clientId], references: [id], onDelete: Cascade)
   topic       Topic         @relation(fields: [topicId], references: [id], onDelete: Cascade)

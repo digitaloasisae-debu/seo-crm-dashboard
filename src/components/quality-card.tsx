@@ -33,7 +33,17 @@ function Group({ name, items }: { name: string; items: CheckItem[] }) {
   );
 }
 
-export function QualityCard({ score, report, checkedAt, aiAction, canRun, aiReady }: { score: number | null; report: QualityReport | null; checkedAt: Date | null; aiAction?: () => Promise<void>; canRun: boolean; aiReady: boolean }) {
+export function QualityCard({ score, report, checkedAt, aiAction, fixAction, fix, busy, canRun, aiReady }: {
+  score: number | null;
+  report: QualityReport | null;
+  checkedAt: Date | null;
+  aiAction?: () => Promise<void>;
+  fixAction?: () => Promise<void>;
+  fix?: { from: number | null; at: Date | null; note: string | null };
+  busy?: boolean;
+  canRun: boolean;
+  aiReady: boolean;
+}) {
   if (!report) return null;
   const all = [...report.items, ...(report.ai?.items ?? [])];
   const groups = [...new Set(all.map((i) => i.group))];
@@ -51,6 +61,17 @@ export function QualityCard({ score, report, checkedAt, aiAction, canRun, aiRead
           </div>
         </div>
       </div>
+      {fix?.at && fix.from != null && (
+        <div className="flex items-center gap-3 rounded-xl border border-emerald-100 bg-gradient-to-r from-emerald-50 to-teal-50 p-3 text-sm">
+          <span className="text-xl">🛠️</span>
+          <div className="min-w-0 flex-1">
+            <div className="font-semibold text-emerald-900">
+              SOP auto-fix: {fix.from} {score != null && score !== fix.from ? <>→ <span className="text-emerald-700">{score}</span></> : ""}
+            </div>
+            <div className="text-xs text-emerald-800/80">{fix.note ?? "Didn't finish"} · {fmtDate(fix.at)}</div>
+          </div>
+        </div>
+      )}
       {report.ai?.summary && <p className="rounded-xl bg-indigo-50/70 p-3 text-sm text-indigo-900">🤖 {report.ai.summary}</p>}
       {report.ai?.topFixes && report.ai.topFixes.length > 0 && (
         <div>
@@ -60,6 +81,12 @@ export function QualityCard({ score, report, checkedAt, aiAction, canRun, aiRead
       )}
       {report.aiError && <p className="rounded-xl bg-amber-50 p-3 text-xs text-amber-800">AI review didn&apos;t run: {report.aiError}</p>}
       <div className="space-y-2">{groups.map((g) => <Group key={g} name={g} items={all.filter((i) => i.group === g)} />)}</div>
+      {canRun && fixAction && aiReady && (counts.fail > 0 || counts.warn > 0) && (
+        <form action={fixAction}>
+          <SubmitButton className="btn-primary w-full" disabled={busy}>{busy ? "AI is working on it…" : "🛠️ Fix SOP issues with AI"}</SubmitButton>
+          <p className="mt-1 text-xs text-slate-500">Checks, fixes what&apos;s missing, then checks again. The current version is saved first.</p>
+        </form>
+      )}
       {canRun && aiAction && (
         <form action={aiAction}>
           <SubmitButton className="btn-secondary w-full" disabled={!aiReady}>{report.ai ? "🤖 Re-run AI review" : "🤖 Run AI review"}</SubmitButton>
