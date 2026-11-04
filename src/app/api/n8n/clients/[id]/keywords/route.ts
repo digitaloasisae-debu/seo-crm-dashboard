@@ -3,6 +3,7 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { addKeywords } from "@/lib/intake";
 import { checkN8nAuth } from "@/lib/n8n";
+import { keywordFlags } from "@/lib/dataforseo";
 
 // GET /api/n8n/clients/{id}/keywords?status=approved&used=false&limit=25
 // (replaces "Read Keyword Pool" + "Select Top 10 Unused Approved" in WF1)
@@ -18,10 +19,12 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   const keywords = await db.keyword.findMany({
     where: { clientId: id, status, ...(used === null ? {} : { used: used === "true" }) },
     orderBy: { addedAt: "asc" },
-    take: limit,
+    take: 500,
   });
+  // Keywords DataForSEO flagged (almost no searches, or very hard) go last, so WF1 picks the strong ones first.
+  const ranked = keywords.map((k) => ({ k, weak: keywordFlags(k).length })).sort((a, b) => a.weak - b.weak).slice(0, limit);
   return NextResponse.json(
-    keywords.map((k) => ({ id: k.id, keyword: k.keyword, category: k.category ?? "", search_volume: k.searchVolume, difficulty: k.difficulty, date_added: k.addedAt })),
+    ranked.map(({ k, weak }) => ({ id: k.id, keyword: k.keyword, category: k.category ?? "", search_volume: k.searchVolume, difficulty: k.difficulty, intent: k.intent ?? "", weak: weak > 0, date_added: k.addedAt })),
   );
 }
 

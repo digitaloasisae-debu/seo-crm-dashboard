@@ -291,6 +291,10 @@ model Keyword {
   searchVolume   Int?
   difficulty     Int?
   volumeVerified Boolean       @default(false)
+  cpc            Float?
+  intent         String?
+  /// When DataForSEO last checked volume and difficulty.
+  metricsCheckedAt DateTime?
   status         KeywordStatus @default(PENDING)
   used           Boolean       @default(false)
   usedAt         DateTime?

@@ -14,6 +14,7 @@ import { runQuality } from "@/lib/quality";
 import { learn } from "@/lib/brain";
 import { REVISE_STALE_MS, reviseArticle, suggestTitles, type TitleOption } from "@/lib/revise";
 import { geminiConfigured } from "@/lib/gemini";
+import { checkKeywords } from "@/lib/dataforseo";
 import { after as afterResponse } from "next/server";
 import { addKeywords, processSubmission } from "@/lib/intake";
 import { ensureSlots } from "@/lib/posting";
@@ -170,6 +171,20 @@ export async function addKeywordsAction(clientId: string, fd: FormData) {
     category: str(fd, "category") || undefined,
   });
   revalidatePath(`/clients/${clientId}/keywords`);
+}
+
+export async function checkKeywordsAction(clientId: string, all: boolean) {
+  const user = await requireUser();
+  await requireClientAccess(user, clientId, "edit");
+  let result: string;
+  try {
+    const r = await checkKeywords(clientId, { all });
+    result = `ok:${r.checked}:${r.location}`;
+    await logActivity({ actorId: user.id, clientId, action: "keyword.check", entity: "client", entityId: clientId, after: { count: r.checked } });
+  } catch (e) {
+    result = `err:${e instanceof Error ? e.message : String(e)}`;
+  }
+  redirect(`/clients/${clientId}/keywords?check=${encodeURIComponent(result)}`);
 }
 
 export async function setKeywordStatusAction(clientId: string, status: "APPROVED" | "REJECTED" | "PENDING", fd: FormData) {

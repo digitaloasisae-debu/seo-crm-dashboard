@@ -3,7 +3,9 @@ import { db } from "./db";
 import { encryptSecret } from "./crypto";
 import { logActivity } from "./activity";
 import { ensureSlots } from "./posting";
+import { after } from "next/server";
 import { triggerN8n } from "./n8n";
+import { checkKeywords, dataforseoConfigured } from "./dataforseo";
 import { fieldReader, redactPayload, submissionId, type TallyPayload } from "./tally";
 import { normalizeKeyword, slugify, splitList, stripTrailingSlash, yes } from "./utils";
 
@@ -168,16 +170,19 @@ async function processKeywords(payload: TallyPayload): Promise<string> {
   const submittedBy = get("Submitted By", "Submitted by") || null;
   await addKeywords(client.id, splitList(get("Keywords")), { source: "TALLY", submittedBy, actorTag: "tally" });
 
-  // Same as before the dashboard: a keyword submission starts topic generation (WF1) for that client.
-  if (process.env.N8N_WF1_WEBHOOK_URL) {
-    try {
-      await triggerN8n("WF1", { client_id: client.id, requested_by: submittedBy ?? "tally" });
-      await logActivity({ actorTag: "tally", clientId: client.id, action: "n8n.trigger_wf1", entity: "client", entityId: client.id });
-    } catch (e) {
-      // Keywords are saved either way; the team can start WF1 from the client page.
-      await logActivity({ actorTag: "tally", clientId: client.id, action: "n8n.trigger_wf1_failed", entity: "client", entityId: client.id, after: { error: e instanceof Error ? e.message : String(e) } });
+  // After the webhook has answered: check volume/difficulty, then start topic generation (WF1) as before the dashboard,
+  // so WF1 already sees the numbers.
+  background(async () => {
+    if (process.env.N8N_WF1_WEBHOOK_URL) {
+      try {
+        await triggerN8n("WF1", { client_id: client.id, requested_by: submittedBy ?? "tally" });
+        await logActivity({ actorTag: "tally", clientId: client.id, action: "n8n.trigger_wf1", entity: "client", entityId: client.id });
+      } catch (e) {
+        // Keywords are saved either way; the team can start WF1 from the client page.
+        await logActivity({ actorTag: "tally", clientId: client.id, action: "n8n.trigger_wf1_failed", entity: "client", entityId: client.id, after: { error: e instanceof Error ? e.message : String(e) } });
+      }
     }
-  }
+  }, { checkClientId: client.id });
   return client.id;
 }
 
@@ -219,5 +224,22 @@ export async function addKeywords(
     entityId: clientId,
     after: { submitted: rows.length, added: res.count },
   });
+  // Tally submissions check keywords together with starting WF1 (see processKeywords).
+  if (opts.source !== "TALLY" && res.count) background(async () => {}, { checkClientId: clientId });
   return clientId;
+}
+
+/** Runs work after the response is sent: first the keyword check (if DataForSEO is set up), then fn. */
+function background(fn: () => Promise<void>, opts: { checkClientId?: string } = {}) {
+  const job = async () => {
+    if (opts.checkClientId && dataforseoConfigured()) {
+      await checkKeywords(opts.checkClientId).catch((e) => console.error("keywords.check_failed", opts.checkClientId, e));
+    }
+    await fn();
+  };
+  try {
+    after(job);
+  } catch {
+    void job(); // outside a request (scripts)
+  }
 }
