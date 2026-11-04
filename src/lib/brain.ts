@@ -69,14 +69,14 @@ Return JSON: {"rules": "<full markdown rulebook>", "changes": ["<one line per bu
 
 /** Teach the brain from Search Console: compare the client's best and worst ranking articles. */
 export async function learnFromRankings(clientId: string) {
-  const { articleRanks } = await import("./gsc-report");
+  const { articleRanks, matchArticleSlug } = await import("./gsc-report");
   const ranks = await articleRanks(clientId);
   const articles = await db.article.findMany({
     where: { clientId, status: "PUSHED_DRAFT" },
     select: { slug: true, metaTitle: true, focusKeyword: true, bodyHtml: true, qualityScore: true },
   });
   const rows = articles
-    .map((a) => ({ a, r: ranks.get(a.slug.toLowerCase()) }))
+    .map((a) => { const m = matchArticleSlug(a, ranks.keys()); return { a, r: m ? ranks.get(m) : undefined }; })
     .filter((x): x is { a: (typeof articles)[number]; r: NonNullable<typeof x.r> } => !!x.r && x.r.impressions >= 20)
     .sort((x, y) => x.r.position - y.r.position);
   if (rows.length < 4) return { changes: [] as string[], skipped: true, reason: `Only ${rows.length} published article${rows.length === 1 ? " has" : "s have"} enough Google data (need 4)` };

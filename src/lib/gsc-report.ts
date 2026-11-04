@@ -1,5 +1,5 @@
 import { db } from "./db";
-import { normalizeKeyword } from "./utils";
+import { normalizeKeyword, slugify } from "./utils";
 
 const addDays = (d: Date, n: number) => new Date(d.getTime() + n * 864e5);
 
@@ -89,12 +89,28 @@ export async function movers(clientId: string, queries: QueryPerf[]) {
 /** "/my-post/" style path for matching an article slug to Search Console page URLs. */
 const pathOf = (url: string) => url.replace(/^https?:\/\/[^/]+/, "").replace(/[?#].*$/, "").replace(/\/+$/, "").toLowerCase();
 
-/** Weekly ranking history for one article, found by its slug in the page URL. */
-export async function articleHistory(clientId: string, slug: string) {
-  if (!slug) return [];
-  const rows = await db.gscPageWeek.findMany({ where: { clientId, page: { contains: slug, mode: "insensitive" } } });
-  const s = slug.toLowerCase();
-  return series(rows.filter((r) => pathOf(r.page).split("/").pop() === s));
+type ArticleKey = { slug: string; metaTitle: string; focusKeyword: string };
+
+/**
+ * Finds the page slug Google knows for an article. WordPress (or Yoast) often uses a different slug than ours,
+ * so try our slug, the title, the focus keyword, then any page whose URL holds every word of the focus keyword.
+ */
+export function matchArticleSlug(a: ArticleKey, pageSlugs: Iterable<string>): string | null {
+  const pages = [...pageSlugs];
+  const set = new Set(pages);
+  for (const c of [a.slug, slugify(a.metaTitle), slugify(a.focusKeyword)].map((x) => x.toLowerCase()).filter(Boolean)) if (set.has(c)) return c;
+  const words = slugify(a.focusKeyword).split("-").filter((w) => w.length > 2);
+  if (words.length < 2) return null;
+  const hits = pages.filter((p) => { const parts = new Set(p.split("-")); return words.every((w) => parts.has(w)); });
+  return hits.sort((x, y) => x.length - y.length)[0] ?? null;
+}
+
+/** Weekly ranking history for one article. */
+export async function articleHistory(clientId: string, article: ArticleKey) {
+  const rows = await db.gscPageWeek.findMany({ where: { clientId } });
+  const slugOf = (page: string) => pathOf(page).split("/").pop() ?? "";
+  const match = matchArticleSlug(article, new Set(rows.map((r) => slugOf(r.page)).filter(Boolean)));
+  return match ? series(rows.filter((r) => slugOf(r.page) === match)) : [];
 }
 
 /** Position over the last 4 synced weeks (and the 4 before) for every article slug of a client. */

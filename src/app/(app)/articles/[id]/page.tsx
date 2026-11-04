@@ -41,7 +41,7 @@ export default async function ArticleReview({ params }: { params: Promise<{ id: 
   const reviseError = article.reviseError || (article.revisingAt && !revising ? "The rewrite took too long and stopped. Try again." : null);
   const pendingNotes = article.notes.filter((n) => !n.appliedAt).length;
   const lastRewrite = article.revisions.find((r) => r.changes.length > 0);
-  const history = article.client.gscProperty && article.status === "PUSHED_DRAFT" ? await articleHistory(article.clientId, article.slug) : [];
+  const history = article.client.gscProperty && article.status === "PUSHED_DRAFT" ? await articleHistory(article.clientId, article) : [];
   const last4 = history.slice(-4), prev4 = history.slice(-8, -4);
   const avg = (pts: typeof history) => { const imp = pts.reduce((s, p) => s + p.impressions, 0); return imp ? pts.reduce((s, p) => s + p.position * p.impressions, 0) / imp : null; };
   const rankNow = avg(last4), rankPrev = avg(prev4);
