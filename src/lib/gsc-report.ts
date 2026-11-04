@@ -46,13 +46,76 @@ export async function searchPerformance(clientId: string) {
 
 /** Position and clicks for each keyword in the pool (last 4 synced weeks). */
 export async function keywordPositions(clientId: string) {
-  const weeks = await db.gscQueryWeek.findMany({ where: { clientId }, distinct: ["weekStart"], select: { weekStart: true }, orderBy: { weekStart: "desc" }, take: 4 });
-  if (!weeks.length) return new Map<string, { position: number; clicks: number; impressions: number }>();
+  const weeks = await db.gscQueryWeek.findMany({ where: { clientId }, distinct: ["weekStart"], select: { weekStart: true }, orderBy: { weekStart: "desc" }, take: 8 });
+  type Pos = { position: number; clicks: number; impressions: number; prevPosition: number | null };
+  if (!weeks.length) return new Map<string, Pos>();
+  const recent = new Set(weeks.slice(0, 4).map((w) => +w.weekStart));
   const rows = await db.gscQueryWeek.findMany({ where: { clientId, weekStart: { in: weeks.map((w) => w.weekStart) } } });
-  const map = new Map<string, typeof rows>();
+  const map = new Map<string, { cur: typeof rows; prev: typeof rows }>();
   for (const r of rows) {
     const k = normalizeKeyword(r.query);
-    map.set(k, [...(map.get(k) ?? []), r]);
+    const e = map.get(k) ?? { cur: [], prev: [] };
+    (recent.has(+r.weekStart) ? e.cur : e.prev).push(r);
+    map.set(k, e);
   }
-  return new Map([...map].map(([k, v]) => [k, weighted(v)]));
+  return new Map<string, Pos>(
+    [...map].filter(([, v]) => v.cur.length).map(([k, v]) => [k, { ...weighted(v.cur), prevPosition: v.prev.length ? weighted(v.prev).position : null }]),
+  );
+}
+
+export type WeekPoint = { week: Date; position: number; clicks: number; impressions: number };
+
+function series(rows: { weekStart: Date; clicks: number; impressions: number; position: number }[]): WeekPoint[] {
+  const byWeek = new Map<number, typeof rows>();
+  for (const r of rows) byWeek.set(+r.weekStart, [...(byWeek.get(+r.weekStart) ?? []), r]);
+  return [...byWeek].sort((a, b) => a[0] - b[0]).map(([w, v]) => ({ week: new Date(w), ...weighted(v) }));
+}
+
+/** Queries that climbed or dropped the most (last 4 weeks vs the 4 before), with a 12-week position trend. */
+export async function movers(clientId: string, queries: QueryPerf[]) {
+  const moved = queries
+    .filter((q) => q.prevPosition != null && q.impressions >= 10)
+    .map((q) => ({ ...q, change: q.prevPosition! - q.position }))
+    .filter((q) => Math.abs(q.change) >= 1);
+  const up = [...moved].sort((a, b) => b.change - a.change).filter((q) => q.change > 0).slice(0, 6);
+  const down = [...moved].sort((a, b) => a.change - b.change).filter((q) => q.change < 0).slice(0, 6);
+  const names = [...up, ...down].map((q) => q.query);
+  const weeks = await db.gscQueryWeek.findMany({ where: { clientId }, distinct: ["weekStart"], select: { weekStart: true }, orderBy: { weekStart: "desc" }, take: 12 });
+  const rows = names.length ? await db.gscQueryWeek.findMany({ where: { clientId, query: { in: names }, weekStart: { in: weeks.map((w) => w.weekStart) } } }) : [];
+  const trend = (q: string) => series(rows.filter((r) => r.query === q));
+  return { up: up.map((q) => ({ ...q, trend: trend(q.query) })), down: down.map((q) => ({ ...q, trend: trend(q.query) })) };
+}
+
+/** "/my-post/" style path for matching an article slug to Search Console page URLs. */
+const pathOf = (url: string) => url.replace(/^https?:\/\/[^/]+/, "").replace(/[?#].*$/, "").replace(/\/+$/, "").toLowerCase();
+
+/** Weekly ranking history for one article, found by its slug in the page URL. */
+export async function articleHistory(clientId: string, slug: string) {
+  if (!slug) return [];
+  const rows = await db.gscPageWeek.findMany({ where: { clientId, page: { contains: slug, mode: "insensitive" } } });
+  const s = slug.toLowerCase();
+  return series(rows.filter((r) => pathOf(r.page).split("/").pop() === s));
+}
+
+/** Position over the last 4 synced weeks (and the 4 before) for every article slug of a client. */
+export async function articleRanks(clientId: string) {
+  const weeks = await db.gscPageWeek.findMany({ where: { clientId }, distinct: ["weekStart"], select: { weekStart: true }, orderBy: { weekStart: "desc" }, take: 8 });
+  const out = new Map<string, { position: number; clicks: number; impressions: number; prevPosition: number | null }>();
+  if (!weeks.length) return out;
+  const recent = new Set(weeks.slice(0, 4).map((w) => +w.weekStart));
+  const rows = await db.gscPageWeek.findMany({ where: { clientId, weekStart: { in: weeks.map((w) => w.weekStart) } } });
+  const bySlug = new Map<string, { cur: typeof rows; prev: typeof rows }>();
+  for (const r of rows) {
+    const slug = pathOf(r.page).split("/").pop() ?? "";
+    if (!slug) continue;
+    const e = bySlug.get(slug) ?? { cur: [], prev: [] };
+    (recent.has(+r.weekStart) ? e.cur : e.prev).push(r);
+    bySlug.set(slug, e);
+  }
+  for (const [slug, v] of bySlug) {
+    if (!v.cur.length) continue;
+    const c = weighted(v.cur);
+    out.set(slug, { position: c.position, clicks: c.clicks, impressions: c.impressions, prevPosition: v.prev.length ? weighted(v.prev).position : null });
+  }
+  return out;
 }

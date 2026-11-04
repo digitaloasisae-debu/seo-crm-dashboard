@@ -3,7 +3,8 @@ import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { accessLevel } from "@/lib/access";
 import { requireUser } from "@/lib/session";
-import { Field, StatusBadge } from "@/components/ui";
+import { Field, RankChange, RankSparkline, StatusBadge } from "@/components/ui";
+import { articleHistory } from "@/lib/gsc-report";
 import { fmtDate } from "@/lib/utils";
 import { addNoteAction, applyTitleAction, deleteNoteAction, pushArticleAction, restoreRevisionAction, reviewArticleAction, rewriteArticleAction, runAiReviewAction, saveArticleAction, titleOptionsAction } from "../../../actions";
 import { RefreshWhile, RewriteForm, TitleOptions } from "./rewrite";
@@ -40,6 +41,11 @@ export default async function ArticleReview({ params }: { params: Promise<{ id: 
   const reviseError = article.reviseError || (article.revisingAt && !revising ? "The rewrite took too long and stopped. Try again." : null);
   const pendingNotes = article.notes.filter((n) => !n.appliedAt).length;
   const lastRewrite = article.revisions.find((r) => r.changes.length > 0);
+  const history = article.client.gscProperty && article.status === "PUSHED_DRAFT" ? await articleHistory(article.clientId, article.slug) : [];
+  const last4 = history.slice(-4), prev4 = history.slice(-8, -4);
+  const avg = (pts: typeof history) => { const imp = pts.reduce((s, p) => s + p.impressions, 0); return imp ? pts.reduce((s, p) => s + p.position * p.impressions, 0) / imp : null; };
+  const rankNow = avg(last4), rankPrev = avg(prev4);
+  const best = history.length ? Math.min(...history.map((p) => p.position)) : null;
   const approver = article.approvedById ? await db.user.findUnique({ where: { id: article.approvedById }, select: { name: true } }) : null;
 
   return (
@@ -76,6 +82,27 @@ export default async function ArticleReview({ params }: { params: Promise<{ id: 
             {article.wpPostUrl && <div><a className="text-indigo-600 hover:underline" href={article.wpPostUrl} target="_blank" rel="noreferrer">Open WordPress draft #{article.wpPostId}</a></div>}
             {article.lastPushError && article.status === "PUSH_FAILED" && <div className="rounded bg-red-50 p-2 text-red-700">Push failed: {article.lastPushError}</div>}
           </section>
+
+          {article.status === "PUSHED_DRAFT" && article.client.gscProperty && (
+            <section className="card space-y-3">
+              <h2 className="font-semibold">📈 Google ranking</h2>
+              {history.length === 0 ? (
+                <p className="text-sm text-slate-500">No Search Console data for this post yet. It shows up once the post is published and Google starts showing it (usually 1 to 3 weeks).</p>
+              ) : (
+                <>
+                  <div className="grid grid-cols-3 gap-2 text-center">
+                    <div className="rounded-xl bg-indigo-50/60 p-2"><div className="text-[11px] text-slate-500">Position (4w)</div><div className="text-xl font-bold tabular-nums">{rankNow != null ? rankNow.toFixed(1) : "—"}</div>{rankNow != null && <RankChange position={rankNow} prev={rankPrev} />}</div>
+                    <div className="rounded-xl bg-indigo-50/60 p-2"><div className="text-[11px] text-slate-500">Clicks (4w)</div><div className="text-xl font-bold tabular-nums">{last4.reduce((s, p) => s + p.clicks, 0)}</div></div>
+                    <div className="rounded-xl bg-indigo-50/60 p-2"><div className="text-[11px] text-slate-500">Best week</div><div className="text-xl font-bold tabular-nums">{best?.toFixed(1)}</div></div>
+                  </div>
+                  <div>
+                    <RankSparkline points={history} width={320} height={56} />
+                    <div className="flex justify-between text-[11px] text-slate-400"><span>{fmtDate(history[0].week)}</span><span>weekly position, higher line = better</span><span>{fmtDate(history.at(-1)!.week)}</span></div>
+                  </div>
+                </>
+              )}
+            </section>
+          )}
 
           {editable && !locked && (
             <section className="card space-y-3">

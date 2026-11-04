@@ -1,6 +1,8 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { db } from "@/lib/db";
 import { syncClient } from "@/lib/google";
+import { learnFromRankings } from "@/lib/brain";
+import { geminiConfigured } from "@/lib/gemini";
 
 export const maxDuration = 60;
 
@@ -25,5 +27,20 @@ export async function GET(req: NextRequest) {
       failed.push(c.name);
     }
   }
-  return NextResponse.json({ synced: done, failed, remaining: clients.length - done.length - failed.length });
+  // Weekly: one client's brain learns from its rankings per run, while time allows.
+  let learned: string | null = null;
+  if (geminiConfigured() && Date.now() - started < 30_000) {
+    const due = await db.client.findFirst({
+      where: { gscProperty: { not: null }, status: "ACTIVE", OR: [{ brain: null }, { brain: { OR: [{ rankingsLearnedAt: null }, { rankingsLearnedAt: { lt: new Date(Date.now() - 7 * 864e5) } }] } }] },
+      orderBy: { gscSyncedAt: "desc" },
+      select: { id: true, name: true },
+    });
+    if (due) {
+      const r = await learnFromRankings(due.id).catch((e) => ({ skipped: true, reason: String(e) }));
+      learned = `${due.name}: ${r.skipped ? `skipped (${"reason" in r ? r.reason : ""})` : "updated"}`;
+      // Don't retry a client with too little data every day.
+      if (r.skipped) await db.clientBrain.upsert({ where: { clientId: due.id }, create: { clientId: due.id, rankingsLearnedAt: new Date() }, update: { rankingsLearnedAt: new Date() } });
+    }
+  }
+  return NextResponse.json({ synced: done, failed, learned, remaining: clients.length - done.length - failed.length });
 }

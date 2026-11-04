@@ -1,7 +1,7 @@
 import { db } from "@/lib/db";
 import { canEdit } from "@/lib/access";
 import { requireUser } from "@/lib/session";
-import { Empty, KeywordLink, StatusBadge } from "@/components/ui";
+import { Empty, KeywordLink, RankChange, StatusBadge } from "@/components/ui";
 import { fmtDate } from "@/lib/utils";
 import { keywordPositions } from "@/lib/gsc-report";
 import { addKeywordsAction, checkKeywordsAction, deleteKeywordsAction, setKeywordStatusAction } from "../../../../actions";
@@ -95,7 +95,7 @@ export default async function KeywordsPage({ params, searchParams }: { params: P
                   </td>
                   <td>{k.difficulty != null ? <KdChip kd={k.difficulty} /> : <span className="text-slate-300">—</span>}</td>
                   <td className="text-xs text-slate-500">{k.intent ?? ""}</td>
-                  {hasGsc && <td>{ranks.get(k.keywordNorm) ? ranks.get(k.keywordNorm)!.position.toFixed(1) : <span className="text-slate-300">—</span>}</td>}
+                  {hasGsc && <td className="whitespace-nowrap">{ranks.get(k.keywordNorm) ? <>{ranks.get(k.keywordNorm)!.position.toFixed(1)} <RankChange position={ranks.get(k.keywordNorm)!.position} prev={ranks.get(k.keywordNorm)!.prevPosition} /></> : <span className="text-slate-300">—</span>}</td>}
                   {hasGsc && <td>{ranks.get(k.keywordNorm)?.clicks ?? ""}</td>}
                   <td><StatusBadge status={k.status} /></td>
                   <td>{k.used ? fmtDate(k.usedAt) || "yes" : ""}</td>

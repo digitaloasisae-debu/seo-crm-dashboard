@@ -168,3 +168,31 @@ export function KeywordLink({ keyword, className = "" }: { keyword: string; clas
     </a>
   );
 }
+
+/** Tiny line of Google positions over time (higher on the chart = better rank). */
+export function RankSparkline({ points, width = 120, height = 32 }: { points: { position: number }[]; width?: number; height?: number }) {
+  if (points.length < 2) return <span className="text-xs text-slate-300">—</span>;
+  const ps = points.map((p) => p.position);
+  const lo = Math.min(...ps), hi = Math.max(...ps);
+  const span = Math.max(hi - lo, 1);
+  const x = (i: number) => 2 + (i * (width - 4)) / (ps.length - 1);
+  const y = (v: number) => 3 + ((v - lo) / span) * (height - 6);
+  const d = ps.map((v, i) => `${i ? "L" : "M"}${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(" ");
+  const better = ps.at(-1)! <= ps[0];
+  const c = better ? "#059669" : "#dc2626";
+  return (
+    <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} className="h-auto max-w-full" role="img" aria-label={`Position ${ps[0].toFixed(1)} to ${ps.at(-1)!.toFixed(1)}`}>
+      <title>{points.map((p) => p.position.toFixed(1)).join(" → ")}</title>
+      <path d={d} fill="none" stroke={c} strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
+      <circle cx={x(ps.length - 1)} cy={y(ps.at(-1)!)} r="2.5" fill={c} />
+    </svg>
+  );
+}
+
+/** ▲ 3.2 / ▼ 1.5 change in Google position (prev minus current: positive = climbed). */
+export function RankChange({ position, prev }: { position: number; prev: number | null | undefined }) {
+  if (prev == null) return <span className="text-xs text-slate-400">new</span>;
+  const d = prev - position;
+  if (Math.abs(d) < 0.5) return <span className="text-xs text-slate-400">–</span>;
+  return <span className={`text-xs font-semibold ${d > 0 ? "text-emerald-600" : "text-red-600"}`}>{d > 0 ? "▲" : "▼"} {Math.abs(d).toFixed(1)}</span>;
+}

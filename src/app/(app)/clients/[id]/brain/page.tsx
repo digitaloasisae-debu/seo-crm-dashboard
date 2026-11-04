@@ -7,7 +7,7 @@ import { requireUser } from "@/lib/session";
 import { Empty } from "@/components/ui";
 import { SubmitButton } from "@/components/submit-button";
 import { fmtDate } from "@/lib/utils";
-import { relearnBrainAction, saveBrainAction } from "../../../../actions";
+import { learnRankingsAction, relearnBrainAction, saveBrainAction } from "../../../../actions";
 import { geminiConfigured } from "@/lib/gemini";
 
 export const maxDuration = 60;
@@ -44,7 +44,7 @@ export default async function BrainPage({ params, searchParams }: { params: Prom
           </div>
           {learn && (
             <p className={`relative mt-4 rounded-xl p-3 text-sm ${learn.startsWith("err:") ? "bg-red-50 text-red-700" : "bg-emerald-50 text-emerald-800"}`}>
-              {learn.startsWith("err:") ? `Couldn't learn: ${learn.slice(4)}` : learn === "nothing" ? "No new notes to learn from." : `🧠 Learned! ${learn.split(":")[1] ?? 0} rule changes.`}
+              {learn.startsWith("err:") ? `Couldn't learn: ${learn.slice(4)}` : learn.startsWith("skip:") ? `Not enough Google data yet: ${learn.slice(5)}.` : learn === "nothing" ? "No new notes to learn from." : `🧠 Learned! ${learn.split(":")[1] ?? 0} rule changes.`}
             </p>
           )}
           {brain?.lastError && !learn && <p className="relative mt-4 rounded-xl bg-amber-50 p-3 text-xs text-amber-800">Last learning attempt failed: {brain.lastError}</p>}
@@ -73,7 +73,9 @@ export default async function BrainPage({ params, searchParams }: { params: Prom
             <form action={relearnBrainAction.bind(null, id, false)}><SubmitButton className="btn-primary w-full" disabled={!ai}>🧠 Learn from new notes</SubmitButton></form>
             <form action={relearnBrainAction.bind(null, id, true)}><SubmitButton className="btn-secondary w-full" disabled={!ai}>Rebuild from all notes</SubmitButton></form>
             {!ai && <p className="text-xs text-slate-500">Add GEMINI_API_KEY in Vercel to turn learning on.</p>}
-            <p className="text-xs text-slate-500">It also learns automatically a few seconds after each new note.</p>
+            <form action={learnRankingsAction.bind(null, id)}><SubmitButton className="btn-secondary w-full" disabled={!ai}>📈 Learn from Google rankings</SubmitButton></form>
+            <p className="text-xs text-slate-500">It learns from each new note a few seconds after it&apos;s added. Once a week it also compares this client&apos;s best and worst ranking posts in Search Console.</p>
+            {brain?.rankingsLearnedAt && <p className="text-xs text-slate-400">Last learned from rankings {fmtDate(brain.rankingsLearnedAt)}.</p>}
           </section>
         )}
         <section className="card">

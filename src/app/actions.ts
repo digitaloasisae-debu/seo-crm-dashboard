@@ -11,7 +11,7 @@ import { logActivity } from "@/lib/activity";
 import { canEdit, requireClientAccess } from "@/lib/access";
 import { requireAdmin, requireSuperAdmin, requireUser } from "@/lib/session";
 import { runQuality } from "@/lib/quality";
-import { learn } from "@/lib/brain";
+import { learn, learnFromRankings } from "@/lib/brain";
 import { REVISE_STALE_MS, reviseArticle, suggestTitles, type TitleOption } from "@/lib/revise";
 import { geminiConfigured } from "@/lib/gemini";
 import { checkKeywords } from "@/lib/dataforseo";
@@ -388,6 +388,19 @@ export async function relearnBrainAction(clientId: string, all: boolean) {
   try {
     const r = await learn(clientId, { all });
     result = r.skipped ? "nothing" : `ok:${r.changes.length}`;
+  } catch (e) {
+    result = `err:${e instanceof Error ? e.message : String(e)}`;
+  }
+  redirect(`/clients/${clientId}/brain?learn=${encodeURIComponent(result)}`);
+}
+
+export async function learnRankingsAction(clientId: string) {
+  const user = await requireUser();
+  await requireClientAccess(user, clientId, "edit");
+  let result: string;
+  try {
+    const r = await learnFromRankings(clientId);
+    result = r.skipped ? `skip:${r.reason}` : `ok:${r.changes.length}`;
   } catch (e) {
     result = `err:${e instanceof Error ? e.message : String(e)}`;
   }

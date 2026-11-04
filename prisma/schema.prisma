@@ -93,6 +93,21 @@ model GscQueryWeek {
   @@index([clientId, query])
 }
 
+// Pages per week (week = Monday): ranking history for each article.
+model GscPageWeek {
+  clientId    String
+  weekStart   DateTime @db.Date
+  page        String
+  clicks      Int
+  impressions Int
+  position    Float
+
+  client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@id([clientId, weekStart, page])
+  @@index([clientId, page])
+}
+
 // Top pages over the latest 28 days (replaced on each sync).
 model GscPage {
   clientId    String
@@ -228,6 +243,7 @@ model Client {
   gscDaily        GscDaily[]
   gscQueries      GscQueryWeek[]
   gscPages        GscPage[]
+  gscPageWeeks    GscPageWeek[]
 }
 
 enum CredentialKind {
@@ -437,6 +453,8 @@ model ClientBrain {
   rules         String    @default("")
   version       Int       @default(0)
   lastLearnedAt DateTime?
+  /// When the brain last learned from Search Console results.
+  rankingsLearnedAt DateTime?
   lastError     String?
   updatedById   String?
   updatedAt     DateTime  @updatedAt

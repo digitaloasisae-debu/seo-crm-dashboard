@@ -146,8 +146,11 @@ export async function syncClient(clientId: string) {
 
     // Weekly top queries: 13 weeks on first sync, then the last 3 (recent data still settles).
     const thisMonday = monday(today);
-    const weeks = client.gscSyncedAt ? 3 : 13;
+    // Page history arrived later: backfill 13 weeks once for clients synced before it existed.
+    const hasPageHistory = client.gscSyncedAt ? (await db.gscPageWeek.count({ where: { clientId } })) > 0 : false;
+    const weeks = client.gscSyncedAt && hasPageHistory ? 3 : 13;
     const weekRows: { clientId: string; weekStart: Date; query: string; clicks: number; impressions: number; position: number }[] = [];
+    const pageWeekRows: { clientId: string; weekStart: Date; page: string; clicks: number; impressions: number; position: number }[] = [];
     const starts: Date[] = [];
     await Promise.all(
       Array.from({ length: weeks }, async (_, i) => {
@@ -155,8 +158,12 @@ export async function syncClient(clientId: string) {
         const stop = i === 0 ? end : addDays(start, 6);
         if (stop < start) return;
         starts.push(start);
-        const res = await q({ startDate: day(start), endDate: day(stop), dimensions: ["query"], rowLimit: 250 });
+        const [res, pg] = await Promise.all([
+          q({ startDate: day(start), endDate: day(stop), dimensions: ["query"], rowLimit: 250 }),
+          q({ startDate: day(start), endDate: day(stop), dimensions: ["page"], rowLimit: 250 }),
+        ]);
         for (const r of res.rows ?? []) weekRows.push({ clientId, weekStart: start, query: r.keys[0].slice(0, 300), clicks: Math.round(r.clicks), impressions: Math.round(r.impressions), position: r.position });
+        for (const r of pg.rows ?? []) pageWeekRows.push({ clientId, weekStart: start, page: r.keys[0].slice(0, 500), clicks: Math.round(r.clicks), impressions: Math.round(r.impressions), position: r.position });
       }),
     );
 
@@ -169,12 +176,15 @@ export async function syncClient(clientId: string) {
       db.gscDaily.createMany({ data: dailyRows, skipDuplicates: true }),
       db.gscQueryWeek.deleteMany({ where: { clientId, weekStart: { in: starts } } }),
       db.gscQueryWeek.createMany({ data: weekRows, skipDuplicates: true }),
-      db.gscQueryWeek.deleteMany({ where: { clientId, weekStart: { lt: addDays(thisMonday, -7 * 26) } } }),
+      db.gscQueryWeek.deleteMany({ where: { clientId, weekStart: { lt: addDays(thisMonday, -7 * 52) } } }),
+      db.gscPageWeek.deleteMany({ where: { clientId, weekStart: { in: starts } } }),
+      db.gscPageWeek.createMany({ data: pageWeekRows, skipDuplicates: true }),
+      db.gscPageWeek.deleteMany({ where: { clientId, weekStart: { lt: addDays(thisMonday, -7 * 52) } } }),
       db.gscPage.deleteMany({ where: { clientId } }),
       db.gscPage.createMany({ data: pageRows, skipDuplicates: true }),
       db.client.update({ where: { id: clientId }, data: { gscSyncedAt: new Date(), gscError: null } }),
     ]);
-    return { days: dailyRows.length, queries: weekRows.length, pages: pageRows.length };
+    return { days: dailyRows.length, queries: weekRows.length, pages: pageRows.length, pageWeeks: pageWeekRows.length };
   } catch (e) {
     await db.client.update({ where: { id: clientId }, data: { gscError: e instanceof Error ? e.message : String(e) } });
     throw e;

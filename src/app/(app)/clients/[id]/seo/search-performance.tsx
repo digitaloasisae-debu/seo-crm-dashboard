@@ -1,8 +1,8 @@
 import Link from "next/link";
 import { db } from "@/lib/db";
-import { searchPerformance } from "@/lib/gsc-report";
+import { movers, searchPerformance } from "@/lib/gsc-report";
 import { fmtDate } from "@/lib/utils";
-import { Badge } from "@/components/ui";
+import { Badge, RankChange, RankSparkline } from "@/components/ui";
 import { syncGscAction } from "../../../google/actions";
 import { RunButton } from "./run-button";
 
@@ -55,6 +55,7 @@ export async function SearchPerformance({ clientId, editable }: { clientId: stri
     );
   }
   const { daily, totals, prevTotals, queries, pages } = await searchPerformance(clientId);
+  const move = await movers(clientId, queries);
   return (
     <div className="space-y-6">
       <section className="card space-y-4">
@@ -78,6 +79,31 @@ export async function SearchPerformance({ clientId, editable }: { clientId: stri
           </>
         )}
       </section>
+
+      {(move.up.length > 0 || move.down.length > 0) && (
+        <section className="grid gap-6 md:grid-cols-2">
+          {([["🚀 Climbing", move.up, "Moved up the most in the last 4 weeks"], ["⚠️ Dropping", move.down, "Lost the most ground. Worth a refresh or new internal links."]] as const).map(([title, list, hint]) => (
+            <div key={title} className="card">
+              <h2 className="font-semibold">{title}</h2>
+              <p className="mb-3 text-xs text-slate-500">{hint}</p>
+              {list.length === 0 ? <p className="text-sm text-slate-400">Nothing yet.</p> : (
+                <ul className="stagger divide-y divide-slate-100">
+                  {list.map((q) => (
+                    <li key={q.query} className="flex items-center gap-3 py-2 text-sm">
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate font-medium">{q.query}</div>
+                        <div className="text-xs text-slate-500">#{q.prevPosition!.toFixed(1)} → #{q.position.toFixed(1)} · {q.clicks} clicks</div>
+                      </div>
+                      <RankSparkline points={q.trend} width={90} height={28} />
+                      <span className="w-14 text-right"><RankChange position={q.position} prev={q.prevPosition} /></span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          ))}
+        </section>
+      )}
 
       {queries.length > 0 && (
         <section className="card p-0">
