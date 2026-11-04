@@ -147,6 +147,8 @@ keep the facts, voice, structure and the parts that already pass. Never invent f
 Typical fixes: put the focus keyword in the H1/title and first 100 words, adjust keyword density, shorten long sentences and paragraphs, add bullet lists,
 add missing H2s, fix heading levels, write a 150–160 character meta description and a meta title under 60 characters (both with the keyword, and the city for local clients),
 add or complete an FAQ section (at least 5 distinct questions), add a local CTA, name the city in the intro/H2s/conclusion, replace outdated years with 2026.
+"To check" (WARN) items count too: fix them as well, not only the FAIL ones.
+Local clients: write the location in "City, State/Province" form (e.g. "Lahore, Punjab", "Austin, TX") at least once in the title, the intro, one H2 and the conclusion.
 Links: add internal links ONLY to URLs from the "INTERNAL PAGES" list (descriptive 2–3 word anchors, first one in the intro). Add at most one external link, only to a well-known authority site (government, standards body, major publication), with target="_blank" rel="noopener".
 The body is HTML. Images are placeholders like [[IMG1]]: keep each one on its own line, exactly as written.
 The focus keyword must appear word for word in the FIRST paragraph (within the first 100 words of the body, after the H1).
@@ -161,6 +163,29 @@ function setAlt(html: string, alt: string) {
   // Works for a bare <img> and for a <figure> holding one.
   return html.replace(/<img\b[^>]*>/i, (img) => (/\salt\s*=/i.test(img) ? img.replace(/\salt\s*=\s*"[^"]*"/i, ` alt="${escAttr(alt)}"`) : img.replace(/<img\b/i, `<img alt="${escAttr(alt)}"`)));
 }
+
+/** Code-level fix: every image gets an alt, and at least one alt holds the focus keyword. */
+function ensureAlts(html: string, keyword: string, altMap?: Record<string, string>) {
+  const p = pack(html);
+  if (!p.images.length) return html;
+  const before = [...p.images];
+  p.images = p.images.map((img, n) => {
+    const given = altMap?.[`IMG${n + 1}`]?.trim();
+    if (given) return setAlt(img, given.slice(0, 150));
+    return attr(img.match(/<img\b[^>]*>/i)?.[0] ?? "", "alt").trim() ? img : setAlt(img, keyword);
+  });
+  const kw = keyword.trim();
+  const altOf = (img: string) => attr(img.match(/<img\b[^>]*>/i)?.[0] ?? "", "alt");
+  if (kw && !p.images.some((img) => altOf(img).toLowerCase().includes(kw.toLowerCase()))) {
+    const old = altOf(p.images[0]);
+    p.images[0] = setAlt(p.images[0], old && old !== kw ? `${kw.charAt(0).toUpperCase()}${kw.slice(1)}: ${old}`.slice(0, 150) : kw);
+  }
+  if (p.images.every((img, i) => img === before[i])) return html;
+  return unpack(p.body.replace(/\n?\[\[IMG(\d+)\]\]\n?/g, "[[IMG$1]]"), p);
+}
+
+/** Fewer problems = better. The AI review's own score wobbles a little between runs, so count issues instead. */
+const issueCount = (r: QualityReport) => [...r.items, ...(r.ai?.items ?? [])].reduce((n, i) => n + (i.status === "fail" ? 1 : i.status === "warn" ? 0.5 : 0), 0);
 
 /**
  * The SOP pass every new draft gets: full SOP check (rules + AI review), AI fixes what failed,
@@ -183,6 +208,13 @@ export async function autoFixSop(articleId: string, opts: { userId?: string; min
   await db.article.update({ where: { id: articleId }, data: { revisingAt: new Date(), reviseError: null } });
   try {
     const { article, head } = await context(articleId);
+    const untouched = { metaTitle: article.metaTitle, metaDescription: article.metaDescription, bodyHtml: article.bodyHtml };
+    // Step 0, no AI needed: alt text.
+    const withAlts = ensureAlts(article.bodyHtml, article.focusKeyword);
+    if (withAlts !== article.bodyHtml) {
+      await db.article.update({ where: { id: articleId }, data: { bodyHtml: withAlts } });
+      article.bodyHtml = withAlts;
+    }
     const client = await db.client.findUniqueOrThrow({ where: { id: article.clientId }, select: { linkPool: true, siteUrl: true, gscPages: { select: { page: true }, orderBy: { clicks: "desc" }, take: 30 } } });
     const pages = [...new Set([...client.linkPool, ...client.gscPages.map((p) => p.page)])].filter((u) => /^https?:\/\//.test(u) || u.startsWith("/")).slice(0, 40);
     const p = pack(article.bodyHtml);
@@ -205,31 +237,33 @@ Body:
 ${p.body}`,
       { system: FIX_SYSTEM, timeoutMs: 200_000, model: writerModel(), temperature: 0.3 },
     );
-    const body = (out.body_html ?? "").trim();
+    let body = (out.body_html ?? "").trim();
+    // The fix must not lose images: put any dropped placeholder back before the last H2.
+    const missing = p.images.map((_, n) => `[[IMG${n + 1}]]`).filter((ph) => !body.includes(ph));
+    if (missing.length) {
+      const at = body.toLowerCase().lastIndexOf("<h2");
+      const block = `\n${missing.join("\n")}\n`;
+      body = at > 0 ? body.slice(0, at) + block + body.slice(at) : body + block;
+    }
     if (body.length < p.body.length * 0.6) throw new Error("The fixed draft came back much shorter, so the original was kept");
 
-    // Alt text: the AI's suggestions, then make sure at least one alt has the focus keyword.
-    p.images = p.images.map((img, n) => { const alt = out.image_alts?.[`IMG${n + 1}`]?.trim(); return alt ? setAlt(img, alt.slice(0, 150)) : img; });
-    const kw = article.focusKeyword.trim();
-    const kwIn = (t: string) => t.toLowerCase().includes(kw.toLowerCase());
-    if (kw && p.images.length && !p.images.some((img) => kwIn(attr(img.match(/<img\b[^>]*>/i)?.[0] ?? "", "alt")))) {
-      const old = attr(p.images[0].match(/<img\b[^>]*>/i)?.[0] ?? "", "alt");
-      p.images[0] = setAlt(p.images[0], old ? `${kw.charAt(0).toUpperCase()}${kw.slice(1)}: ${old}`.slice(0, 150) : kw);
-    }
     const original = { metaTitle: article.metaTitle, metaDescription: article.metaDescription, bodyHtml: article.bodyHtml };
     await db.article.update({
       where: { id: articleId },
-      data: { metaTitle: out.meta_title?.trim() || article.metaTitle, metaDescription: out.meta_description?.trim() || article.metaDescription, bodyHtml: unpack(body, p) },
+      data: { metaTitle: out.meta_title?.trim() || article.metaTitle, metaDescription: out.meta_description?.trim() || article.metaDescription, bodyHtml: ensureAlts(unpack(body, p), article.focusKeyword, out.image_alts) },
     });
     const after = await runQuality(articleId, { ai: true });
-    if (after.score <= before.score) {
+    const better = after.report.ruleScore >= before.report.ruleScore && (issueCount(after.report) < issueCount(before.report) || after.score > before.score);
+    if (!better) {
+      // Keep the draft as it was (plus the alt-text fix, which only helps).
       await db.article.update({ where: { id: articleId }, data: original });
-      await runQuality(articleId, { ai: true });
-      await mark(`The fix scored ${after.score}, not better than the original ${before.score}, so the original was kept`);
-      return { before: before.score, after: before.score, fixed: false };
+      const kept = await runQuality(articleId);
+      if (original.bodyHtml !== untouched.bodyHtml) await db.articleRevision.create({ data: { articleId, ...untouched, request: "- SOP auto-fix: image alt text", changes: ["Added alt text with the focus keyword"], createdById: opts.userId ?? null } });
+      await mark(original.bodyHtml !== untouched.bodyHtml ? "Fixed the image alt text. The AI's other changes didn't reduce the issues, so they weren't kept" : "The AI's changes didn't reduce the issues, so the draft was kept as it was");
+      return { before: before.score, after: kept.score, fixed: original.bodyHtml !== untouched.bodyHtml };
     }
     await db.articleRevision.create({
-      data: { articleId, ...original, request: `- SOP auto-fix (score ${before.score} → ${after.score})`, changes: (out.changes ?? []).slice(0, 25).map(String), createdById: opts.userId ?? null },
+      data: { articleId, ...untouched, request: `- SOP auto-fix (score ${before.score} → ${after.score})`, changes: (out.changes ?? []).slice(0, 25).map(String), createdById: opts.userId ?? null },
     });
     await mark(`Fixed ${out.changes?.length ?? 0} issue${out.changes?.length === 1 ? "" : "s"}`);
     await logActivity({ actorId: opts.userId, actorTag: opts.userId ? undefined : "sop-autofix", clientId: article.clientId, action: "article.sop_fix", entity: "article", entityId: articleId, after: { before: before.score, after: after.score } });
