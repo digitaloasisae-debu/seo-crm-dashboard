@@ -149,10 +149,18 @@ add missing H2s, fix heading levels, write a 150–160 character meta descriptio
 add or complete an FAQ section (at least 5 distinct questions), add a local CTA, name the city in the intro/H2s/conclusion, replace outdated years with 2026.
 Links: add internal links ONLY to URLs from the "INTERNAL PAGES" list (descriptive 2–3 word anchors, first one in the intro). Add at most one external link, only to a well-known authority site (government, standards body, major publication), with target="_blank" rel="noopener".
 The body is HTML. Images are placeholders like [[IMG1]]: keep each one on its own line, exactly as written.
-Return JSON: {"meta_title":"...","meta_description":"...","body_html":"...","changes":["<one short line per fix>"]}`;
+The focus keyword must appear word for word in the FIRST paragraph (within the first 100 words of the body, after the H1).
+Return JSON: {"meta_title":"...","meta_description":"...","body_html":"...","image_alts":{"IMG1":"..."},"changes":["<one short line per fix>"]}`;
 
 /** Checker items the AI can't fix in text (images, the URL slug). */
-const NOT_FIXABLE = new Set(["images", "alt_text", "slug"]);
+const NOT_FIXABLE = new Set(["images", "slug"]);
+
+const attr = (tag: string, name: string) => tag.match(new RegExp(`\\s${name}\\s*=\\s*"([^"]*)"`, "i"))?.[1] ?? "";
+const escAttr = (v: string) => v.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;");
+function setAlt(html: string, alt: string) {
+  // Works for a bare <img> and for a <figure> holding one.
+  return html.replace(/<img\b[^>]*>/i, (img) => (/\salt\s*=/i.test(img) ? img.replace(/\salt\s*=\s*"[^"]*"/i, ` alt="${escAttr(alt)}"`) : img.replace(/<img\b/i, `<img alt="${escAttr(alt)}"`)));
+}
 
 /**
  * The SOP pass every new draft gets: full SOP check (rules + AI review), AI fixes what failed,
@@ -178,11 +186,14 @@ export async function autoFixSop(articleId: string, opts: { userId?: string; min
     const client = await db.client.findUniqueOrThrow({ where: { id: article.clientId }, select: { linkPool: true, siteUrl: true, gscPages: { select: { page: true }, orderBy: { clicks: "desc" }, take: 30 } } });
     const pages = [...new Set([...client.linkPool, ...client.gscPages.map((p) => p.page)])].filter((u) => /^https?:\/\//.test(u) || u.startsWith("/")).slice(0, 40);
     const p = pack(article.bodyHtml);
-    const out = await geminiJson<{ meta_title?: string; meta_description?: string; body_html?: string; changes?: string[] }>(
+    const out = await geminiJson<{ meta_title?: string; meta_description?: string; body_html?: string; image_alts?: Record<string, string>; changes?: string[] }>(
       `${head}
 
 SOP CHECKER ISSUES TO FIX (score ${before.score}/100):
 ${issues.slice(0, 40).map((i) => `- ${i}`).join("\n")}
+
+IMAGES (write alt text for each: descriptive, under 125 characters, and the focus keyword in at least the first one):
+${p.images.length ? p.images.map((img, n) => `- IMG${n + 1}: current alt "${attr(img.match(/<img\b[^>]*>/i)?.[0] ?? "", "alt")}"`).join("\n") : "(none)"}
 
 INTERNAL PAGES (the only URLs you may link internally):
 ${pages.length ? pages.map((u) => `- ${u}`).join("\n") : "(none known: do not add internal links)"}
@@ -197,6 +208,14 @@ ${p.body}`,
     const body = (out.body_html ?? "").trim();
     if (body.length < p.body.length * 0.6) throw new Error("The fixed draft came back much shorter, so the original was kept");
 
+    // Alt text: the AI's suggestions, then make sure at least one alt has the focus keyword.
+    p.images = p.images.map((img, n) => { const alt = out.image_alts?.[`IMG${n + 1}`]?.trim(); return alt ? setAlt(img, alt.slice(0, 150)) : img; });
+    const kw = article.focusKeyword.trim();
+    const kwIn = (t: string) => t.toLowerCase().includes(kw.toLowerCase());
+    if (kw && p.images.length && !p.images.some((img) => kwIn(attr(img.match(/<img\b[^>]*>/i)?.[0] ?? "", "alt")))) {
+      const old = attr(p.images[0].match(/<img\b[^>]*>/i)?.[0] ?? "", "alt");
+      p.images[0] = setAlt(p.images[0], old ? `${kw.charAt(0).toUpperCase()}${kw.slice(1)}: ${old}`.slice(0, 150) : kw);
+    }
     const original = { metaTitle: article.metaTitle, metaDescription: article.metaDescription, bodyHtml: article.bodyHtml };
     await db.article.update({
       where: { id: articleId },

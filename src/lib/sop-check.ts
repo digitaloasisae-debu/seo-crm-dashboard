@@ -46,8 +46,11 @@ function syllables(w: string) {
 const item = (id: string, group: string, label: string, status: CheckStatus, detail: string, weight = 1): CheckItem => ({ id, group, label, status, detail, weight });
 const band = (v: number, passLo: number, passHi: number, warnLo: number, warnHi: number): CheckStatus => (v >= passLo && v <= passHi ? "pass" : v >= warnLo && v <= warnHi ? "warn" : "fail");
 
+/** WF2 puts a <style> block (brand colours) in the body: its CSS must not count as words. */
+const stripCode = (html: string) => html.replace(/<(style|script|noscript)[\s\S]*?<\/\1>/gi, "");
+
 export function checkArticle(a: ArticleInput, c: ClientInput) {
-  const root = parse(a.bodyHtml || "");
+  const root = parse(stripCode(a.bodyHtml || ""));
   const kw = a.focusKeyword || "";
   const text = root.structuredText.replace(/\s+/g, " ").trim();
   const allWords = words(text);
