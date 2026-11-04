@@ -3,17 +3,17 @@ export function geminiConfigured() {
   return Boolean(process.env.GEMINI_API_KEY);
 }
 
-export async function geminiJson<T>(prompt: string, opts: { system?: string; timeoutMs?: number } = {}): Promise<T> {
+export async function geminiJson<T>(prompt: string, opts: { system?: string; timeoutMs?: number; model?: string; temperature?: number } = {}): Promise<T> {
   const key = process.env.GEMINI_API_KEY;
   if (!key) throw new Error("GEMINI_API_KEY is not set in Vercel");
-  const model = process.env.GEMINI_MODEL || "gemini-flash-latest";
+  const model = opts.model || process.env.GEMINI_MODEL || "gemini-flash-latest";
   const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
     method: "POST",
     headers: { "Content-Type": "application/json", "x-goog-api-key": key },
     body: JSON.stringify({
       ...(opts.system ? { systemInstruction: { parts: [{ text: opts.system }] } } : {}),
       contents: [{ role: "user", parts: [{ text: prompt }] }],
-      generationConfig: { responseMimeType: "application/json", temperature: 0.2 },
+      generationConfig: { responseMimeType: "application/json", temperature: opts.temperature ?? 0.2 },
     }),
     signal: AbortSignal.timeout(opts.timeoutMs ?? 50_000),
   });
@@ -23,6 +23,7 @@ export async function geminiJson<T>(prompt: string, opts: { system?: string; tim
     if (res.status === 402 || /prepayment|credits/i.test(msg)) throw new Error("Gemini has no credit left. Top up in Google AI Studio (ai.studio/projects).");
     throw new Error(`Gemini: ${msg}`);
   }
+  if (j?.candidates?.[0]?.finishReason === "MAX_TOKENS") throw new Error("Gemini ran out of room before finishing. Try again, or ask for a shorter change.");
   const text: string = j?.candidates?.[0]?.content?.parts?.map((p: { text?: string }) => p.text ?? "").join("") ?? "";
   try {
     return JSON.parse(text.replace(/^```(?:json)?\s*|\s*```$/g, "")) as T;

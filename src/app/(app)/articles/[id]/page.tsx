@@ -5,21 +5,25 @@ import { accessLevel } from "@/lib/access";
 import { requireUser } from "@/lib/session";
 import { Field, StatusBadge } from "@/components/ui";
 import { fmtDate } from "@/lib/utils";
-import { addNoteAction, deleteNoteAction, pushArticleAction, reviewArticleAction, runAiReviewAction, saveArticleAction } from "../../../actions";
+import { addNoteAction, applyTitleAction, deleteNoteAction, pushArticleAction, restoreRevisionAction, reviewArticleAction, rewriteArticleAction, runAiReviewAction, saveArticleAction, titleOptionsAction } from "../../../actions";
+import { RefreshWhile, RewriteForm, TitleOptions } from "./rewrite";
+import { REVISE_STALE_MS } from "@/lib/revise";
 import { QualityCard } from "@/components/quality-card";
 import { NoteForm } from "./note-form";
 import { runQuality, type QualityReport } from "@/lib/quality";
 import { geminiConfigured } from "@/lib/gemini";
 import { SubmitButton } from "@/components/submit-button";
+import { Spinner } from "@/components/spinner";
 
-export const maxDuration = 60; // WordPress push with retries and image upload
+// WordPress push with retries, and AI rewrites that run in the background after the response.
+export const maxDuration = 300;
 
 export default async function ArticleReview({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const user = await requireUser();
   const article = await db.article.findUnique({
     where: { id },
-    include: { client: true, topic: true, postingSlot: true, notes: { include: { author: { select: { name: true } } }, orderBy: { createdAt: "desc" } } },
+    include: { client: true, topic: true, postingSlot: true, notes: { include: { author: { select: { name: true } } }, orderBy: { createdAt: "desc" } }, revisions: { orderBy: { createdAt: "desc" }, take: 10 } },
   });
   if (!article) notFound();
   // Articles from before the SOP checker existed get checked on first view.
@@ -32,6 +36,10 @@ export default async function ArticleReview({ params }: { params: Promise<{ id: 
   const editable = level !== "VIEW";
   const locked = ["PUSHING", "PUSHED_DRAFT"].includes(article.status);
   const hasCred = !!(await db.clientCredential.findUnique({ where: { clientId_kind: { clientId: article.clientId, kind: "WORDPRESS" } } }));
+  const revising = !!article.revisingAt && Date.now() - article.revisingAt.getTime() < REVISE_STALE_MS;
+  const reviseError = article.reviseError || (article.revisingAt && !revising ? "The rewrite took too long and stopped. Try again." : null);
+  const pendingNotes = article.notes.filter((n) => !n.appliedAt).length;
+  const lastRewrite = article.revisions.find((r) => r.changes.length > 0);
   const approver = article.approvedById ? await db.user.findUnique({ where: { id: article.approvedById }, select: { name: true } }) : null;
 
   return (
@@ -41,6 +49,14 @@ export default async function ArticleReview({ params }: { params: Promise<{ id: 
         <h1 className="bg-gradient-to-r from-slate-900 via-indigo-900 to-violet-800 bg-clip-text text-2xl font-bold tracking-tight text-transparent">{article.metaTitle}</h1>
         <StatusBadge status={article.status} />
       </div>
+
+      {revising && (
+        <div className="mb-6 flex items-center gap-3 rounded-2xl border border-violet-200 bg-gradient-to-r from-indigo-50 to-violet-50 p-4 text-sm text-violet-900">
+          <RefreshWhile />
+          <Spinner className="h-5 w-5 text-violet-600" />
+          <div><span className="font-semibold">✨ Rewriting this article…</span> This takes 1 to 3 minutes. The page updates by itself, so you can keep working elsewhere.</div>
+        </div>
+      )}
 
       <div className="grid gap-6 lg:grid-cols-5">
         <article className="card prose-preview lg:col-span-3">
@@ -92,7 +108,8 @@ export default async function ArticleReview({ params }: { params: Promise<{ id: 
                       <span className="font-semibold text-slate-700">{n.author?.name ?? "Someone"}</span>
                       <span>· {n.kind.toLowerCase()}</span>
                       <span>· {fmtDate(n.createdAt)}</span>
-                      {n.learnedAt ? <span className="ml-auto rounded-full bg-violet-50 px-2 py-0.5 text-violet-700" title="The client's brain has learned from this note">🧠 learned</span> : <span className="ml-auto text-slate-400">learning…</span>}
+                      {n.appliedAt && <span className="ml-auto rounded-full bg-emerald-50 px-2 py-0.5 text-emerald-700" title="An AI rewrite has applied this note">✓ applied</span>}
+                      {n.learnedAt ? <span className={`${n.appliedAt ? "" : "ml-auto "} rounded-full bg-violet-50 px-2 py-0.5 text-violet-700`} title="The client's brain has learned from this note">🧠 learned</span> : <span className={`${n.appliedAt ? "" : "ml-auto "}text-slate-400`}>learning…</span>}
                       {(n.authorId === user.id || user.role !== "MEMBER") && (
                         <form action={deleteNoteAction.bind(null, n.id)}><button className="cursor-pointer text-slate-300 opacity-0 transition group-hover:opacity-100 hover:text-red-600" title="Delete note">✕</button></form>
                       )}
@@ -104,6 +121,45 @@ export default async function ArticleReview({ params }: { params: Promise<{ id: 
               </ul>
             )}
           </section>
+          {editable && !locked && geminiConfigured() && (
+            <section className="card space-y-4">
+              <div>
+                <h2 className="font-semibold">✨ Rewrite with AI</h2>
+                <p className="mt-0.5 text-xs text-slate-500">Uses this client&apos;s brain, the SOP and the notes above. The current version is saved, so you can undo.</p>
+              </div>
+              {revising ? (
+                <p className="flex items-center gap-2 text-sm text-violet-700"><Spinner /> Rewriting now…</p>
+              ) : (
+                <RewriteForm action={rewriteArticleAction.bind(null, id)} pendingNotes={pendingNotes} />
+              )}
+              {reviseError && !revising && <p className="rounded-lg bg-red-50 p-2 text-sm text-red-700">Last rewrite failed: {reviseError}</p>}
+              {lastRewrite && !revising && (
+                <details className="rounded-xl border border-emerald-100 bg-emerald-50/50 p-3 text-sm" open={Date.now() - lastRewrite.createdAt.getTime() < 10 * 60_000}>
+                  <summary className="font-medium text-emerald-800">✓ What the last rewrite changed</summary>
+                  <ul className="mt-2 list-disc space-y-1 pl-5 text-slate-700">{lastRewrite.changes.map((c, i) => <li key={i}>{c}</li>)}</ul>
+                </details>
+              )}
+              <div className="border-t border-slate-100 pt-4">
+                <TitleOptions action={titleOptionsAction.bind(null, id)} apply={applyTitleAction.bind(null, id)} />
+              </div>
+              {article.revisions.length > 0 && (
+                <details className="text-sm">
+                  <summary className="text-slate-600">🕘 Earlier versions ({article.revisions.length})</summary>
+                  <ul className="mt-2 space-y-2">
+                    {article.revisions.map((r) => (
+                      <li key={r.id} className="flex items-start justify-between gap-3 rounded-lg border border-slate-100 p-2">
+                        <div className="min-w-0">
+                          <div className="truncate font-medium text-slate-800">{r.metaTitle}</div>
+                          <div className="text-xs text-slate-500">Saved {fmtDate(r.createdAt)} {r.createdAt.toISOString().slice(11, 16)} UTC · asked for: {r.request.split("\n")[0].replace(/^- (\[[^\]]*\] )?/, "").slice(0, 80)}</div>
+                        </div>
+                        <form action={restoreRevisionAction.bind(null, r.id)}><SubmitButton className="btn-secondary px-2.5 py-1 text-xs">Restore</SubmitButton></form>
+                      </li>
+                    ))}
+                  </ul>
+                </details>
+              )}
+            </section>
+          )}
           <QualityCard
             score={article.qualityScore}
             report={article.qualityReport as unknown as QualityReport | null}

@@ -12,6 +12,8 @@ import { canEdit, requireClientAccess } from "@/lib/access";
 import { requireAdmin, requireSuperAdmin, requireUser } from "@/lib/session";
 import { runQuality } from "@/lib/quality";
 import { learn } from "@/lib/brain";
+import { REVISE_STALE_MS, reviseArticle, suggestTitles, type TitleOption } from "@/lib/revise";
+import { geminiConfigured } from "@/lib/gemini";
 import { after as afterResponse } from "next/server";
 import { addKeywords, processSubmission } from "@/lib/intake";
 import { ensureSlots } from "@/lib/posting";
@@ -273,6 +275,62 @@ export async function runAiReviewAction(articleId: string) {
   await requireClientAccess(user, article.clientId, "edit");
   await runQuality(articleId, { ai: true });
   revalidatePath(`/articles/${articleId}`);
+}
+
+export async function rewriteArticleAction(articleId: string, _prev: string | null, fd: FormData): Promise<string | null> {
+  const { user, article } = await articleForEdit(articleId);
+  if (["PUSHING", "PUSHED_DRAFT"].includes(article.status)) return "This article is already in WordPress; edit it there";
+  if (!geminiConfigured()) return "Add GEMINI_API_KEY in Vercel first";
+  if (article.revisingAt && Date.now() - article.revisingAt.getTime() < REVISE_STALE_MS) return "A rewrite is already running";
+  const instructions = str(fd, "instructions").slice(0, 4000);
+  const pending = await db.articleNote.count({ where: { articleId, appliedAt: null } });
+  if (!instructions && pending === 0) return "Write what you want changed, or add a note first";
+  if (instructions) {
+    // What they asked for is feedback too: save it as a note so the brain learns from it.
+    await db.articleNote.create({ data: { articleId, clientId: article.clientId, authorId: user.id, kind: "CONTENT", body: instructions } });
+  }
+  await db.article.update({ where: { id: articleId }, data: { revisingAt: new Date(), reviseError: null } });
+  afterResponse(async () => {
+    await reviseArticle(articleId, { instructions: "", userId: user.id });
+    if (instructions) await learn(article.clientId).catch((e) => console.error("brain.learn_failed", article.clientId, e));
+  });
+  revalidatePath(`/articles/${articleId}`);
+  return null;
+}
+
+export type TitleState = { options?: TitleOption[]; error?: string } | null;
+
+export async function titleOptionsAction(articleId: string, _prev: TitleState, fd: FormData): Promise<TitleState> {
+  await articleForEdit(articleId);
+  try {
+    const options = await suggestTitles(articleId, str(fd, "hint").slice(0, 1000));
+    return options.length ? { options } : { error: "The AI didn't return any options. Try again." };
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : String(e) };
+  }
+}
+
+export async function applyTitleAction(articleId: string, title: string, description: string) {
+  const { user, article } = await articleForEdit(articleId);
+  if (["PUSHING", "PUSHED_DRAFT"].includes(article.status)) throw new Error("This article is already in WordPress; edit it there");
+  await db.article.update({ where: { id: articleId }, data: { metaTitle: title, metaDescription: description || article.metaDescription, slug: slugify(title) } });
+  await logActivity({ actorId: user.id, clientId: article.clientId, action: "article.title_option", entity: "article", entityId: articleId, before: { metaTitle: article.metaTitle }, after: { metaTitle: title } });
+  await runQuality(articleId).catch(() => null);
+  revalidatePath(`/articles/${articleId}`);
+}
+
+export async function restoreRevisionAction(revisionId: string) {
+  const rev = await db.articleRevision.findUniqueOrThrow({ where: { id: revisionId } });
+  const { user, article } = await articleForEdit(rev.articleId);
+  if (["PUSHING", "PUSHED_DRAFT"].includes(article.status)) throw new Error("This article is already in WordPress; edit it there");
+  await db.$transaction([
+    // Keep the current version too, so a restore can be undone.
+    db.articleRevision.create({ data: { articleId: article.id, metaTitle: article.metaTitle, metaDescription: article.metaDescription, bodyHtml: article.bodyHtml, request: `Restored the version from ${rev.createdAt.toISOString().slice(0, 16).replace("T", " ")}`, changes: [], createdById: user.id } }),
+    db.article.update({ where: { id: article.id }, data: { metaTitle: rev.metaTitle, metaDescription: rev.metaDescription, bodyHtml: rev.bodyHtml } }),
+  ]);
+  await logActivity({ actorId: user.id, clientId: article.clientId, action: "article.restore", entity: "article", entityId: article.id });
+  await runQuality(article.id).catch(() => null);
+  revalidatePath(`/articles/${article.id}`);
 }
 
 export async function addNoteAction(articleId: string, _prev: string | null, fd: FormData): Promise<string | null> {
