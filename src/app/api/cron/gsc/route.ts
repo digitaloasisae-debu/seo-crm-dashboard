@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { syncClient } from "@/lib/google";
 import { learnFromRankings } from "@/lib/brain";
 import { geminiConfigured } from "@/lib/gemini";
+import { pollCrawl } from "@/lib/crawl";
 
 export const maxDuration = 60;
 
@@ -41,6 +42,12 @@ export async function GET(req: NextRequest) {
       // Don't retry a client with too little data every day.
       if (r.skipped) await db.clientBrain.upsert({ where: { clientId: due.id }, create: { clientId: due.id, rankingsLearnedAt: new Date() }, update: { rankingsLearnedAt: new Date() } });
     }
+  }
+  // Finish site audits nobody has opened since they started.
+  const crawls = await db.siteCrawl.findMany({ where: { status: "RUNNING" }, take: 5 });
+  for (const c of crawls) {
+    if (Date.now() - started > 50_000) break;
+    await pollCrawl(c).catch(() => null);
   }
   return NextResponse.json({ synced: done, failed, learned, remaining: clients.length - done.length - failed.length });
 }

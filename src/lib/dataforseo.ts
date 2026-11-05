@@ -28,6 +28,12 @@ type Item = {
 
 /** POST to any DataForSEO endpoint and return the first task's result array (throws readable errors). */
 export async function dfsPost<T = unknown>(path: string, body: unknown[], timeoutMs = 55_000): Promise<T[]> {
+  const task = await dfsTask(path, body, timeoutMs);
+  return (task.result ?? []) as T[];
+}
+
+/** Same as dfsPost but returns the whole task (id, status, result). */
+export async function dfsTask(path: string, body: unknown[], timeoutMs = 55_000): Promise<{ id: string; status_code: number; status_message: string; result: unknown[] | null }> {
   if (!dataforseoConfigured()) throw new Error("Add DATAFORSEO_LOGIN and DATAFORSEO_PASSWORD in Vercel first");
   const auth = Buffer.from(`${process.env.DATAFORSEO_LOGIN}:${process.env.DATAFORSEO_PASSWORD}`).toString("base64");
   const res = await fetch(`https://api.dataforseo.com/v3/${path}`, {
@@ -46,7 +52,7 @@ export async function dfsPost<T = unknown>(path: string, body: unknown[], timeou
     if (/access denied|subscription|not available for your/i.test(m)) throw new Error(`DataForSEO: ${m}. This API may need to be switched on in your DataForSEO account.`);
     throw new Error(`DataForSEO: ${m}`);
   }
-  return (task.result ?? []) as T[];
+  return task;
 }
 
 async function overview(keywords: string[], location: string, language: string): Promise<Item[]> {
