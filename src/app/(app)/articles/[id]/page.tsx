@@ -4,7 +4,8 @@ import { db } from "@/lib/db";
 import { accessLevel } from "@/lib/access";
 import { requireUser } from "@/lib/session";
 import { Field, RankChange, RankSparkline, StatusBadge } from "@/components/ui";
-import { articleHistory } from "@/lib/gsc-report";
+import { articleHistory, matchArticleSlug } from "@/lib/gsc-report";
+import { articleTraffic, type Ga4Data } from "@/lib/analytics";
 import { fmtDate } from "@/lib/utils";
 import { addNoteAction, applyTitleAction, contentScoreAction, deleteNoteAction, pushArticleAction, fixSopAction, restoreRevisionAction, reviewArticleAction, rewriteArticleAction, runAiReviewAction, saveArticleAction, titleOptionsAction } from "../../../actions";
 import { RefreshWhile, RewriteForm, TitleOptions } from "./rewrite";
@@ -49,6 +50,11 @@ export default async function ArticleReview({ params }: { params: Promise<{ id: 
   const avg = (pts: typeof history) => { const imp = pts.reduce((s, p) => s + p.impressions, 0); return imp ? pts.reduce((s, p) => s + p.position * p.impressions, 0) / imp : null; };
   const rankNow = avg(last4), rankPrev = avg(prev4);
   const best = history.length ? Math.min(...history.map((p) => p.position)) : null;
+  // GA4: organic visits and key events (conversions) for this post's page, last 28 days.
+  const ga = article.status === "PUSHED_DRAFT" && article.client.ga4PropertyId ? await db.analyticsSnapshot.findUnique({ where: { clientId: article.clientId } }) : null;
+  const gaData = ga?.data as unknown as Ga4Data | undefined;
+  const gaSlugs = new Set((gaData?.organicPages ?? []).map((p) => p.name.toLowerCase().split("?")[0].replace(/\/+$/, "").split("/").pop() ?? "").filter(Boolean));
+  const traffic = gaData ? articleTraffic(gaData, matchArticleSlug(article, gaSlugs)) : null;
   const approver = article.approvedById ? await db.user.findUnique({ where: { id: article.approvedById }, select: { name: true } }) : null;
 
   return (
@@ -86,10 +92,17 @@ export default async function ArticleReview({ params }: { params: Promise<{ id: 
             {article.lastPushError && article.status === "PUSH_FAILED" && <div className="rounded bg-red-50 p-2 text-red-700">Push failed: {article.lastPushError}</div>}
           </section>
 
-          {article.status === "PUSHED_DRAFT" && article.client.gscProperty && (
+          {article.status === "PUSHED_DRAFT" && (article.client.gscProperty || gaData) && (
             <section className="card space-y-3">
               <h2 className="font-semibold">📈 Google ranking</h2>
-              {history.length === 0 ? (
+              {gaData && (
+                <div className="grid grid-cols-3 gap-2 text-center">
+                  <div className="rounded-xl bg-emerald-50/70 p-2"><div className="text-[11px] text-slate-500">Google visits (28d)</div><div className="text-xl font-bold tabular-nums">{traffic?.sessions ?? 0}</div></div>
+                  <div className="rounded-xl bg-emerald-50/70 p-2"><div className="text-[11px] text-slate-500">Visitors</div><div className="text-xl font-bold tabular-nums">{traffic?.users ?? 0}</div></div>
+                  <div className="rounded-xl bg-emerald-50/70 p-2"><div className="text-[11px] text-slate-500">Conversions</div><div className="text-xl font-bold tabular-nums">{traffic?.keyEvents ?? 0}</div></div>
+                </div>
+              )}
+              {!article.client.gscProperty ? null : history.length === 0 ? (
                 <p className="text-sm text-slate-500">No Search Console data for this post yet. It shows up once the post is published and Google starts showing it (usually 1 to 3 weeks).</p>
               ) : (
                 <>

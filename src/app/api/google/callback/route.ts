@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { db } from "@/lib/db";
 import { currentUser } from "@/lib/session";
 import { listSites, matchSite, saveConnection } from "@/lib/google";
+import { autoMatchGa4 } from "@/lib/analytics";
 
 export const maxDuration = 60;
 
@@ -29,7 +30,8 @@ export async function GET(req: NextRequest) {
         linked++;
       }
     }
-    return back(`connected=${encodeURIComponent(conn.email)}&linked=${linked}`);
+    const gaLinked = await autoMatchGa4().catch(() => 0);
+    return back(`connected=${encodeURIComponent(conn.email)}&linked=${linked}&ga=${gaLinked}`);
   } catch (e) {
     return back(`error=${encodeURIComponent(e instanceof Error ? e.message : String(e))}`);
   }

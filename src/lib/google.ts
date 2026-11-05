@@ -2,7 +2,8 @@
 import { db } from "./db";
 import { decryptSecret, encryptSecret } from "./crypto";
 
-const SCOPES = ["openid", "email", "https://www.googleapis.com/auth/webmasters.readonly"];
+export const GA_SCOPE = "https://www.googleapis.com/auth/analytics.readonly";
+const SCOPES = ["openid", "email", "https://www.googleapis.com/auth/webmasters.readonly", GA_SCOPE];
 
 export function googleConfigured() {
   return Boolean(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET && process.env.APP_URL);
@@ -35,7 +36,7 @@ async function tokenRequest(body: Record<string, string>) {
   });
   const j = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(`Google sign-in failed: ${j.error_description || j.error || res.status}`);
-  return j as { access_token: string; refresh_token?: string; id_token?: string; expires_in: number };
+  return j as { access_token: string; refresh_token?: string; id_token?: string; expires_in: number; scope?: string };
 }
 
 /** Finish the OAuth flow: store (or refresh) the connection for this Google account. */
@@ -49,14 +50,14 @@ export async function saveConnection(code: string, userId: string) {
   const sealed = tok.refresh_token ? encryptSecret(tok.refresh_token) : null;
   return db.googleConnection.upsert({
     where: { email },
-    create: { email, refreshEncrypted: sealed!.secretEncrypted, iv: sealed!.iv, keyVersion: sealed!.keyVersion, connectedById: userId },
-    update: { ...(sealed ? { refreshEncrypted: sealed.secretEncrypted, iv: sealed.iv, keyVersion: sealed.keyVersion } : {}), lastError: null, connectedById: userId },
+    create: { email, refreshEncrypted: sealed!.secretEncrypted, iv: sealed!.iv, keyVersion: sealed!.keyVersion, connectedById: userId, scopes: tok.scope ?? null },
+    update: { ...(sealed ? { refreshEncrypted: sealed.secretEncrypted, iv: sealed.iv, keyVersion: sealed.keyVersion } : {}), lastError: null, connectedById: userId, scopes: tok.scope ?? null },
   });
 }
 
 const tokenCache = new Map<string, { token: string; exp: number }>();
 
-async function accessToken(connectionId: string) {
+export async function accessToken(connectionId: string) {
   const hit = tokenCache.get(connectionId);
   if (hit && hit.exp > Date.now() + 60_000) return hit.token;
   const conn = await db.googleConnection.findUniqueOrThrow({ where: { id: connectionId } });
@@ -103,7 +104,7 @@ export async function listSites(): Promise<{ sites: GscSite[]; errors: string[] 
   return { sites, errors };
 }
 
-const bareHost = (u: string) => {
+export const bareHost = (u: string) => {
   try {
     return new URL(u.startsWith("sc-domain:") ? `https://${u.slice(10)}` : u).hostname.replace(/^www\./, "").toLowerCase();
   } catch {

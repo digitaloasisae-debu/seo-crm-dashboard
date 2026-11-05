@@ -4,6 +4,7 @@ import { syncClient } from "@/lib/google";
 import { learnFromRankings } from "@/lib/brain";
 import { geminiConfigured } from "@/lib/gemini";
 import { pollCrawl } from "@/lib/crawl";
+import { syncAnalytics } from "@/lib/analytics";
 
 export const maxDuration = 60;
 
@@ -43,11 +44,21 @@ export async function GET(req: NextRequest) {
       if (r.skipped) await db.clientBrain.upsert({ where: { clientId: due.id }, create: { clientId: due.id, rankingsLearnedAt: new Date() }, update: { rankingsLearnedAt: new Date() } });
     }
   }
+  // Google Analytics, oldest first, while time allows.
+  const gaDue = await db.client.findMany({
+    where: { ga4PropertyId: { not: null }, status: "ACTIVE", OR: [{ ga4SyncedAt: null }, { ga4SyncedAt: { lt: new Date(Date.now() - 20 * 3600_000) } }] },
+    orderBy: { ga4SyncedAt: { sort: "asc", nulls: "first" } }, select: { id: true }, take: 30,
+  });
+  let gaSynced = 0;
+  for (const c of gaDue) {
+    if (Date.now() - started > 40_000) break;
+    if (await syncAnalytics(c.id).then(() => true, () => false)) gaSynced++;
+  }
   // Finish site audits nobody has opened since they started.
   const crawls = await db.siteCrawl.findMany({ where: { status: "RUNNING" }, take: 5 });
   for (const c of crawls) {
     if (Date.now() - started > 50_000) break;
     await pollCrawl(c).catch(() => null);
   }
-  return NextResponse.json({ synced: done, failed, learned, remaining: clients.length - done.length - failed.length });
+  return NextResponse.json({ gaSynced, synced: done, failed, learned, remaining: clients.length - done.length - failed.length });
 }

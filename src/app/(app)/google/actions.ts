@@ -5,6 +5,7 @@ import { logActivity } from "@/lib/activity";
 import { requireClientAccess } from "@/lib/access";
 import { requireSuperAdmin, requireUser } from "@/lib/session";
 import { listSites, matchSite, syncClient } from "@/lib/google";
+import { autoMatchGa4, syncAnalytics } from "@/lib/analytics";
 
 export async function setPropertyAction(clientId: string, fd: FormData) {
   const user = await requireSuperAdmin();
@@ -28,6 +29,7 @@ export async function autoMatchAction() {
     const m = matchSite(c.siteUrl, sites, c.gscAccount);
     if (m) await db.client.update({ where: { id: c.id }, data: { gscProperty: m.siteUrl, gscConnectionId: m.connectionId } });
   }
+  await autoMatchGa4().catch(() => 0);
   revalidatePath("/google");
 }
 
@@ -48,4 +50,18 @@ export async function syncGscAction(clientId: string) {
   }
   revalidatePath(`/clients/${clientId}/seo`);
   revalidatePath(`/clients/${clientId}/keywords`);
+}
+
+export async function setGa4Action(clientId: string, fd: FormData) {
+  const user = await requireSuperAdmin();
+  const value = String(fd.get("ga4") ?? "");
+  const [connectionId, propertyId, ...name] = value.split("|");
+  await db.client.update({
+    where: { id: clientId },
+    data: value ? { ga4ConnectionId: connectionId, ga4PropertyId: propertyId, ga4PropertyName: name.join("|") || null, ga4SyncedAt: null, ga4Error: null } : { ga4ConnectionId: null, ga4PropertyId: null, ga4PropertyName: null, ga4SyncedAt: null, ga4Error: null },
+  });
+  if (!value) await db.analyticsSnapshot.deleteMany({ where: { clientId } });
+  else await syncAnalytics(clientId).catch(() => null);
+  await logActivity({ actorId: user.id, clientId, action: "ga4.link", entity: "client", entityId: clientId, after: { property: propertyId || null } });
+  revalidatePath("/google");
 }

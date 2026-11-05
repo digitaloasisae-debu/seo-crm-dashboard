@@ -59,6 +59,8 @@ model GoogleConnection {
   keyVersion       Int
   connectedById    String?
   lastError        String?
+  /// space-separated OAuth scopes Google granted (null = connected before we tracked it)
+  scopes           String?
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
@@ -246,6 +248,12 @@ model Client {
   gscPageWeeks    GscPageWeek[]
   crawls          SiteCrawl[]
   backlinkReports BacklinkReport[]
+  ga4PropertyId   String?
+  ga4PropertyName String?
+  ga4ConnectionId String?
+  ga4SyncedAt     DateTime?
+  ga4Error        String?
+  analytics       AnalyticsSnapshot?
 }
 
 enum CredentialKind {
@@ -587,4 +595,14 @@ model BacklinkReport {
   client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
 
   @@index([clientId, createdAt])
+}
+
+/// Latest Google Analytics 4 numbers for a client (replaced on every sync).
+model AnalyticsSnapshot {
+  clientId  String   @id
+  /// { days, current, previous, daily[], channels[], pages[], organicPages[], events[] }
+  data      Json
+  fetchedAt DateTime @default(now())
+
+  client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
 }
