@@ -54,7 +54,7 @@ export default async function KeywordsPage({ params, searchParams }: { params: P
           <div className="min-w-48 flex-1">
             <div className="font-semibold">Keyword check</div>
             <div className="text-xs text-slate-500">
-              {dfs ? <>Search volume and difficulty from DataForSEO. New keywords are checked automatically. {unchecked > 0 ? `${unchecked} not checked yet.` : "All checked."} {weakCount > 0 && <a href="?weak=1" className="font-medium text-amber-700 hover:underline">{weakCount} unused weak keyword{weakCount === 1 ? "" : "s"}</a>}</> : "Add DATAFORSEO_LOGIN and DATAFORSEO_PASSWORD in Vercel to check volume and difficulty."}
+              {dfs ? <>Search volume from Google Keyword Planner, difficulty from DataForSEO. New keywords are checked automatically. {unchecked > 0 ? `${unchecked} not checked yet.` : "All checked."} {weakCount > 0 && <a href="?weak=1" className="font-medium text-amber-700 hover:underline">{weakCount} unused weak keyword{weakCount === 1 ? "" : "s"}</a>}</> : "Add DATAFORSEO_LOGIN and DATAFORSEO_PASSWORD in Vercel to check volume and difficulty."}
             </div>
           </div>
           {dfs && (

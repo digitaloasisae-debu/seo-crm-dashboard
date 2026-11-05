@@ -1,5 +1,7 @@
 /**
- * Keyword checks with DataForSEO Labs (search volume, keyword difficulty, CPC, intent).
+ * Keyword checks. Search volume and CPC come from Google Ads Keyword Planner (through DataForSEO's
+ * keywords_data/google_ads endpoint); keyword difficulty and intent come from DataForSEO Labs, which also
+ * fills in volume for keywords Google Ads won't take.
  * Weak keywords are flagged in the dashboard; they are not rejected, so Tally keywords still auto-approve.
  */
 import { db } from "./db";
@@ -74,6 +76,24 @@ async function overview(keywords: string[], location: string, language: string):
   return task.result?.[0]?.items ?? [];
 }
 
+type AdsItem = { keyword: string; search_volume?: number | null; cpc?: number | null };
+const norm = (k: string) => k.toLowerCase().trim().replace(/\s+/g, " ");
+/** Google Ads rejects keywords with symbols, over 80 characters or over 10 words. */
+const adsOk = (k: string) => k.length <= 80 && k.split(" ").length <= 10 && !/[!@%^()=\{\};~`<>?\\|,*]/.test(k);
+
+/** Keyword Planner numbers (Google's own monthly volume). Null if Google Ads data is unavailable. */
+async function plannerVolumes(keywords: string[], location: string, language: string): Promise<Map<string, AdsItem> | null> {
+  const ok = keywords.filter(adsOk);
+  if (!ok.length) return new Map();
+  try {
+    const items = await dfsPost<AdsItem>("keywords_data/google_ads/search_volume/live", [{ keywords: ok, location_name: location, language_code: language }], 90_000);
+    return new Map(items.map((i) => [norm(i.keyword), i]));
+  } catch (e) {
+    console.error("Keyword Planner volumes failed, using DataForSEO Labs only:", e);
+    return null;
+  }
+}
+
 /** Checks a client's keywords (by default only the ones never checked). Returns how many were checked. */
 export async function checkKeywords(clientId: string, opts: { all?: boolean; ids?: string[] } = {}) {
   if (!dataforseoConfigured()) throw new Error("Add DATAFORSEO_LOGIN and DATAFORSEO_PASSWORD in Vercel first");
@@ -87,19 +107,22 @@ export async function checkKeywords(clientId: string, opts: { all?: boolean; ids
   let checked = 0;
   for (let i = 0; i < keywords.length; i += 700) {
     const batch = keywords.slice(i, i + 700);
-    const items = await overview(batch.map((k) => k.keyword.toLowerCase()), location, "en");
-    const byKw = new Map(items.map((it) => [it.keyword.toLowerCase().trim().replace(/\s+/g, " "), it]));
+    const list = batch.map((k) => norm(k.keyword));
+    const [items, planner] = await Promise.all([overview(list, location, "en"), plannerVolumes(list, location, "en")]);
+    const byKw = new Map(items.map((it) => [norm(it.keyword), it]));
     const now = new Date();
     await db.$transaction(
       batch.map((k) => {
-        const it = byKw.get(k.keyword.toLowerCase().trim().replace(/\s+/g, " "));
+        const it = byKw.get(norm(k.keyword));
+        const ads = planner?.get(norm(k.keyword));
         // DataForSEO leaves out keywords it has no data for: that means (almost) nobody searches them.
         return db.keyword.update({
           where: { id: k.id },
           data: {
-            searchVolume: it?.keyword_info?.search_volume ?? 0,
+            // Google's number when it has one; otherwise the Labs estimate; otherwise nobody searches it.
+            searchVolume: ads?.search_volume ?? it?.keyword_info?.search_volume ?? 0,
             difficulty: it?.keyword_properties?.keyword_difficulty ?? null,
-            cpc: it?.keyword_info?.cpc ?? null,
+            cpc: ads?.cpc ?? it?.keyword_info?.cpc ?? null,
             intent: it?.search_intent_info?.main_intent ?? null,
             volumeVerified: true,
             metricsCheckedAt: now,
@@ -109,5 +132,5 @@ export async function checkKeywords(clientId: string, opts: { all?: boolean; ids
     );
     checked += batch.length;
   }
-  return { checked, location };
+  return { checked, location, source: "Google Keyword Planner + DataForSEO Labs" };
 }
