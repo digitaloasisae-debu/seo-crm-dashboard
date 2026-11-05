@@ -102,6 +102,8 @@ export default async function AnalyticsPage({ params }: { params: Promise<{ id: 
     const rows = s ? d!.organicPages.filter((p) => slugOf(p.name) === s) : [];
     return { a, sessions: rows.reduce((t, r) => t + r.sessions, 0), keyEvents: rows.reduce((t, r) => t + r.keyEvents, 0), users: rows.reduce((t, r) => t + r.users, 0) };
   }).sort((x, y) => y.sessions - x.sessions);
+  const withVisits = posts.filter((p) => p.sessions > 0);
+  const noVisits = posts.filter((p) => p.sessions === 0);
   const cur = d?.current as Ga4Totals, prev = d?.previous as Ga4Totals;
   const convRate = (t: Ga4Totals) => (t.sessions ? t.keyEvents / t.sessions : 0);
   const chMax = Math.max(1, ...(d?.channels ?? []).map((c) => c.sessions));
@@ -160,21 +162,32 @@ export default async function AnalyticsPage({ params }: { params: Promise<{ id: 
             <section className="card p-0">
               <div className="p-4 pb-2">
                 <h2 className="font-semibold">Our blog posts: visits from Google</h2>
-                <p className="text-xs text-slate-500">Organic search visits and conversions in the last 28 days for posts pushed from Rankflow.</p>
+                <p className="text-xs text-slate-500">Organic search visits and conversions in the last 28 days for posts pushed from Rankflow. {withVisits.length} of {posts.length} posts got visits from Google.</p>
               </div>
-              <table className="table">
-                <thead><tr><th>Post</th><th>Visits</th><th>Visitors</th><th>Conversions</th></tr></thead>
-                <tbody>
-                  {posts.slice(0, 30).map(({ a, sessions, users, keyEvents }) => (
-                    <tr key={a.id}>
-                      <td className="max-w-md"><Link href={`/articles/${a.id}`} className="block truncate text-indigo-600 hover:underline">{a.metaTitle}</Link></td>
-                      <td className={sessions ? "font-semibold" : "text-slate-400"}>{fmt(sessions)}</td>
-                      <td className={users ? "" : "text-slate-400"}>{fmt(users)}</td>
-                      <td className={keyEvents ? "font-semibold text-emerald-700" : "text-slate-400"}>{fmt(keyEvents)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+              {withVisits.length > 0 && (
+                <table className="table">
+                  <thead><tr><th>Post</th><th>Visits</th><th>Visitors</th><th>Conversions</th></tr></thead>
+                  <tbody>
+                    {withVisits.map(({ a, sessions, users, keyEvents }) => (
+                      <tr key={a.id}>
+                        <td className="max-w-md"><Link href={`/articles/${a.id}`} className="block truncate text-indigo-600 hover:underline">{a.metaTitle}</Link></td>
+                        <td className="font-semibold">{fmt(sessions)}</td>
+                        <td>{fmt(users)}</td>
+                        <td className={keyEvents ? "font-semibold text-emerald-700" : "text-slate-400"}>{fmt(keyEvents)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+              {noVisits.length > 0 && (
+                <details className="border-t border-slate-100">
+                  <summary className="p-4 text-sm font-medium">{noVisits.length} post{noVisits.length === 1 ? "" : "s"} with no Google visits yet</summary>
+                  <div className="px-4 pb-4 text-sm">
+                    <p className="mb-2 text-xs text-slate-500">Usual reasons: the post is still a draft in WordPress (Rankflow pushes drafts, so someone has to press Publish), it was published less than 2–4 weeks ago, or it doesn&apos;t rank on page 1 yet. Check the post&apos;s Google ranking on its page.</p>
+                    <ul className="space-y-1">{noVisits.map(({ a }) => <li key={a.id}><Link href={`/articles/${a.id}`} className="text-indigo-600 hover:underline">{a.metaTitle}</Link></li>)}</ul>
+                  </div>
+                </details>
+              )}
             </section>
           )}
 
