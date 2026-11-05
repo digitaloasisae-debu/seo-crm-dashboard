@@ -21,6 +21,7 @@ export default async function ClientLayout({ children, params }: { children: Rea
     { href: `/clients/${id}/articles`, label: "Articles", icon: "file" as const },
     { href: `/clients/${id}/seo`, label: "SEO", icon: "chart" as const },
     { href: `/clients/${id}/audit`, label: "Site audit", icon: "stethoscope" as const },
+    { href: `/clients/${id}/backlinks`, label: "Backlinks", icon: "link" as const },
     { href: `/clients/${id}/brain`, label: "Brain", icon: "sparkles" as const },
     { href: `/clients/${id}/settings`, label: "Settings", icon: "shield" as const },
   ];
