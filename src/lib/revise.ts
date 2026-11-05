@@ -8,6 +8,8 @@ import { getSop } from "./sop";
 import { toSafeHtml } from "./content";
 import { runQuality, type QualityReport } from "./quality";
 import { logActivity } from "./activity";
+import { dataforseoConfigured } from "./dataforseo";
+import { rescoreContent, runContentScore, type ContentScore } from "./serp";
 
 /** A rewrite that has been "running" this long has died (the server stops background work after 5 minutes). */
 export const REVISE_STALE_MS = 6 * 60_000;
@@ -110,6 +112,7 @@ ${p.body}`,
     ]);
     await logActivity({ actorId: opts.userId, clientId: article.clientId, action: "article.rewrite", entity: "article", entityId: articleId, after: { changes: out.changes?.length ?? 0 } });
     await runQuality(articleId).catch(() => null);
+    await rescoreContent(articleId).catch(() => null);
   } catch (e) {
     await db.article.update({ where: { id: articleId }, data: { revisingAt: null, reviseError: e instanceof Error ? e.message : String(e) } });
   }
@@ -200,7 +203,15 @@ export async function autoFixSop(articleId: string, opts: { userId?: string; min
     ...(before.report.ai?.topFixes ?? []).map((f) => `FIX: ${f}`),
   ];
   const mark = (note: string) => db.article.update({ where: { id: articleId }, data: { sopFixFrom: before.score, sopFixAt: new Date(), sopFixNote: note, revisingAt: null } });
-  if (before.score >= target || issues.length === 0) {
+  // Google's top 10 for the keyword: what the draft is missing compared with pages that already rank.
+  let gaps: ContentScore | null = null;
+  if (dataforseoConfigured()) gaps = await runContentScore(articleId).catch((e) => { console.error("content_score_failed", articleId, e); return null; });
+  const gapLines = gaps ? [
+    ...(gaps.words < gaps.targetWords[0] ? [`Top-ranking pages average ${gaps.targetWords[0]}–${gaps.targetWords[1]} words; this draft has ${gaps.words}. Add useful depth (not filler).`] : []),
+    ...(gaps.missing.length ? [`Terms most top-10 pages use that this draft never mentions (work in the relevant ones naturally): ${gaps.missing.slice(0, 20).join(", ")}`] : []),
+    ...(gaps.h2 < gaps.targetH2 ? [`Top pages use about ${gaps.targetH2} H2 sections; this draft has ${gaps.h2}. Subtopics they cover: ${gaps.headings.slice(0, 10).join(" | ")}`] : []),
+  ] : [];
+  if ((before.score >= target && (!gaps || gaps.score >= 75)) || (issues.length === 0 && gapLines.length === 0)) {
     await mark(before.score >= target ? "Already met the SOP" : "Nothing the AI can fix");
     return { before: before.score, after: before.score, fixed: false };
   }
@@ -227,7 +238,7 @@ ${issues.slice(0, 40).map((i) => `- ${i}`).join("\n")}
 IMAGES (write alt text for each: descriptive, under 125 characters, and the focus keyword in at least the first one):
 ${p.images.length ? p.images.map((img, n) => `- IMG${n + 1}: current alt "${attr(img.match(/<img\b[^>]*>/i)?.[0] ?? "", "alt")}"`).join("\n") : "(none)"}
 
-INTERNAL PAGES (the only URLs you may link internally):
+${gapLines.length ? `COMPETITOR GAPS (Google top 10 for "${article.focusKeyword}", content score ${gaps!.score}/100):\n${gapLines.map((l) => `- ${l}`).join("\n")}\n\n` : ""}INTERNAL PAGES (the only URLs you may link internally):
 ${pages.length ? pages.map((u) => `- ${u}`).join("\n") : "(none known: do not add internal links)"}
 
 CURRENT ARTICLE
@@ -253,11 +264,13 @@ ${p.body}`,
       data: { metaTitle: out.meta_title?.trim() || article.metaTitle, metaDescription: out.meta_description?.trim() || article.metaDescription, bodyHtml: ensureAlts(unpack(body, p), article.focusKeyword, out.image_alts) },
     });
     const after = await runQuality(articleId, { ai: true });
-    const better = after.report.ruleScore >= before.report.ruleScore && (issueCount(after.report) < issueCount(before.report) || after.score > before.score);
+    const gapsAfter = gaps ? await rescoreContent(articleId).catch(() => null) : null;
+    const better = after.report.ruleScore >= before.report.ruleScore && (issueCount(after.report) < issueCount(before.report) || after.score > before.score || (!!gaps && !!gapsAfter && gapsAfter.score >= gaps.score + 5 && after.score >= before.score - 1));
     if (!better) {
       // Keep the draft as it was (plus the alt-text fix, which only helps).
       await db.article.update({ where: { id: articleId }, data: original });
       const kept = await runQuality(articleId);
+      if (gaps) await rescoreContent(articleId).catch(() => null);
       if (original.bodyHtml !== untouched.bodyHtml) await db.articleRevision.create({ data: { articleId, ...untouched, request: "- SOP auto-fix: image alt text", changes: ["Added alt text with the focus keyword"], createdById: opts.userId ?? null } });
       await mark(original.bodyHtml !== untouched.bodyHtml ? "Fixed the image alt text. The AI's other changes didn't reduce the issues, so they weren't kept" : "The AI's changes didn't reduce the issues, so the draft was kept as it was");
       return { before: before.score, after: kept.score, fixed: original.bodyHtml !== untouched.bodyHtml };
@@ -265,7 +278,7 @@ ${p.body}`,
     await db.articleRevision.create({
       data: { articleId, ...untouched, request: `- SOP auto-fix (score ${before.score} → ${after.score})`, changes: (out.changes ?? []).slice(0, 25).map(String), createdById: opts.userId ?? null },
     });
-    await mark(`Fixed ${out.changes?.length ?? 0} issue${out.changes?.length === 1 ? "" : "s"}`);
+    await mark(`Fixed ${out.changes?.length ?? 0} issue${out.changes?.length === 1 ? "" : "s"}${gaps && gapsAfter ? ` · content score vs top 10: ${gaps.score} → ${gapsAfter.score}` : ""}`);
     await logActivity({ actorId: opts.userId, actorTag: opts.userId ? undefined : "sop-autofix", clientId: article.clientId, action: "article.sop_fix", entity: "article", entityId: articleId, after: { before: before.score, after: after.score } });
     return { before: before.score, after: after.score, fixed: true };
   } catch (e) {

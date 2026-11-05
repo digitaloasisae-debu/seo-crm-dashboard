@@ -6,10 +6,13 @@ import { requireUser } from "@/lib/session";
 import { Field, RankChange, RankSparkline, StatusBadge } from "@/components/ui";
 import { articleHistory } from "@/lib/gsc-report";
 import { fmtDate } from "@/lib/utils";
-import { addNoteAction, applyTitleAction, deleteNoteAction, pushArticleAction, fixSopAction, restoreRevisionAction, reviewArticleAction, rewriteArticleAction, runAiReviewAction, saveArticleAction, titleOptionsAction } from "../../../actions";
+import { addNoteAction, applyTitleAction, contentScoreAction, deleteNoteAction, pushArticleAction, fixSopAction, restoreRevisionAction, reviewArticleAction, rewriteArticleAction, runAiReviewAction, saveArticleAction, titleOptionsAction } from "../../../actions";
 import { RefreshWhile, RewriteForm, TitleOptions } from "./rewrite";
 import { REVISE_STALE_MS } from "@/lib/revise";
 import { QualityCard } from "@/components/quality-card";
+import { ContentScoreCard } from "@/components/content-score-card";
+import { dataforseoConfigured } from "@/lib/dataforseo";
+import type { ContentScore } from "@/lib/serp";
 import { NoteForm } from "./note-form";
 import { runQuality, type QualityReport } from "@/lib/quality";
 import { geminiConfigured } from "@/lib/gemini";
@@ -197,6 +200,15 @@ export default async function ArticleReview({ params }: { params: Promise<{ id: 
             busy={revising}
             canRun={editable}
             aiReady={geminiConfigured()}
+          />
+
+          <ContentScoreCard
+            report={article.contentReport as unknown as ContentScore | null}
+            checkedAt={article.contentCheckedAt}
+            runAction={contentScoreAction.bind(null, id, false)}
+            refreshAction={contentScoreAction.bind(null, id, true)}
+            ready={dataforseoConfigured()}
+            canRun={editable && !locked}
           />
 
           {editable && !locked && (

@@ -391,6 +391,10 @@ model Article {
   qualityCheckedAt DateTime?
   aiReviewedAt     DateTime?
   revisingAt       DateTime?
+  /// Content score vs Google's top 10 for the focus keyword.
+  contentScore     Int?
+  contentReport    Json?
+  contentCheckedAt DateTime?
   reviseError      String?
   /// SOP auto-fix: score before the fix, and when it ran. The score after is qualityScore.
   sopFixFrom       Int?
@@ -510,4 +514,15 @@ model ActivityLog {
 
   @@index([clientId, at])
   @@index([entity, entityId])
+}
+
+/// Google top-10 analysis for a keyword in a country (shared by all clients, cached ~2 weeks).
+model SerpBenchmark {
+  id        String   @id @default(cuid())
+  keyword   String
+  location  String
+  data      Json
+  fetchedAt DateTime @default(now())
+
+  @@unique([keyword, location])
 }

@@ -26,6 +26,29 @@ type Item = {
   search_intent_info?: { main_intent?: string | null };
 };
 
+/** POST to any DataForSEO endpoint and return the first task's result array (throws readable errors). */
+export async function dfsPost<T = unknown>(path: string, body: unknown[], timeoutMs = 55_000): Promise<T[]> {
+  if (!dataforseoConfigured()) throw new Error("Add DATAFORSEO_LOGIN and DATAFORSEO_PASSWORD in Vercel first");
+  const auth = Buffer.from(`${process.env.DATAFORSEO_LOGIN}:${process.env.DATAFORSEO_PASSWORD}`).toString("base64");
+  const res = await fetch(`https://api.dataforseo.com/v3/${path}`, {
+    method: body.length ? "POST" : "GET",
+    headers: { Authorization: `Basic ${auth}`, "Content-Type": "application/json" },
+    ...(body.length ? { body: JSON.stringify(body) } : {}),
+    signal: AbortSignal.timeout(timeoutMs),
+  });
+  const j = await res.json().catch(() => null);
+  if (!res.ok || !j) throw new Error(res.status === 401 ? "DataForSEO login or password is wrong" : `DataForSEO HTTP ${res.status}`);
+  if (j.status_code !== 20000) throw new Error(`DataForSEO: ${j.status_message}`);
+  const task = j.tasks?.[0];
+  if (!task || task.status_code >= 40000) {
+    const m = task?.status_message ?? "unknown error";
+    if (task?.status_code === 40200 || /payment|balance|funds/i.test(m)) throw new Error("DataForSEO balance is empty. Add funds at app.dataforseo.com.");
+    if (/access denied|subscription|not available for your/i.test(m)) throw new Error(`DataForSEO: ${m}. This API may need to be switched on in your DataForSEO account.`);
+    throw new Error(`DataForSEO: ${m}`);
+  }
+  return (task.result ?? []) as T[];
+}
+
 async function overview(keywords: string[], location: string, language: string): Promise<Item[]> {
   const auth = Buffer.from(`${process.env.DATAFORSEO_LOGIN}:${process.env.DATAFORSEO_PASSWORD}`).toString("base64");
   const res = await fetch("https://api.dataforseo.com/v3/dataforseo_labs/google/keyword_overview/live", {

@@ -15,6 +15,7 @@ import { learn, learnFromRankings } from "@/lib/brain";
 import { REVISE_STALE_MS, autoFixSop, reviseArticle, suggestTitles, type TitleOption } from "@/lib/revise";
 import { geminiConfigured } from "@/lib/gemini";
 import { checkKeywords } from "@/lib/dataforseo";
+import { rescoreContent, runContentScore } from "@/lib/serp";
 import { after as afterResponse } from "next/server";
 import { addKeywords, processSubmission } from "@/lib/intake";
 import { ensureSlots } from "@/lib/posting";
@@ -279,6 +280,7 @@ export async function saveArticleAction(articleId: string, fd: FormData) {
   });
   await logActivity({ actorId: user.id, clientId: article.clientId, action: "article.edit", entity: "article", entityId: articleId, before: { metaTitle: article.metaTitle, slug: article.slug }, after: { metaTitle: after.metaTitle, slug: after.slug } });
   await runQuality(articleId).catch(() => null);
+  await rescoreContent(articleId).catch(() => null);
   revalidatePath(`/articles/${articleId}`);
 }
 
@@ -321,6 +323,17 @@ export async function fixSopAction(articleId: string) {
   await db.article.update({ where: { id: articleId }, data: { revisingAt: new Date(), reviseError: null } });
   afterResponse(() => autoFixSop(articleId, { userId: user.id, minScore: 100 }).then(() => undefined));
   revalidatePath(`/articles/${articleId}`);
+}
+
+export async function contentScoreAction(articleId: string, refresh: boolean, _prev: string | null): Promise<string | null> {
+  await articleForEdit(articleId);
+  try {
+    await runContentScore(articleId, { refresh });
+  } catch (e) {
+    return e instanceof Error ? e.message : String(e);
+  }
+  revalidatePath(`/articles/${articleId}`);
+  return null;
 }
 
 export type TitleState = { options?: TitleOption[]; error?: string } | null;
