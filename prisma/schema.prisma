@@ -560,6 +560,8 @@ model SiteCrawl {
   issues       Json?
   /// page_metrics totals (links, duplicates, broken, non-indexable...)
   metrics      Json?
+  /// AI fix plans per issue code: { [code]: CrawlFix }
+  aiFixes      Json?
   error        String?
   startedById  String?
   startedAt    DateTime    @default(now())

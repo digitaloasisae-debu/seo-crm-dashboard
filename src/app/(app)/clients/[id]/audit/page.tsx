@@ -8,9 +8,11 @@ import { Spinner } from "@/components/spinner";
 import { fmtDate } from "@/lib/utils";
 import { dataforseoConfigured } from "@/lib/dataforseo";
 import { pollCrawl, type CrawlIssue } from "@/lib/crawl";
-import { startCrawlAction } from "./actions";
+import { fixIssueAction, startCrawlAction } from "./actions";
+import { geminiConfigured } from "@/lib/gemini";
+import type { CrawlFix } from "@/lib/crawl-fix";
 
-export const maxDuration = 60;
+export const maxDuration = 120;
 
 const SEV = {
   error: { label: "Errors", dot: "bg-red-500", chip: "bg-red-50 text-red-700 ring-red-200" },
@@ -33,9 +35,9 @@ const DOMAIN_CHECKS: Record<string, string> = {
 /** Checks where true means a problem. */
 const DOMAIN_BAD = new Set(["start_page_deny_flag", "test_directory_browsing"]);
 
-export default async function AuditPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ err?: string }> }) {
+export default async function AuditPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ err?: string; open?: string }> }) {
   const { id } = await params;
-  const { err } = await searchParams;
+  const { err, open } = await searchParams;
   const user = await requireUser();
   const [editable, crawls] = await Promise.all([canEdit(user, id), db.siteCrawl.findMany({ where: { clientId: id }, orderBy: { startedAt: "desc" }, take: 10 })]);
   let current = crawls[0] ?? null;
@@ -47,6 +49,8 @@ export default async function AuditPage({ params, searchParams }: { params: Prom
   const counts = { error: 0, warning: 0, notice: 0 };
   issues.forEach((i) => (counts[i.severity] += 1));
   const ready = dataforseoConfigured();
+  const fixes = (done?.aiFixes ?? {}) as Record<string, CrawlFix>;
+  const ai = geminiConfigured();
 
   return (
     <div className="space-y-6">
@@ -54,7 +58,7 @@ export default async function AuditPage({ params, searchParams }: { params: Prom
         <div className="min-w-0 flex-1">
           <h2 className="font-semibold">Full technical audit</h2>
           <p className="text-sm text-slate-500">Crawls the whole site (up to {current?.maxPages ?? (Number(process.env.DATAFORSEO_AUDIT_MAX_PAGES) || 500)} pages) and runs 60+ checks on every page: errors, redirects, duplicates, speed, indexing, schema and more.</p>
-          {err && <p className="mt-2 rounded-lg bg-red-50 p-2 text-sm text-red-700">Couldn&apos;t start: {err}</p>}
+          {err && <p className="mt-2 rounded-lg bg-red-50 p-2 text-sm text-red-700">{err.startsWith("AI fix") ? err : <>Couldn&apos;t start: {err}</>}</p>}
           {!ready && <p className="mt-2 text-xs text-slate-500">Needs the DataForSEO login in Vercel.</p>}
         </div>
         {editable && ready && current?.status !== "RUNNING" && (
@@ -112,10 +116,11 @@ export default async function AuditPage({ params, searchParams }: { params: Prom
             <section className="card space-y-2">
               <h2 className="mb-1 font-semibold">Issues to fix ({issues.length})</h2>
               {issues.map((i) => (
-                <details key={i.code} className="rounded-xl border border-slate-100 p-3">
+                <details key={i.code} id={`issue-${i.code}`} open={open === i.code} className="scroll-mt-4 rounded-xl border border-slate-100 p-3">
                   <summary className="flex items-center gap-3">
                     <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${SEV[i.severity].dot}`} />
                     <span className="min-w-0 flex-1 text-sm font-medium">{i.title}</span>
+                    {fixes[i.code] && <span className="rounded-full bg-violet-50 px-2 py-0.5 text-[11px] font-semibold text-violet-700 ring-1 ring-violet-200 ring-inset">✨ AI fix ready</span>}
                     <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ring-1 ring-inset ${SEV[i.severity].chip}`}>{i.count.toLocaleString()} page{i.count === 1 ? "" : "s"}</span>
                   </summary>
                   <div className="mt-2 space-y-2 pl-5 text-sm">
@@ -126,6 +131,29 @@ export default async function AuditPage({ params, searchParams }: { params: Prom
                         {i.count > i.urls.length && <li className="text-slate-400">…and {(i.count - i.urls.length).toLocaleString()} more</li>}
                       </ul>
                     )}
+                    {fixes[i.code] ? (
+                      <div className="space-y-2 rounded-xl bg-violet-50/60 p-3 ring-1 ring-violet-100">
+                        <div className="flex flex-wrap items-center gap-2"><span className="font-semibold text-violet-800">✨ How to fix it</span>{fixes[i.code].effort && <span className="rounded-full bg-white px-2 py-0.5 text-[11px] text-slate-600 ring-1 ring-slate-200">⏱ {fixes[i.code].effort}</span>}</div>
+                        {fixes[i.code].summary && <p>{fixes[i.code].summary}</p>}
+                        {fixes[i.code].why && <p className="text-xs text-slate-600"><b>Why it matters:</b> {fixes[i.code].why}</p>}
+                        {fixes[i.code].steps.length > 0 && <ol className="list-decimal space-y-1 pl-5">{fixes[i.code].steps.map((st, k) => <li key={k}>{st.replace(/^\s*\d+[.)]\s*/, "")}</li>)}</ol>}
+                        {fixes[i.code].pages.length > 0 && (
+                          <div className="space-y-2 pt-1">
+                            <div className="text-xs font-semibold text-slate-600">Ready-to-paste fixes for these pages</div>
+                            {fixes[i.code].pages.map((pg) => (
+                              <div key={pg.url} className="rounded-lg bg-white p-2.5 text-xs ring-1 ring-slate-200">
+                                <a href={pg.url} target="_blank" rel="noreferrer" className="block truncate font-medium text-indigo-600 hover:underline">{pg.url}</a>
+                                {pg.current && <div className="mt-1 text-slate-500"><span className="font-semibold">Now:</span> {pg.current}</div>}
+                                <div className="mt-1 whitespace-pre-line text-slate-900"><span className="font-semibold text-emerald-700">Use:</span> {pg.suggested}</div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                        {editable && ai && <form action={fixIssueAction.bind(null, id, done!.id, i.code)}><SubmitButton className="text-xs text-violet-700 hover:underline">↻ Write a new fix</SubmitButton></form>}
+                      </div>
+                    ) : editable && ai ? (
+                      <form action={fixIssueAction.bind(null, id, done!.id, i.code)}><SubmitButton className="btn-secondary text-xs">✨ Get AI fix</SubmitButton></form>
+                    ) : null}
                   </div>
                 </details>
               ))}

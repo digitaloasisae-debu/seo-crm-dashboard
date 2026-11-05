@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { requireClientAccess } from "@/lib/access";
 import { requireUser } from "@/lib/session";
 import { startCrawl } from "@/lib/crawl";
+import { fixCrawlIssue } from "@/lib/crawl-fix";
 
 export async function startCrawlAction(clientId: string) {
   const user = await requireUser();
@@ -18,4 +19,18 @@ export async function startCrawlAction(clientId: string) {
     }
   }
   redirect(`/clients/${clientId}/audit${err ? `?err=${encodeURIComponent(err)}` : ""}`);
+}
+
+export async function fixIssueAction(clientId: string, crawlId: string, code: string) {
+  const user = await requireUser();
+  await requireClientAccess(user, clientId, "edit");
+  let err = "";
+  try {
+    const crawl = await db.siteCrawl.findFirst({ where: { id: crawlId, clientId } });
+    if (!crawl) throw new Error("Audit not found");
+    await fixCrawlIssue(crawlId, code);
+  } catch (e) {
+    err = e instanceof Error ? e.message : String(e);
+  }
+  redirect(`/clients/${clientId}/audit?open=${encodeURIComponent(code)}${err ? `&err=${encodeURIComponent(`AI fix: ${err}`)}` : ""}#issue-${code}`);
 }
