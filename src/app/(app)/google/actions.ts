@@ -24,7 +24,7 @@ export async function setPropertyAction(clientId: string, fd: FormData) {
 export async function autoMatchAction() {
   await requireSuperAdmin();
   const { sites } = await listSites();
-  const clients = await db.client.findMany({ where: { gscProperty: null }, select: { id: true, siteUrl: true, gscAccount: true } });
+  const clients = await db.client.findMany({ where: { OR: [{ gscProperty: null }, { gscConnectionId: null }] }, select: { id: true, siteUrl: true, gscAccount: true } });
   for (const c of clients) {
     const m = matchSite(c.siteUrl, sites, c.gscAccount);
     if (m) await db.client.update({ where: { id: c.id }, data: { gscProperty: m.siteUrl, gscConnectionId: m.connectionId } });
@@ -36,6 +36,7 @@ export async function autoMatchAction() {
 export async function removeConnectionAction(connectionId: string) {
   const user = await requireSuperAdmin();
   await db.googleConnection.delete({ where: { id: connectionId } });
+  await db.client.updateMany({ where: { ga4ConnectionId: connectionId }, data: { ga4ConnectionId: null } });
   await logActivity({ actorId: user.id, action: "gsc.disconnect", entity: "google", entityId: connectionId });
   revalidatePath("/google");
 }

@@ -130,13 +130,32 @@ const rowsOf = (r: Report | undefined, withEngagement = false): Ga4Row[] =>
   }));
 
 /** Pull the last 28 days (and the 28 before) for one client and save the snapshot. */
+/** Finds a connected Google account that can still see this property (after an account was reconnected). */
+async function relinkConnection(clientId: string, propertyId: string) {
+  const { properties } = await listGa4Properties();
+  const p = properties.find((x) => x.id === propertyId);
+  if (!p) return null;
+  await db.client.update({ where: { id: clientId }, data: { ga4ConnectionId: p.connectionId, ga4PropertyName: p.name } });
+  return p.connectionId;
+}
+
 export async function syncAnalytics(clientId: string) {
   const client = await db.client.findUniqueOrThrow({ where: { id: clientId }, select: { ga4PropertyId: true, ga4ConnectionId: true } });
-  if (!client.ga4PropertyId || !client.ga4ConnectionId) throw new Error("No Analytics property linked");
+  if (!client.ga4PropertyId) throw new Error("No Analytics property linked");
+  const conn = client.ga4ConnectionId ? await db.googleConnection.findUnique({ where: { id: client.ga4ConnectionId }, select: { id: true } }) : null;
+  if (!conn) {
+    client.ga4ConnectionId = await relinkConnection(clientId, client.ga4PropertyId);
+    if (!client.ga4ConnectionId) {
+      const msg = "None of the connected Google accounts can see this Analytics property. On the Google page, connect the account that owns it, or pick another property.";
+      await db.client.update({ where: { id: clientId }, data: { ga4Error: msg } });
+      throw new Error(msg);
+    }
+  }
+  const connectionId = client.ga4ConnectionId!;
   const prop = `${DATA}/properties/${client.ga4PropertyId}`;
   try {
     const [batch, ev] = await Promise.all([
-      gaFetch<{ reports?: Report[] }>("Data", client.ga4ConnectionId, `${prop}:batchRunReports`, {
+      gaFetch<{ reports?: Report[] }>("Data", connectionId, `${prop}:batchRunReports`, {
         requests: [
           { dateRanges: [{ ...range, name: "current" }, { startDate: `${DAYS * 2}daysAgo`, endDate: `${DAYS + 1}daysAgo`, name: "previous" }], metrics: M("sessions", "totalUsers", "newUsers", "keyEvents", "engagementRate", "screenPageViews") },
           { dateRanges: [{ startDate: "90daysAgo", endDate: "yesterday" }], dimensions: [{ name: "date" }], metrics: M("sessions", "keyEvents"), orderBys: [{ dimension: { dimensionName: "date" } }], limit: 100 },
@@ -145,7 +164,7 @@ export async function syncAnalytics(clientId: string) {
           { dateRanges: [range], dimensions: [{ name: "landingPage" }], metrics: M("sessions", "totalUsers", "keyEvents", "engagementRate"), dimensionFilter: ORGANIC, orderBys: bySessions, limit: 500 },
         ],
       }),
-      gaFetch<Report>("Data", client.ga4ConnectionId, `${prop}:runReport`, {
+      gaFetch<Report>("Data", connectionId, `${prop}:runReport`, {
         dateRanges: [range], dimensions: [{ name: "eventName" }], metrics: M("keyEvents"),
         metricFilter: { filter: { fieldName: "keyEvents", numericFilter: { operation: "GREATER_THAN", value: { int64Value: "0" } } } },
         orderBys: [{ metric: { metricName: "keyEvents" }, desc: true }], limit: 15,
