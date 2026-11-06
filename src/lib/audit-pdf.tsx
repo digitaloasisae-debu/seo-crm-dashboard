@@ -314,5 +314,13 @@ async function loadLogo(url: string | null | undefined): Promise<Brand["logo"]> 
 export async function auditPdf(crawl: SiteCrawl, client: { name: string; brandPrimaryColor: string | null; logoUrl: string | null }) {
   const color = /^#[0-9a-f]{6}$/i.test(client.brandPrimaryColor ?? "") ? client.brandPrimaryColor! : "#4f46e5";
   const b: Brand = { client: client.name, agency: process.env.REPORT_AGENCY_NAME || "Digital Oasis", color, logo: await loadLogo(client.logoUrl) };
-  return renderToBuffer(<Report crawl={crawl} deep={(crawl.advanced as unknown as CrawlDeep | null) ?? null} b={b} />);
+  const deep = (crawl.advanced as unknown as CrawlDeep | null) ?? null;
+  try {
+    return await renderToBuffer(<Report crawl={crawl} deep={deep} b={b} />);
+  } catch (e) {
+    // A logo in an unusual image format can break rendering: try again without it.
+    if (!b.logo) throw e;
+    console.error("Audit PDF failed with logo, retrying without it:", e);
+    return renderToBuffer(<Report crawl={crawl} deep={deep} b={{ ...b, logo: null }} />);
+  }
 }

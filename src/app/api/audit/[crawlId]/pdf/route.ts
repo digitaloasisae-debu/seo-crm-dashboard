@@ -17,7 +17,14 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ craw
   } catch {
     return NextResponse.json({ error: "No access" }, { status: 403 });
   }
-  const pdf = await auditPdf(crawl, crawl.client);
+  let pdf: Buffer;
+  try {
+    pdf = await auditPdf(crawl, crawl.client);
+  } catch (e) {
+    console.error("Audit PDF failed:", e);
+    const msg = e instanceof Error ? `${e.name}: ${e.message}\n\n${(e.stack ?? "").split("\n").slice(1, 6).join("\n")}` : String(e);
+    return new NextResponse(`The PDF couldn't be created. Please send this to support:\n\n${msg}`, { status: 500, headers: { "Content-Type": "text/plain; charset=utf-8" } });
+  }
   const name = `seo-audit-${crawl.client.slug}-${(crawl.finishedAt ?? crawl.startedAt).toISOString().slice(0, 10)}.pdf`;
   return new NextResponse(new Uint8Array(pdf), { headers: { "Content-Type": "application/pdf", "Content-Disposition": `attachment; filename="${name}"`, "Cache-Control": "private, no-store" } });
 }
