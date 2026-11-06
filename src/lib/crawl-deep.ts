@@ -1,0 +1,218 @@
+/**
+ * Deep analysis on top of a finished DataForSEO crawl: Core Web Vitals (PageSpeed + real Chrome users),
+ * internal linking (click depth, weakly linked pages), heavy/slow pages and images, indexing compared with
+ * Search Console, keyword cannibalisation, security headers, and an AI executive summary + action plan.
+ * Runs in the background (about 1–2 minutes) and is stored on SiteCrawl.advanced.
+ */
+import type { Prisma, SiteCrawl } from "@prisma/client";
+import { db } from "./db";
+import { dfsPost } from "./dataforseo";
+import { pageSpeed, type PsiSummary } from "./audit";
+import { gscQuery } from "./google";
+import { geminiConfigured, geminiJson } from "./gemini";
+import type { CrawlIssue } from "./crawl";
+
+export type DeepPage = { url: string; value: number };
+export type Cannibal = { query: string; impressions: number; pages: { url: string; clicks: number; impressions: number; position: number }[] };
+export type Category = { key: string; label: string; score: number; note: string };
+export type Action = { title: string; why: string; impact: "high" | "medium" | "low"; effort: string; category: string };
+export type CrawlDeep = {
+  generatedAt: string;
+  overall: number;
+  categories: Category[];
+  speed: { url: string; mobile: PsiSummary; desktop: PsiSummary }[];
+  status: Record<string, number>;
+  depth: Record<string, number>;
+  deepPages: DeepPage[];
+  weakLinked: DeepPage[];
+  slowPages: DeepPage[];
+  heavyPages: DeepPage[];
+  thinPages: DeepPage[];
+  lowScorePages: DeepPage[];
+  bigImages: DeepPage[];
+  indexing: { crawledOk: number; withImpressions: number; noImpressions: DeepPage[]; notCrawled: DeepPage[]; gsc: boolean } | null;
+  cannibal: Cannibal[];
+  security: { https: boolean; headers: Record<string, boolean>; mixedContent: string[] } | null;
+  ai: { summary: string; strengths: string[]; actions: Action[]; quickWins: string[] } | null;
+  notes: string[];
+};
+
+const norm = (u: string) => u.replace(/^https?:\/\/(www\.)?/i, "").replace(/[?#].*$/, "").replace(/\/+$/, "").toLowerCase();
+const clamp = (n: number) => Math.max(0, Math.min(100, Math.round(n)));
+type PageItem = {
+  url: string; status_code?: number; click_depth?: number; size?: number; onpage_score?: number; resource_type?: string;
+  meta?: { inbound_links_count?: number; content?: { plain_text_word_count?: number } };
+  page_timing?: { duration_time?: number; time_to_interactive?: number };
+};
+
+const SEC_HEADERS: Record<string, string> = {
+  "strict-transport-security": "HSTS (forces HTTPS)",
+  "content-security-policy": "Content Security Policy",
+  "x-content-type-options": "X-Content-Type-Options",
+  "x-frame-options": "Clickjacking protection (X-Frame-Options)",
+  "referrer-policy": "Referrer-Policy",
+  "permissions-policy": "Permissions-Policy",
+};
+export const SECURITY_LABELS = SEC_HEADERS;
+
+async function security(target: string) {
+  try {
+    const res = await fetch(`https://${target}/`, { redirect: "follow", headers: { "User-Agent": "Mozilla/5.0 (compatible; RankflowAudit/1.0)" }, signal: AbortSignal.timeout(15_000) });
+    const html = await res.text();
+    const headers = Object.fromEntries(Object.keys(SEC_HEADERS).map((h) => [h, res.headers.has(h) || (h === "x-frame-options" && /frame-ancestors/i.test(res.headers.get("content-security-policy") ?? ""))]));
+    const mixed = [...new Set([...html.matchAll(/(?:src|href)=["'](http:\/\/[^"']+\.(?:js|css|png|jpe?g|gif|webp|svg|woff2?)(?:\?[^"']*)?)["']/gi)].map((m) => m[1]))].slice(0, 10);
+    return { https: res.url.startsWith("https://"), headers, mixedContent: mixed };
+  } catch {
+    return null;
+  }
+}
+
+/** Runs the deep analysis for a finished crawl and saves it. Safe to call again (overwrites). */
+export async function runDeep(crawl: SiteCrawl): Promise<CrawlDeep> {
+  if (crawl.status !== "DONE" || !crawl.taskId) throw new Error("The crawl isn't finished yet");
+  const notes: string[] = [];
+  const client = await db.client.findUniqueOrThrow({ where: { id: crawl.clientId }, select: { name: true, businessType: true, primaryCity: true, gscProperty: true } });
+  const home = `https://${crawl.target}/`;
+
+  // 1) Everything in parallel: crawl pages, big images, GSC, security headers.
+  const [pagesRes, imagesRes, gscPages, gscQP, sec, topGsc] = await Promise.all([
+    dfsPost<{ items?: PageItem[] }>("on_page/pages", [{ id: crawl.taskId, limit: 1000, filters: [["resource_type", "=", "html"]] }], 60_000).catch((e) => { notes.push(`Page list: ${e instanceof Error ? e.message : e}`); return []; }),
+    dfsPost<{ items?: { url: string; size?: number; total_transfer_size?: number }[] }>("on_page/resources", [{ id: crawl.taskId, limit: 25, filters: [["resource_type", "=", "image"], "and", ["size", ">", 200000]], order_by: ["size,desc"] }], 40_000).catch(() => []),
+    client.gscProperty ? gscQuery(crawl.clientId, ["page"], 28, 5000).catch((e) => { notes.push(`Search Console: ${e instanceof Error ? e.message : e}`); return null; }) : Promise.resolve(null),
+    client.gscProperty ? gscQuery(crawl.clientId, ["query", "page"], 28, 5000).catch(() => null) : Promise.resolve(null),
+    security(crawl.target),
+    db.gscPage.findMany({ where: { clientId: crawl.clientId }, orderBy: { clicks: "desc" }, take: 6, select: { page: true } }),
+  ]);
+  const pages = pagesRes[0]?.items ?? [];
+
+  // 2) Speed: home + the top 2 pages from Search Console, mobile and desktop.
+  const speedUrls = [home, ...topGsc.map((p) => p.page).filter((u) => norm(u) !== norm(home))].slice(0, 3);
+  const speed = await Promise.all(speedUrls.map(async (url) => {
+    const [mobile, desktop] = await Promise.all([pageSpeed(url, "mobile"), pageSpeed(url, "desktop")]);
+    return { url, mobile, desktop };
+  }));
+
+  // 3) Crawl-based metrics.
+  const ok = pages.filter((p) => (p.status_code ?? 0) >= 200 && (p.status_code ?? 0) < 300);
+  const status: Record<string, number> = { "2xx": 0, "3xx": 0, "4xx": 0, "5xx": 0 };
+  for (const p of pages) { const c = p.status_code ?? 0; const k = `${Math.floor(c / 100)}xx`; if (k in status) status[k]++; }
+  const depth: Record<string, number> = { "0": 0, "1": 0, "2": 0, "3": 0, "4": 0, "5+": 0 };
+  for (const p of ok) { const d = p.click_depth ?? 0; depth[d >= 5 ? "5+" : String(d)]++; }
+  const top = (list: PageItem[], fn: (p: PageItem) => number, n = 15, asc = false) =>
+    list.map((p) => ({ url: p.url, value: fn(p) })).filter((x) => Number.isFinite(x.value)).sort((a, b) => (asc ? a.value - b.value : b.value - a.value)).slice(0, n);
+  const deepPages = top(ok.filter((p) => (p.click_depth ?? 0) > 3), (p) => p.click_depth ?? 0);
+  const weakLinked = top(ok.filter((p) => norm(p.url) !== norm(home) && (p.meta?.inbound_links_count ?? 0) <= 1), (p) => p.meta?.inbound_links_count ?? 0, 20, true);
+  const slowPages = top(ok.filter((p) => (p.page_timing?.duration_time ?? 0) > 1500), (p) => p.page_timing?.duration_time ?? 0, 10);
+  const heavyPages = top(ok.filter((p) => (p.size ?? 0) > 500_000), (p) => p.size ?? 0, 10);
+  const thinPages = top(ok.filter((p) => (p.meta?.content?.plain_text_word_count ?? 0) < 300), (p) => p.meta?.content?.plain_text_word_count ?? 0, 20, true);
+  const lowScorePages = top(ok.filter((p) => p.onpage_score != null), (p) => Math.round(p.onpage_score ?? 0), 10, true);
+  const bigImages = (imagesRes[0]?.items ?? []).map((i) => ({ url: i.url, value: i.size ?? i.total_transfer_size ?? 0 })).slice(0, 15);
+
+  // 4) Indexing vs Search Console.
+  let indexing: CrawlDeep["indexing"] = null;
+  if (gscPages) {
+    const imp = new Map(gscPages.map((r) => [norm(r.keys[0]), r.impressions]));
+    const crawled = new Set(ok.map((p) => norm(p.url)));
+    const noImp = ok.filter((p) => !imp.get(norm(p.url))).map((p) => ({ url: p.url, value: p.meta?.inbound_links_count ?? 0 }));
+    const notCrawled = gscPages.filter((r) => r.impressions >= 10 && !crawled.has(norm(r.keys[0])) && !r.keys[0].includes("#")).sort((a, b) => b.impressions - a.impressions).slice(0, 15).map((r) => ({ url: r.keys[0], value: r.impressions }));
+    indexing = { gsc: true, crawledOk: ok.length, withImpressions: ok.length - noImp.length, noImpressions: noImp.slice(0, 25), notCrawled };
+  } else if (!client.gscProperty) notes.push("Search Console isn't linked for this client, so indexing and cannibalisation checks were skipped.");
+
+  // 5) Cannibalisation: one query, several of our pages each getting a real share of impressions.
+  const cannibal: Cannibal[] = [];
+  if (gscQP) {
+    const byQ = new Map<string, { url: string; clicks: number; impressions: number; position: number }[]>();
+    for (const r of gscQP) { const [q, page] = r.keys; if (page.includes("#")) continue; (byQ.get(q) ?? byQ.set(q, []).get(q)!).push({ url: page, clicks: r.clicks, impressions: r.impressions, position: Math.round(r.position * 10) / 10 }); }
+    for (const [query, list] of byQ) {
+      const total = list.reduce((s, x) => s + x.impressions, 0);
+      const real = list.filter((x) => x.impressions >= 5 && x.impressions / total >= 0.1);
+      if (real.length >= 2 && total >= 30) cannibal.push({ query, impressions: total, pages: real.sort((a, b) => b.impressions - a.impressions).slice(0, 4) });
+    }
+    cannibal.sort((a, b) => b.impressions - a.impressions).splice(15);
+  }
+
+  // 6) Category scores.
+  const mob = speed.map((s) => s.mobile.performance).filter((v): v is number => v != null);
+  const perf = mob.length ? mob.reduce((a, b) => a + b, 0) / mob.length : null;
+  const n = Math.max(1, ok.length);
+  const issues = (crawl.issues as unknown as CrawlIssue[] | null) ?? [];
+  const errPages = issues.filter((i) => i.severity === "error").reduce((s, i) => s + i.count, 0);
+  const secCount = sec ? Object.values(sec.headers).filter(Boolean).length : 0;
+  const categories: Category[] = [
+    { key: "technical", label: "Technical health", score: clamp(crawl.score ?? 0), note: `${errPages} error${errPages === 1 ? "" : "s"} across ${crawl.pagesCrawled} pages` },
+    ...(perf != null ? [{ key: "speed", label: "Speed (mobile)", score: clamp(perf), note: `PageSpeed average of ${mob.length} page${mob.length === 1 ? "" : "s"}` }] : []),
+    { key: "content", label: "Content depth", score: clamp(100 - (thinPages.length / n) * 150), note: `${thinPages.length} thin page${thinPages.length === 1 ? "" : "s"} under 300 words` },
+    { key: "links", label: "Internal linking", score: clamp(100 - ((weakLinked.length + deepPages.length) / n) * 120), note: `${weakLinked.length} weakly linked, ${deepPages.length} buried deeper than 3 clicks` },
+    ...(indexing ? [{ key: "indexing", label: "Visibility in Google", score: clamp((indexing.withImpressions / Math.max(1, indexing.crawledOk)) * 100), note: `${indexing.withImpressions} of ${indexing.crawledOk} pages got Google impressions (28 days)` }] : []),
+    ...(sec ? [{ key: "security", label: "Security", score: clamp((sec.https ? 40 : 0) + (secCount / 6) * 60 - sec.mixedContent.length * 5), note: `${secCount} of 6 security headers${sec.mixedContent.length ? `, ${sec.mixedContent.length} insecure files` : ""}` }] : []),
+  ];
+  const weights: Record<string, number> = { technical: 3, speed: 2, content: 1.5, links: 1.5, indexing: 2, security: 1 };
+  const overall = clamp(categories.reduce((s, c) => s + c.score * (weights[c.key] ?? 1), 0) / categories.reduce((s, c) => s + (weights[c.key] ?? 1), 0));
+
+  const deep: CrawlDeep = {
+    generatedAt: new Date().toISOString(), overall, categories, speed, status, depth, deepPages, weakLinked, slowPages, heavyPages,
+    thinPages, lowScorePages, bigImages, indexing, cannibal, security: sec, ai: null, notes,
+  };
+
+  // 7) AI executive summary + prioritised plan.
+  if (geminiConfigured()) {
+    try {
+      deep.ai = await aiPlan(deep, issues, { name: client.name, type: client.businessType, city: client.primaryCity, target: crawl.target, pages: crawl.pagesCrawled });
+    } catch (e) {
+      notes.push(`AI summary: ${e instanceof Error ? e.message : e}`);
+    }
+  }
+
+  await db.siteCrawl.update({ where: { id: crawl.id }, data: { advanced: deep as unknown as Prisma.InputJsonValue, advancedAt: new Date(), advancedError: null } });
+  return deep;
+}
+
+async function aiPlan(d: CrawlDeep, issues: CrawlIssue[], c: { name: string; type: string | null; city: string | null; target: string; pages: number }) {
+  const ms = (v: number | null | undefined) => (v == null ? "n/a" : `${(v / 1000).toFixed(1)}s`);
+  const facts = [
+    `Site: ${c.target} — ${c.name}${c.type ? `, ${c.type}` : ""}${c.city ? `, ${c.city}` : ""}. ${c.pages} pages crawled. Overall score ${d.overall}/100.`,
+    `Category scores: ${d.categories.map((x) => `${x.label} ${x.score} (${x.note})`).join("; ")}.`,
+    `Issues: ${issues.slice(0, 25).map((i) => `[${i.severity}] ${i.title}: ${i.count} pages`).join("; ")}.`,
+    `Speed: ${d.speed.map((s) => `${s.url} mobile ${s.mobile.performance ?? "?"} / desktop ${s.desktop.performance ?? "?"}, lab LCP ${ms(s.mobile.lcpMs)}, CLS ${s.mobile.cls?.toFixed(2) ?? "?"}${s.mobile.field ? `, real users LCP ${ms(s.mobile.field.lcpMs)} INP ${s.mobile.field.inpMs ?? "?"}ms (${s.mobile.field.overall})` : ""}; biggest savings: ${(s.mobile.opportunities ?? []).slice(0, 3).map((o) => `${o.title} (${ms(o.savingsMs)})`).join(", ")}`).join(" | ")}.`,
+    `Click depth: ${JSON.stringify(d.depth)}. Weakly linked pages: ${d.weakLinked.length}. Thin pages: ${d.thinPages.length}. Heavy pages >500KB: ${d.heavyPages.length}. Images >200KB: ${d.bigImages.length}.`,
+    d.indexing ? `Google visibility: ${d.indexing.withImpressions}/${d.indexing.crawledOk} crawled pages had impressions in 28 days; ${d.indexing.notCrawled.length} pages get impressions but weren't found by the crawl (old URLs or orphans).` : "",
+    d.cannibal.length ? `Keyword cannibalisation: ${d.cannibal.slice(0, 5).map((x) => `"${x.query}" split across ${x.pages.length} pages`).join("; ")}.` : "",
+    d.security ? `Security: HTTPS ${d.security.https ? "yes" : "no"}; missing headers: ${Object.entries(d.security.headers).filter(([, v]) => !v).map(([k]) => k).join(", ") || "none"}; insecure files: ${d.security.mixedContent.length}.` : "",
+  ].filter(Boolean).join("\n");
+  const r = await geminiJson<{ summary: string; strengths: string[]; actions: Action[]; quickWins: string[] }>(facts, {
+    system: `You are a senior SEO consultant writing the executive summary of a technical SEO audit for a business owner (not technical).
+Return JSON: {"summary": string, "strengths": string[], "actions": [{"title": string, "why": string, "impact": "high"|"medium"|"low", "effort": string, "category": string}], "quickWins": string[]}
+- summary: 4–6 sentences, plain English: overall state, the 2–3 biggest problems and what fixing them will do for rankings and leads. Use the real numbers.
+- strengths: 2–4 things the site already does well.
+- actions: the 10 most valuable fixes in priority order (highest impact for the least effort first). title is an imperative ("Compress the 14 largest images"); why is one sentence with the number; effort like "1 hour", "half a day", "developer, 2 days"; category one of Technical, Speed, Content, Internal links, Indexing, Security.
+- quickWins: 3–5 things that take under 30 minutes each.
+Only use the facts given. No invented numbers.`,
+    timeoutMs: 55_000, temperature: 0.3,
+  });
+  const impacts = new Set(["high", "medium", "low"]);
+  return {
+    summary: String(r.summary ?? ""),
+    strengths: (r.strengths ?? []).map(String).slice(0, 4),
+    actions: (r.actions ?? []).slice(0, 10).map((a) => ({ title: String(a.title ?? ""), why: String(a.why ?? ""), impact: (impacts.has(a.impact) ? a.impact : "medium") as Action["impact"], effort: String(a.effort ?? ""), category: String(a.category ?? "") })),
+    quickWins: (r.quickWins ?? []).map(String).slice(0, 5),
+  };
+}
+
+/** Starts the deep analysis once per crawl (or again when forced). Returns false when it's already running. */
+export async function claimDeep(crawlId: string, force = false) {
+  const stale = new Date(Date.now() - 6 * 60_000);
+  const r = await db.siteCrawl.updateMany({
+    where: { id: crawlId, status: "DONE", ...(force ? { OR: [{ advancedStartedAt: null }, { advancedStartedAt: { lt: stale } }, { advancedAt: { not: null } }] } : { advancedAt: null, OR: [{ advancedStartedAt: null }, { advancedStartedAt: { lt: stale } }] }) },
+    data: { advancedStartedAt: new Date(), advancedError: null, ...(force ? { advancedAt: null } : {}) },
+  });
+  return r.count > 0;
+}
+
+export async function runDeepSafe(crawlId: string) {
+  const crawl = await db.siteCrawl.findUniqueOrThrow({ where: { id: crawlId } });
+  try {
+    await runDeep(crawl);
+  } catch (e) {
+    await db.siteCrawl.update({ where: { id: crawlId }, data: { advancedError: e instanceof Error ? e.message : String(e), advancedAt: new Date() } });
+  }
+}

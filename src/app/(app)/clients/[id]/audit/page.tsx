@@ -8,11 +8,14 @@ import { Spinner } from "@/components/spinner";
 import { fmtDate } from "@/lib/utils";
 import { dataforseoConfigured } from "@/lib/dataforseo";
 import { pollCrawl, type CrawlIssue } from "@/lib/crawl";
-import { fixIssueAction, startCrawlAction } from "./actions";
+import { after } from "next/server";
+import { fixIssueAction, rerunDeepAction, startCrawlAction } from "./actions";
+import { claimDeep, runDeepSafe, type CrawlDeep } from "@/lib/crawl-deep";
+import { DeepAudit } from "@/components/deep-audit";
 import { geminiConfigured } from "@/lib/gemini";
 import type { CrawlFix } from "@/lib/crawl-fix";
 
-export const maxDuration = 120;
+export const maxDuration = 300;
 
 const SEV = {
   error: { label: "Errors", dot: "bg-red-500", chip: "bg-red-50 text-red-700 ring-red-200" },
@@ -50,6 +53,14 @@ export default async function AuditPage({ params, searchParams }: { params: Prom
   issues.forEach((i) => (counts[i.severity] += 1));
   const ready = dataforseoConfigured();
   const fixes = (done?.aiFixes ?? {}) as Record<string, CrawlFix>;
+  // The deep analysis starts by itself the first time a finished audit is opened.
+  if (done && !done.advancedAt && (await claimDeep(done.id))) {
+    const crawlId = done.id;
+    after(() => runDeepSafe(crawlId));
+    done.advancedStartedAt = new Date();
+  }
+  const deep = done?.advanced as unknown as CrawlDeep | null;
+  const deepRunning = !!done && !done.advancedAt && !!done.advancedStartedAt && Date.now() - done.advancedStartedAt.getTime() < 6 * 60_000;
   const ai = geminiConfigured();
 
   return (
@@ -111,6 +122,24 @@ export default async function AuditPage({ params, searchParams }: { params: Prom
               </div>
             </div>
           </section>
+
+          <section className="card flex flex-wrap items-center gap-3">
+            <div className="min-w-0 flex-1">
+              <h2 className="font-semibold">Deep analysis and report</h2>
+              <p className="text-sm text-slate-500">Speed and Core Web Vitals, Google visibility, internal links, content, security and an AI action plan{done.advancedAt && deep ? `, from ${fmtDate(done.advancedAt)}` : ""}.</p>
+              {done.advancedError && <p className="mt-1 text-xs text-red-700">{done.advancedError}</p>}
+            </div>
+            {deepRunning ? (
+              <span className="flex items-center gap-2 text-sm text-indigo-700"><RefreshWhile ms={8000} /><Spinner className="h-4 w-4" />Analysing… about 1–2 minutes</span>
+            ) : (
+              <>
+                {deep && <a href={`/api/audit/${done.id}/pdf`} className="btn-primary">📄 Download PDF report</a>}
+                {editable && <form action={rerunDeepAction.bind(null, id, done.id)}><SubmitButton className="btn-secondary">🔄 Re-run analysis</SubmitButton></form>}
+              </>
+            )}
+          </section>
+
+          {deep && <DeepAudit d={deep} />}
 
           {issues.length === 0 ? <p className="card text-sm text-emerald-700">🎉 No issues found.</p> : (
             <section className="card space-y-2">

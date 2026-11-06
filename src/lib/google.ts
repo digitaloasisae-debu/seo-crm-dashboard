@@ -130,6 +130,17 @@ const day = (d: Date) => d.toISOString().slice(0, 10);
 const addDays = (d: Date, n: number) => new Date(d.getTime() + n * 864e5);
 const monday = (d: Date) => addDays(d, -((d.getUTCDay() + 6) % 7));
 
+/** Raw Search Analytics query for a client (last `days` days). Returns [] when no property is linked. */
+export async function gscQuery(clientId: string, dimensions: string[], days = 28, rowLimit = 5000) {
+  const client = await db.client.findUniqueOrThrow({ where: { id: clientId }, select: { gscProperty: true, gscConnectionId: true } });
+  if (!client.gscProperty || !client.gscConnectionId) return [] as Row[];
+  const end = addDays(new Date(`${day(new Date())}T00:00:00Z`), -1);
+  const j = await gsc<{ rows?: Row[] }>(client.gscConnectionId, `/sites/${encodeURIComponent(client.gscProperty)}/searchAnalytics/query`, {
+    dataState: "all", startDate: day(addDays(end, -(days - 1))), endDate: day(end), dimensions, rowLimit,
+  });
+  return j.rows ?? [];
+}
+
 /** Pull Search Console data for one client: 90 days of daily totals, weekly top queries, top pages (28 days). */
 export async function syncClient(clientId: string) {
   const client = await db.client.findUniqueOrThrow({ where: { id: clientId } });

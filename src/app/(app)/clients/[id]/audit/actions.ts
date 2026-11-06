@@ -1,5 +1,7 @@
 "use server";
 import { redirect } from "next/navigation";
+import { after } from "next/server";
+import { claimDeep, runDeepSafe } from "@/lib/crawl-deep";
 import { db } from "@/lib/db";
 import { requireClientAccess } from "@/lib/access";
 import { requireUser } from "@/lib/session";
@@ -33,4 +35,12 @@ export async function fixIssueAction(clientId: string, crawlId: string, code: st
     err = e instanceof Error ? e.message : String(e);
   }
   redirect(`/clients/${clientId}/audit?open=${encodeURIComponent(code)}${err ? `&err=${encodeURIComponent(`AI fix: ${err}`)}` : ""}#issue-${code}`);
+}
+
+export async function rerunDeepAction(clientId: string, crawlId: string) {
+  const user = await requireUser();
+  await requireClientAccess(user, clientId, "edit");
+  const crawl = await db.siteCrawl.findFirst({ where: { id: crawlId, clientId } });
+  if (crawl && (await claimDeep(crawlId, true))) after(() => runDeepSafe(crawlId));
+  redirect(`/clients/${clientId}/audit`);
 }

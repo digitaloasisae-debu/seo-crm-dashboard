@@ -14,7 +14,16 @@ const UA = "Mozilla/5.0 (compatible; SEOControlCenterAudit/1.0)";
 
 export type Severity = "error" | "warning" | "notice";
 export type Issue = { code: string; severity: Severity; title: string; urls: string[]; count: number };
-export type PsiSummary = { performance: number | null; seo: number | null; accessibility: number | null; bestPractices: number | null; lcpMs: number | null; cls: number | null; tbtMs: number | null; fcpMs: number | null; error?: string };
+export type PsiField = { lcpMs: number | null; inpMs: number | null; cls: number | null; overall: string | null; origin: boolean };
+export type PsiSummary = {
+  performance: number | null; seo: number | null; accessibility: number | null; bestPractices: number | null;
+  lcpMs: number | null; cls: number | null; tbtMs: number | null; fcpMs: number | null;
+  /** Real-user Chrome data (CrUX) for the page, or the whole site when the page has too little traffic. */
+  field?: PsiField | null;
+  /** Biggest Lighthouse savings, e.g. "Properly size images" (ms saved). */
+  opportunities?: { title: string; savingsMs: number }[];
+  error?: string;
+};
 
 const ISSUE_INFO: Record<string, { severity: Severity; title: string }> = {
   site_unreachable: { severity: "error", title: "Home page did not load" },
@@ -87,6 +96,23 @@ export async function pageSpeed(url: string, strategy: "mobile" | "desktop"): Pr
       cls: num(aud["cumulative-layout-shift"]?.numericValue),
       tbtMs: num(aud["total-blocking-time"]?.numericValue),
       fcpMs: num(aud["first-contentful-paint"]?.numericValue),
+      field: (() => {
+        const le = j.loadingExperience?.metrics ? j.loadingExperience : j.originLoadingExperience?.metrics ? j.originLoadingExperience : null;
+        if (!le) return null;
+        const m = le.metrics;
+        return {
+          lcpMs: num(m.LARGEST_CONTENTFUL_PAINT_MS?.percentile),
+          inpMs: num(m.INTERACTION_TO_NEXT_PAINT?.percentile),
+          cls: typeof m.CUMULATIVE_LAYOUT_SHIFT_SCORE?.percentile === "number" ? m.CUMULATIVE_LAYOUT_SHIFT_SCORE.percentile / 100 : null,
+          overall: typeof le.overall_category === "string" ? le.overall_category : null,
+          origin: le !== j.loadingExperience,
+        };
+      })(),
+      opportunities: Object.values(aud as Record<string, { title?: string; details?: { type?: string; overallSavingsMs?: number } }>)
+        .filter((a) => a.details?.type === "opportunity" && (a.details.overallSavingsMs ?? 0) >= 100)
+        .map((a) => ({ title: String(a.title ?? ""), savingsMs: Math.round(a.details!.overallSavingsMs!) }))
+        .sort((a, b) => b.savingsMs - a.savingsMs)
+        .slice(0, 6),
     };
   } catch (e) {
     return { ...empty, error: e instanceof Error && e.name === "TimeoutError" ? "PageSpeed took too long" : String(e) };

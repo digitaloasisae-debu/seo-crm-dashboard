@@ -545,28 +545,33 @@ enum CrawlStatus {
 
 /// Full technical audit: a DataForSEO On-Page crawl of the whole site.
 model SiteCrawl {
-  id           String      @id @default(cuid())
-  clientId     String
-  status       CrawlStatus @default(RUNNING)
-  taskId       String?
-  target       String
-  maxPages     Int
-  pagesCrawled Int         @default(0)
-  pagesInQueue Int         @default(0)
-  score        Int?
+  id                String      @id @default(cuid())
+  clientId          String
+  status            CrawlStatus @default(RUNNING)
+  taskId            String?
+  target            String
+  maxPages          Int
+  pagesCrawled      Int         @default(0)
+  pagesInQueue      Int         @default(0)
+  score             Int?
   /// { ssl, sitemap, robots, http2, cms, server, ... } from DataForSEO domain_info
-  domainInfo   Json?
+  domainInfo        Json?
   /// [{ code, severity, title, hint, count, urls: string[] }]
-  issues       Json?
+  issues            Json?
   /// page_metrics totals (links, duplicates, broken, non-indexable...)
-  metrics      Json?
+  metrics           Json?
   /// AI fix plans per issue code: { [code]: CrawlFix }
-  aiFixes      Json?
-  error        String?
-  startedById  String?
-  startedAt    DateTime    @default(now())
-  lastPolledAt DateTime?
-  finishedAt   DateTime?
+  aiFixes           Json?
+  /// Deep analysis: speed, indexing, internal links, security, AI action plan (CrawlDeep)
+  advanced          Json?
+  advancedStartedAt DateTime?
+  advancedAt        DateTime?
+  advancedError     String?
+  error             String?
+  startedById       String?
+  startedAt         DateTime    @default(now())
+  lastPolledAt      DateTime?
+  finishedAt        DateTime?
 
   client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
 
