@@ -248,6 +248,8 @@ model Client {
   gscPageWeeks    GscPageWeek[]
   crawls          SiteCrawl[]
   backlinkReports BacklinkReport[]
+  /// Remembered recipients for emailed audit reports
+  reportEmails    String[]
   ga4PropertyId   String?
   ga4PropertyName String?
   ga4ConnectionId String?

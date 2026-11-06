@@ -12,6 +12,8 @@ import { after } from "next/server";
 import { fixIssueAction, rerunDeepAction, startCrawlAction } from "./actions";
 import { claimDeep, runDeepSafe, type CrawlDeep } from "@/lib/crawl-deep";
 import { DeepAudit } from "@/components/deep-audit";
+import { EmailReport } from "@/components/email-report";
+import { emailConfigured } from "@/lib/email";
 import { geminiConfigured } from "@/lib/gemini";
 import type { CrawlFix } from "@/lib/crawl-fix";
 
@@ -60,6 +62,8 @@ export default async function AuditPage({ params, searchParams }: { params: Prom
     done.advancedStartedAt = new Date();
   }
   const deep = done?.advanced as unknown as CrawlDeep | null;
+  const clientInfo = await db.client.findUnique({ where: { id }, select: { reportEmails: true, submittedBy: true } });
+  const reportTo = clientInfo?.reportEmails.length ? clientInfo.reportEmails.join(", ") : /@/.test(clientInfo?.submittedBy ?? "") ? clientInfo!.submittedBy! : "";
   const deepRunning = !!done && !done.advancedAt && !!done.advancedStartedAt && Date.now() - done.advancedStartedAt.getTime() < 6 * 60_000;
   const ai = geminiConfigured();
 
@@ -135,6 +139,7 @@ export default async function AuditPage({ params, searchParams }: { params: Prom
               <>
                 {deep && <a href={`/api/audit/${done.id}/pdf`} className="btn-primary">📄 Download PDF report</a>}
                 {editable && <form action={rerunDeepAction.bind(null, id, done.id)}><SubmitButton className="btn-secondary">🔄 Re-run analysis</SubmitButton></form>}
+                {deep && editable && <EmailReport crawlId={done.id} defaultTo={reportTo} configured={emailConfigured()} />}
               </>
             )}
           </section>
