@@ -16,7 +16,7 @@ type Logo = { data: Buffer; format: "png" | "jpg" } | null;
 type Brand = { client: string; agency: string; agencyWebsite: string; color: string; logo: Logo; agencyLogo: Logo };
 type TrendPoint = { date: string; score: number | null; overall: number | null };
 
-const clean = (s: unknown) => String(s ?? "")
+export const clean = (s: unknown) => String(s ?? "")
   .replace(/[‘’]/g, "'").replace(/[“”]/g, '"').replace(/[–—]/g, "-").replace(/…/g, "...")
   .replace(/≤/g, "<=").replace(/≥/g, ">=").replace(/→/g, "->")
   .replace(/[^\x09\x0A\x0D\x20-\x7E\xA0-\xFF]/g, "").replace(/\s{2,}/g, " ").trim();
@@ -415,7 +415,7 @@ function Report({ crawl, deep, b, prev, trend }: { crawl: SiteCrawl; deep: Crawl
   );
 }
 
-async function loadLogo(url: string | null | undefined): Promise<Brand["logo"]> {
+export async function loadLogo(url: string | null | undefined): Promise<Brand["logo"]> {
   if (!url) return null;
   try {
     const res = await fetch(url, { signal: AbortSignal.timeout(8_000) });

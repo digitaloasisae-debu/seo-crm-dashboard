@@ -247,6 +247,7 @@ model Client {
   gscPages        GscPage[]
   gscPageWeeks    GscPageWeek[]
   crawls          SiteCrawl[]
+  gbpProfiles     GbpProfile[]
   backlinkReports BacklinkReport[]
   /// Remembered recipients for emailed audit reports
   reportEmails    String[]
@@ -626,4 +627,29 @@ model AnalyticsSnapshot {
   fetchedAt DateTime @default(now())
 
   client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+}
+
+/// A Google Business Profile listing audited for a client (one client can have several locations).
+model GbpProfile {
+  id        String    @id @default(cuid())
+  clientId  String
+  /// Short name shown in reports, e.g. "Oakland"
+  label     String
+  /// What the user entered: a Google Maps link, CID, place ID, or business name
+  query     String
+  cid       String?
+  placeId   String?
+  /// DataForSEO my_business_info item
+  data      Json?
+  /// [{ severity, title, detail }] rule-based checks
+  findings  Json?
+  /// AI write-up: { description[], fix[], actions[{ priority, action, benefit }] }
+  ai        Json?
+  error     String?
+  fetchedAt DateTime?
+  createdAt DateTime  @default(now())
+
+  client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@index([clientId])
 }

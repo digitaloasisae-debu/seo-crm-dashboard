@@ -11,13 +11,14 @@ import { pageSpeed, type PsiSummary } from "./audit";
 import { gscQuery } from "./google";
 import { geminiConfigured, geminiJson } from "./gemini";
 import { refreshIssues, type CrawlIssue } from "./crawl";
+import { keywordConsistency, marketData, templateContent, type KeywordRow, type Market, type Template } from "./crawl-market";
 
 export type DeepPage = { url: string; value: number };
 export type Cannibal = { query: string; impressions: number; pages: { url: string; clicks: number; impressions: number; position: number }[] };
 export type Category = { key: string; label: string; score: number; note: string };
 export type Action = { title: string; why: string; impact: "high" | "medium" | "low"; effort: string; category: string };
 /** Bump when the analysis changes, so older reports are rebuilt automatically when opened. */
-export const DEEP_VERSION = 3;
+export const DEEP_VERSION = 4;
 export type SiteFiles = {
   robots: boolean;
   sitemaps: string[];
@@ -30,7 +31,12 @@ export type SiteFiles = {
   sitemapNotCrawled: number;
   llmsTxt: boolean;
   aiBotsBlocked: string[];
+  /** Most recent blog/news post in the sitemap (by lastmod). */
+  newestPost?: { url: string; date: string } | null;
 };
+export type Section = { description: string[]; fix: string[] };
+export type SectionKey = "onpage" | "content" | "images" | "speed" | "technical" | "offpage" | "ai";
+export type RoadmapMonth = { month: number; focus: string; tasks: string; outcome: string };
 export type SchemaPage = { url: string; types: string[]; og: boolean; lang: string; viewport: boolean; hreflang?: { lang: string; href: string }[] };
 export type Hreflang = { pages: number; langs: string[]; problems: { url: string; problem: string }[]; multiLangNoTags: boolean };
 export type CrawlDeep = {
@@ -42,6 +48,9 @@ export type CrawlDeep = {
   schema?: SchemaPage[];
   /** Only filled for multi-language sites (hreflang tags found, or pages in different languages). */
   hreflang?: Hreflang | null;
+  keywords?: KeywordRow[];
+  template?: Template | null;
+  market?: Market | null;
   overall: number;
   categories: Category[];
   speed: { url: string; mobile: PsiSummary; desktop: PsiSummary }[];
@@ -57,7 +66,7 @@ export type CrawlDeep = {
   indexing: { crawledOk: number; withImpressions: number; noImpressions: DeepPage[]; notCrawled: DeepPage[]; gsc: boolean } | null;
   cannibal: Cannibal[];
   security: { https: boolean; headers: Record<string, boolean>; mixedContent: string[] } | null;
-  ai: { summary: string; strengths: string[]; actions: Action[]; quickWins: string[] } | null;
+  ai: { summary: string; strengths: string[]; actions: Action[]; quickWins: string[]; sections?: Partial<Record<SectionKey, Section>>; roadmap?: RoadmapMonth[]; conclusion?: string } | null;
   notes: string[];
 };
 
@@ -138,6 +147,7 @@ async function siteFiles(target: string, pages: PageItem[]): Promise<SiteFiles |
   const found: string[] = [];
   const queue = [...new Set(candidates)].slice(0, 5);
   const seen = new Set(queue);
+  let newestPost: { url: string; date: string } | null = null;
   let fetched = 0;
   while (queue.length && fetched < 25 && urls.size < 10_000) {
     const batch = queue.splice(0, 6);
@@ -151,6 +161,13 @@ async function siteFiles(target: string, pages: PageItem[]): Promise<SiteFiles |
         for (const l of locs) if (!seen.has(l)) { seen.add(l); queue.push(l); }
       } else {
         locs.forEach((l) => urls.add(l));
+        const postMap = /post|blog|news|article/i.test(batch[i]);
+        for (const m of d.text.matchAll(/<url>([\s\S]*?)<\/url>/gi)) {
+          const loc = m[1].match(/<loc>\s*(?:<!\[CDATA\[)?\s*([^<\]\s]+)/i)?.[1];
+          const mod = m[1].match(/<lastmod>\s*([^<\s]+)/i)?.[1];
+          if (!loc || !mod || isNaN(Date.parse(mod))) continue;
+          if ((postMap || /\/(blog|news|articles?)\/[^/]+/i.test(loc)) && (!newestPost || mod > newestPost.date)) newestPost = { url: loc, date: mod.slice(0, 10) };
+        }
       }
     });
   }
@@ -170,7 +187,7 @@ async function siteFiles(target: string, pages: PageItem[]): Promise<SiteFiles |
     : [];
   return {
     robots: !!robots, sitemaps: found.slice(0, 10), sitemapUrls: urls.size, sitemapBad: sitemapBad.slice(0, 25), notInSitemap, sitemapNotCrawled: notCrawled,
-    llmsTxt: !!llms && !/html/i.test(llms.type) && llms.text.trim().length > 20, aiBotsBlocked: robots ? blockedBots(robots) : [],
+    llmsTxt: !!llms && !/html/i.test(llms.type) && llms.text.trim().length > 20, aiBotsBlocked: robots ? blockedBots(robots) : [], newestPost,
   };
 }
 
@@ -268,14 +285,19 @@ export async function runDeep(crawl: SiteCrawl): Promise<CrawlDeep> {
   // Structured data on the home page, the top Search Console pages and a few pages one click from home.
   const schemaUrls = [home, ...topGsc.map((p) => p.page), ...ok.filter((p) => p.click_depth === 1).map((p) => p.url)]
     .filter((u, i, a) => a.findIndex((x) => norm(x) === norm(u)) === i).slice(0, 8);
-  const [speed, files, schema] = await Promise.all([
+  const [speed, files, schema, homeHtml, template, market] = await Promise.all([
     Promise.all(speedUrls.map(async (url) => {
       const [mobile, desktop] = await Promise.all([pageSpeed(url, "mobile"), pageSpeed(url, "desktop")]);
       return { url, mobile, desktop };
     })),
     siteFiles(crawl.target, pages).catch(() => null),
     schemaPages(schemaUrls).catch(() => [] as SchemaPage[]),
+    getText(home).then((r) => r?.text ?? null),
+    templateContent(ok.map((p) => p.url), home).catch(() => null),
+    marketData(crawl.clientId, crawl.target).catch((e) => { notes.push(`Market data: ${e instanceof Error ? e.message : e}`); return null; }),
   ]);
+  const keywords = homeHtml ? keywordConsistency(homeHtml) : [];
+  if (market?.notes.length) notes.push(...market.notes);
 
   const hreflang = await checkHreflang(schema).catch(() => null);
 
@@ -353,7 +375,7 @@ export async function runDeep(crawl: SiteCrawl): Promise<CrawlDeep> {
   const overall = clamp(categories.reduce((s, c) => s + c.score * (weights[c.key] ?? 1), 0) / categories.reduce((s, c) => s + (weights[c.key] ?? 1), 0));
 
   const deep: CrawlDeep = {
-    version: DEEP_VERSION, gscState, files, schema, hreflang,
+    version: DEEP_VERSION, gscState, files, schema, hreflang, keywords, template, market,
     generatedAt: new Date().toISOString(), overall, categories, speed, status, depth, deepPages, weakLinked, slowPages, heavyPages,
     thinPages, lowScorePages, bigImages, indexing, cannibal, security: sec, ai: null, notes,
   };
@@ -383,19 +405,29 @@ async function aiPlan(d: CrawlDeep, issues: CrawlIssue[], c: { name: string; typ
     d.files ? `Sitemap: ${d.files.sitemaps.length ? `${d.files.sitemapUrls} URLs` : "none found"}; ${d.files.sitemapBad.length} sitemap URLs redirect or error; ${d.files.notInSitemap.length} live pages missing from the sitemap. robots.txt ${d.files.robots ? "found" : "missing"}. AI crawlers blocked: ${d.files.aiBotsBlocked.join(", ") || "none"}. llms.txt: ${d.files.llmsTxt ? "yes" : "no"}.` : "",
     d.schema?.length ? `Structured data: ${d.schema.map((p) => `${p.url.replace(/^https?:\/\/[^/]+/, "") || "/"} [${p.types.join(", ") || "none"}]`).join("; ")}.` : "",
     d.hreflang ? (d.hreflang.multiLangNoTags ? `Multi-language site (${d.hreflang.langs.join(", ")}) without hreflang tags.` : `hreflang: ${d.hreflang.pages} key pages tagged, languages ${d.hreflang.langs.join(", ")}; problems: ${d.hreflang.problems.slice(0, 6).map((p) => p.problem).join("; ") || "none"}.`) : "",
+    d.keywords?.length ? `Home page keyword consistency (word: count, in title/meta/headings): ${d.keywords.map((k) => `${k.word}: ${k.count} ${k.title ? "T" : "-"}${k.description ? "M" : "-"}${k.headings ? "H" : "-"}`).join(", ")}.` : "",
+    d.template ? `Templated pages: ${d.template.checked} similar-looking location/service pages checked, average ${d.template.avgPct}% text shared with the most similar page; most duplicated: ${d.template.pages.slice(0, 4).map((p) => `${p.url.replace(/^https?:\/\/[^/]+/, "")} ${p.pct}%`).join(", ")}.` : "",
+    d.files?.newestPost ? `Newest blog post in sitemap: ${d.files.newestPost.date}.` : "",
+    d.market ? `Off-page: authority ${d.market.authority ?? "n/a"}/100, ${d.market.referringDomains ?? "n/a"} referring domains, ${d.market.backlinks ?? "n/a"} backlinks; organic traffic ~${d.market.traffic ?? "n/a"}/month from ${d.market.keywords ?? "n/a"} keywords (${d.market.top10 ?? "n/a"} in top 10). Competitors: ${d.market.competitors.filter((c) => !c.you).map((c) => `${c.domain} (traffic ${c.traffic ?? "?"}, keywords ${c.keywords ?? "?"})`).join("; ") || "unknown"}.${d.market.history.length > 2 ? ` Backlinks 12 months ago ${d.market.history[0].backlinks}, now ${d.market.history[d.market.history.length - 1].backlinks}.` : ""}` : "",
     d.indexing ? `Google visibility: ${d.indexing.withImpressions}/${d.indexing.crawledOk} crawled pages had impressions in 28 days; ${d.indexing.notCrawled.length} pages get impressions but weren't found by the crawl (old URLs or orphans).` : "",
     d.cannibal.length ? `Keyword cannibalisation: ${d.cannibal.slice(0, 5).map((x) => `"${x.query}" split across ${x.pages.length} pages`).join("; ")}.` : "",
     d.security ? `Security: HTTPS ${d.security.https ? "yes" : "no"}; missing headers: ${Object.entries(d.security.headers).filter(([, v]) => !v).map(([k]) => k).join(", ") || "none"}; insecure files: ${d.security.mixedContent.length}.` : "",
   ].filter(Boolean).join("\n");
-  const r = await geminiJson<{ summary: string; strengths: string[]; actions: Action[]; quickWins: string[] }>(facts, {
+  type Raw = { summary: string; strengths: string[]; actions: Action[]; quickWins: string[]; sections?: Record<string, Section>; roadmap?: RoadmapMonth[]; conclusion?: string };
+  const r = await geminiJson<Raw>(facts, {
     system: `You are a senior SEO consultant writing the executive summary of a technical SEO audit for a business owner (not technical).
-Return JSON: {"summary": string, "strengths": string[], "actions": [{"title": string, "why": string, "impact": "high"|"medium"|"low", "effort": string, "category": string}], "quickWins": string[]}
+Return JSON: {"summary": string, "strengths": string[], "actions": [{"title": string, "why": string, "impact": "high"|"medium"|"low", "effort": string, "category": string}], "quickWins": string[],
+ "sections": {"onpage"|"content"|"images"|"speed"|"technical"|"offpage"|"ai": {"description": string[], "fix": string[]}},
+ "roadmap": [{"month": number, "focus": string, "tasks": string, "outcome": string}], "conclusion": string}
 - summary: 4–6 sentences, plain English: overall state, the 2–3 biggest problems and what fixing them will do for rankings and leads. Use the real numbers.
 - strengths: 2–4 things the site already does well.
-- actions: the 10 most valuable fixes in priority order (highest impact for the least effort first). title is an imperative ("Compress the 14 largest images"); why is one sentence with the number; effort like "1 hour", "half a day", "developer, 2 days"; category one of Technical, Speed, Content, Internal links, Indexing, AI search, Security.
+- actions: the 10 most valuable website fixes in priority order (highest impact for the least effort first). title is an imperative ("Compress the 14 largest images"); why is one sentence with the number; effort like "1 hour", "half a day", "developer, 2 days"; category one of Technical, Speed, Content, Internal links, Indexing, AI search, Security.
 - quickWins: 3–5 things that take under 30 minutes each.
+- sections: for each of onpage (titles, meta, H1, keyword consistency), content (thin, templated/duplicate, blog freshness, cannibalisation), images (alt text, image size, social share images), speed (PageSpeed, Core Web Vitals), technical (broken links, redirects, canonicals, sitemap, robots, security, internal links), offpage (authority, backlinks, competitors) and ai (AI search readiness): 2–3 short "description" sentences with the real numbers, and 2–3 matching "fix" sentences. Skip a section only if there is no data at all.
+- roadmap: exactly 6 months, front-loading quick high-impact technical fixes, then speed, on-page, content, and authority/AI. focus 2–4 words; tasks one sentence listing the concrete tasks; outcome 3–8 words.
+- conclusion: 2–3 sentences for the end of the report.
 Only use the facts given. No invented numbers.`,
-    timeoutMs: 55_000, temperature: 0.3,
+    timeoutMs: 100_000, temperature: 0.3,
   });
   const impacts = new Set(["high", "medium", "low"]);
   return {
@@ -403,6 +435,10 @@ Only use the facts given. No invented numbers.`,
     strengths: (r.strengths ?? []).map(String).slice(0, 4),
     actions: (r.actions ?? []).slice(0, 10).map((a) => ({ title: String(a.title ?? ""), why: String(a.why ?? ""), impact: (impacts.has(a.impact) ? a.impact : "medium") as Action["impact"], effort: String(a.effort ?? ""), category: String(a.category ?? "") })),
     quickWins: (r.quickWins ?? []).map(String).slice(0, 5),
+    sections: Object.fromEntries(Object.entries(r.sections ?? {}).filter(([k]) => ["onpage", "content", "images", "speed", "technical", "offpage", "ai"].includes(k))
+      .map(([k, v]) => [k, { description: (v?.description ?? []).map(String).slice(0, 4), fix: (v?.fix ?? []).map(String).slice(0, 4) }])) as Partial<Record<SectionKey, Section>>,
+    roadmap: (r.roadmap ?? []).slice(0, 6).map((m, i) => ({ month: Number(m.month) || i + 1, focus: String(m.focus ?? ""), tasks: String(m.tasks ?? ""), outcome: String(m.outcome ?? "") })),
+    conclusion: String(r.conclusion ?? ""),
   };
 }
 

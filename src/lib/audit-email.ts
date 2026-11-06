@@ -1,6 +1,7 @@
 /** Builds and sends the audit report email (summary in the body, full PDF attached). */
 import { db } from "./db";
 import { auditPdf } from "./audit-pdf";
+import { fullAuditPdf } from "./full-audit-pdf";
 import { sendEmail } from "./email";
 import { getAgency } from "./report-brand";
 import type { CrawlDeep } from "./crawl-deep";
@@ -25,7 +26,7 @@ export async function sendAuditEmail(crawlId: string, to: string[], opts: { note
       ? `<p>Hi,</p><p>Here is this month's SEO audit for <b>${esc(crawl.target)}</b>.</p>`
       : `<p>Hi,</p><p>Please find attached the SEO audit for <b>${esc(crawl.target)}</b>.</p>`;
 
-  const pdf = await auditPdf(crawl, crawl.client);
+  const [full, pdf] = await Promise.all([fullAuditPdf(crawl, crawl.client), auditPdf(crawl, crawl.client)]);
   const html = `<div style="font-family:Arial,Helvetica,sans-serif;max-width:600px;margin:auto;color:#1e293b">
 <div style="background:${color};color:#fff;padding:24px;border-radius:10px 10px 0 0"><div style="font-size:12px;letter-spacing:1px;opacity:.85">${opts.scheduled ? "MONTHLY " : ""}SEO AUDIT REPORT</div><div style="font-size:24px;font-weight:bold;margin-top:4px">${esc(crawl.client.name)}</div><div style="font-size:14px;margin-top:2px">${esc(crawl.target)} · ${date}</div></div>
 <div style="border:1px solid #e2e8f0;border-top:0;padding:24px;border-radius:0 0 10px 10px">
@@ -33,11 +34,14 @@ ${intro}
 ${score != null ? `<p style="font-size:15px">Overall SEO score: <b style="font-size:22px">${score}</b>/100${delta ? ` <span style="color:${delta > 0 ? "#059669" : "#dc2626"}">(${delta > 0 ? "+" : ""}${delta} since the last audit)</span>` : ""}</p>` : ""}
 ${deep?.ai?.summary ? `<p style="color:#475569">${esc(deep.ai.summary)}</p>` : ""}
 ${actions.length ? `<p style="font-weight:bold;margin-bottom:6px">Top priorities</p><ol style="padding-left:20px;margin-top:0">${actions.map((a) => `<li style="margin-bottom:6px"><b>${esc(a.title)}</b><br><span style="color:#64748b;font-size:13px">${esc(a.why)}</span></li>`).join("")}</ol>` : ""}
-<p>The full report with every issue and how to fix it is attached as a PDF.</p>
+<p>Attached: the full website &amp; Google Business Profile audit, plus a technical appendix with every issue and how to fix it.</p>
 <p style="color:#64748b;font-size:13px;margin-top:24px">${esc(agency.name)}${agency.website ? `<br><a href="${esc(agency.website)}" style="color:#64748b">${esc(agency.website.replace(/^https?:\/\//, ""))}</a>` : ""}</p></div></div>`;
   const text = `${note || `Please find attached the SEO audit for ${crawl.target}.`}\n\n${score != null ? `Overall SEO score: ${score}/100\n\n` : ""}${actions.map((a, i) => `${i + 1}. ${a.title}`).join("\n")}\n\n${agency.name}`;
   await sendEmail({
     to, subject: `${opts.scheduled ? "Monthly " : ""}SEO audit report: ${crawl.target} (${date})`, html, text, replyTo: opts.replyTo || agency.email || undefined,
-    attachments: [{ filename: `seo-audit-${crawl.client.slug}-${date}.pdf`, content: pdf }],
+    attachments: [
+      { filename: `website-gbp-audit-${crawl.client.slug}-${date}.pdf`, content: full },
+      { filename: `technical-seo-details-${crawl.client.slug}-${date}.pdf`, content: pdf },
+    ],
   });
 }

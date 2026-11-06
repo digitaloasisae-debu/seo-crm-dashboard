@@ -143,14 +143,15 @@ export default async function AuditPage({ params, searchParams }: { params: Prom
           <section className="card flex flex-wrap items-center gap-3">
             <div className="min-w-0 flex-1">
               <h2 className="font-semibold">Deep analysis and report</h2>
-              <p className="text-sm text-slate-500">Speed and Core Web Vitals, Google visibility, internal links, content, security and an AI action plan{done.advancedAt && deep ? `, from ${fmtDate(done.advancedAt)}` : ""}.</p>
+              <p className="text-sm text-slate-500">Speed, Google visibility, internal links, content, authority and competitors, AI search and an action plan. The full audit PDF also includes the <a href={`/clients/${id}/gbp`} className="text-indigo-600 hover:underline">Google profile</a> audit{done.advancedAt && deep ? `, from ${fmtDate(done.advancedAt)}` : ""}.</p>
               {done.advancedError && <p className="mt-1 text-xs text-red-700">{done.advancedError}</p>}
             </div>
             {deepRunning ? (
               <span className="flex items-center gap-2 text-sm text-indigo-700"><RefreshWhile ms={8000} /><Spinner className="h-4 w-4" />Analysing… about 1–2 minutes</span>
             ) : (
               <>
-                {deep && <a href={`/api/audit/${done.id}/pdf`} className="btn-primary">📄 Download PDF report</a>}
+                {deep && <a href={`/api/audit/${done.id}/full-pdf`} className="btn-primary">📄 Full audit PDF (website + Google profile)</a>}
+                {deep && <a href={`/api/audit/${done.id}/pdf`} className="btn-secondary">Technical PDF</a>}
                 <a href={`/api/audit/${done.id}/csv`} className="btn-secondary">⬇️ CSV</a>
                 {editable && <form action={rerunDeepAction.bind(null, id, done.id)}><SubmitButton className="btn-secondary">🔄 Re-run analysis</SubmitButton></form>}
                 {deep && editable && <EmailReport crawlId={done.id} defaultTo={reportTo} configured={emailConfigured()} />}
