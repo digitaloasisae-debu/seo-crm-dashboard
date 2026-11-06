@@ -53,7 +53,7 @@ export function PageHeader({ title, subtitle, actions }: { title: string; subtit
   return (
     <div className="mb-6 flex flex-wrap items-end justify-between gap-3">
       <div>
-        <h1 className="bg-gradient-to-r from-slate-900 via-indigo-900 to-violet-800 bg-clip-text text-2xl font-bold tracking-tight text-transparent md:text-3xl">{title}</h1>
+        <h1 className="font-display text-slate-900 text-2xl font-bold tracking-tight  md:text-3xl">{title}</h1>
         {subtitle && <p className="mt-1 text-sm text-slate-500">{subtitle}</p>}
       </div>
       {actions && <div className="flex gap-2">{actions}</div>}

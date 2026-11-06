@@ -34,7 +34,7 @@ export default async function ClientLayout({ children, params }: { children: Rea
         <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-500 to-fuchsia-500 text-base font-bold text-white shadow-lg shadow-indigo-500/25">{initials}</span>
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
-            <h1 className="bg-gradient-to-r from-slate-900 via-indigo-900 to-violet-800 bg-clip-text text-2xl font-bold tracking-tight text-transparent md:text-3xl">{client.name}</h1>
+            <h1 className="font-display text-slate-900 text-2xl font-bold tracking-tight  md:text-3xl">{client.name}</h1>
             <StatusBadge status={client.status} />
             {level === "VIEW" && <Badge>view only</Badge>}
           </div>

@@ -29,7 +29,7 @@ const LINES = {
 };
 
 /** Greets by the viewer's local time, with a waving hand. */
-export function Greeting({ name }: { name: string }) {
+export function Greeting({ name, sub }: { name: string; sub?: string }) {
   const [part, setPart] = useState<keyof typeof LINES>("morning");
   const [line, setLine] = useState("");
   useEffect(() => {
@@ -40,11 +40,11 @@ export function Greeting({ name }: { name: string }) {
   }, []);
   return (
     <div className="mb-6">
-      <h1 className="text-2xl font-bold tracking-tight md:text-3xl">
-        <span className="bg-gradient-to-r from-slate-900 via-indigo-900 to-violet-800 bg-clip-text text-transparent">Good {part}, {name}</span>{" "}
+      <h1 className="font-display text-3xl font-bold tracking-tight md:text-4xl">
+        <span className="text-slate-900">Good {part}, {name}</span>{" "}
         <span className="wave inline-block">👋</span>
       </h1>
-      <p className="mt-1 h-5 text-sm text-slate-500">{line && <span className="animate-fade-in">{line}</span>}</p>
+      <p className="mt-1.5 min-h-5 text-sm text-slate-500">{sub ?? (line && <span className="animate-fade-in">{line}</span>)}</p>
     </div>
   );
 }

@@ -40,11 +40,11 @@ export function LogoMark({ size = 36, animated = false, className = "" }: { size
 export function Logo({ size = 36, light = false, tagline = false, animated = false }: { size?: number; light?: boolean; tagline?: boolean; animated?: boolean }) {
   return (
     <span className="inline-flex items-center gap-2.5">
-      <LogoMark size={size} animated={animated} className="shrink-0 drop-shadow-[0_6px_14px_rgba(139,92,246,0.45)]" />
+      <LogoMark size={size} animated={animated} className={`shrink-0 ${light ? "drop-shadow-[0_6px_14px_rgba(139,92,246,0.45)]" : ""}`} />
       <span className="leading-tight">
-        <span className={`block font-bold tracking-tight ${light ? "text-white" : "text-slate-900"}`} style={{ fontSize: size * 0.5 }}>
+        <span className={`block font-display font-bold tracking-tight ${light ? "text-white" : "text-slate-900"}`} style={{ fontSize: size * 0.5 }}>
           {BRAND.name.slice(0, 4)}
-          <span className={light ? "bg-gradient-to-r from-indigo-300 to-fuchsia-300 bg-clip-text text-transparent" : "bg-gradient-to-r from-indigo-600 to-fuchsia-600 bg-clip-text text-transparent"}>{BRAND.name.slice(4)}</span>
+          <span className={light ? "bg-gradient-to-r from-indigo-300 to-fuchsia-300 bg-clip-text text-transparent" : "text-indigo-600"}>{BRAND.name.slice(4)}</span>
         </span>
         {tagline && <span className={`block text-[11px] ${light ? "text-indigo-200/60" : "text-slate-500"}`}>{BRAND.tagline}</span>}
       </span>

@@ -1,7 +1,7 @@
 import { db } from "@/lib/db";
 import { canEdit } from "@/lib/access";
 import { requireUser } from "@/lib/session";
-import { ScoreRing } from "@/components/ui";
+import { AuditBoard } from "@/components/audit-board";
 import { SubmitButton } from "@/components/submit-button";
 import { RefreshWhile } from "@/components/refresh-while";
 import { Spinner } from "@/components/spinner";
@@ -18,12 +18,6 @@ import { geminiConfigured } from "@/lib/gemini";
 import type { CrawlFix } from "@/lib/crawl-fix";
 
 export const maxDuration = 300;
-
-const SEV = {
-  error: { label: "Errors", dot: "bg-red-500", chip: "bg-red-50 text-red-700 ring-red-200" },
-  warning: { label: "Warnings", dot: "bg-amber-500", chip: "bg-amber-50 text-amber-800 ring-amber-200" },
-  notice: { label: "Notices", dot: "bg-slate-400", chip: "bg-slate-50 text-slate-600 ring-slate-200" },
-} as const;
 
 const DOMAIN_CHECKS: Record<string, string> = {
   ssl: "SSL certificate",
@@ -51,8 +45,6 @@ export default async function AuditPage({ params, searchParams }: { params: Prom
   const issues = (done?.issues as unknown as CrawlIssue[] | null) ?? [];
   const domain = (done?.domainInfo ?? {}) as Record<string, unknown> & { checks?: Record<string, boolean> };
   const metrics = (done?.metrics ?? {}) as Record<string, number>;
-  const counts = { error: 0, warning: 0, notice: 0 };
-  issues.forEach((i) => (counts[i.severity] += 1));
   const ready = dataforseoConfigured();
   const fixes = (done?.aiFixes ?? {}) as Record<string, CrawlFix>;
   // The deep analysis starts by itself the first time a finished audit is opened, and is rebuilt
@@ -78,6 +70,52 @@ export default async function AuditPage({ params, searchParams }: { params: Prom
   const reportTo = clientInfo?.reportEmails.length ? clientInfo.reportEmails.join(", ") : /@/.test(clientInfo?.submittedBy ?? "") ? clientInfo!.submittedBy! : "";
   const deepRunning = !!done && !done.advancedAt && !!done.advancedStartedAt && Date.now() - done.advancedStartedAt.getTime() < 6 * 60_000;
   const ai = geminiConfigured();
+
+  const issueDetail = (i: CrawlIssue) => (
+                  <div className="space-y-4 text-sm">
+                    {i.hint && <div><div className="mb-1 text-[11px] font-semibold tracking-widest text-slate-400 uppercase">Why it matters</div><p className="text-slate-700">{i.hint}</p></div>}
+                    {i.links && i.links.length > 0 && (
+                      <div className="text-xs">
+                        <div className="mb-1 font-medium text-slate-600">Page → broken link</div>
+                        <ul className="space-y-0.5">{i.links.map((l, k) => <li key={k} className="flex min-w-0 gap-1.5"><a className="max-w-[45%] truncate text-indigo-600 hover:underline" href={l.from} target="_blank" rel="noreferrer">{l.from.replace(/^https?:\/\/[^/]+/, "") || "/"}</a><span className="text-slate-400">→</span><span className="min-w-0 flex-1 truncate text-red-700">{l.to}</span>{l.status ? <span className="text-slate-400">{l.status}</span> : null}</li>)}</ul>
+                      </div>
+                    )}
+                    {i.groups && i.groups.length > 0 && (
+                      <div className="space-y-1.5 text-xs">
+                        {i.groups.map((g, k) => <div key={k}><div className="font-medium">&ldquo;{g.value || "(empty)"}&rdquo; <span className="text-slate-400">· {g.urls.length} pages</span></div><ul className="pl-3">{g.urls.map((u) => <li key={u} className="truncate"><a className="text-indigo-600 hover:underline" href={u} target="_blank" rel="noreferrer">{u}</a></li>)}</ul></div>)}
+                      </div>
+                    )}
+                    {i.urls.length > 0 && !i.links?.length && !i.groups?.length && (
+                      <ul className="space-y-0.5 text-xs">
+                        {i.urls.map((u) => <li key={u} className="truncate"><a className="text-indigo-600 hover:underline" href={u} target="_blank" rel="noreferrer">{u}</a></li>)}
+                        {i.count > i.urls.length && <li className="text-slate-400">…and {(i.count - i.urls.length).toLocaleString()} more</li>}
+                      </ul>
+                    )}
+                    {fixes[i.code] ? (
+                      <div className="space-y-2 rounded-xl bg-violet-50/60 p-3 ring-1 ring-violet-100">
+                        <div className="flex flex-wrap items-center gap-2"><span className="font-semibold text-violet-800">✨ How to fix it</span>{fixes[i.code].effort && <span className="rounded-full bg-white px-2 py-0.5 text-[11px] text-slate-600 ring-1 ring-slate-200">⏱ {fixes[i.code].effort}</span>}</div>
+                        {fixes[i.code].summary && <p>{fixes[i.code].summary}</p>}
+                        {fixes[i.code].why && <p className="text-xs text-slate-600"><b>Why it matters:</b> {fixes[i.code].why}</p>}
+                        {fixes[i.code].steps.length > 0 && <ol className="list-decimal space-y-1 pl-5">{fixes[i.code].steps.map((st, k) => <li key={k}>{st.replace(/^\s*\d+[.)]\s*/, "")}</li>)}</ol>}
+                        {fixes[i.code].pages.length > 0 && (
+                          <div className="space-y-2 pt-1">
+                            <div className="text-xs font-semibold text-slate-600">Ready-to-paste fixes for these pages</div>
+                            {fixes[i.code].pages.map((pg) => (
+                              <div key={pg.url} className="rounded-lg bg-white p-2.5 text-xs ring-1 ring-slate-200">
+                                <a href={pg.url} target="_blank" rel="noreferrer" className="block truncate font-medium text-indigo-600 hover:underline">{pg.url}</a>
+                                {pg.current && <div className="mt-1 text-slate-500"><span className="font-semibold">Now:</span> {pg.current}</div>}
+                                <div className="mt-1 whitespace-pre-line text-slate-900"><span className="font-semibold text-emerald-700">Use:</span> {pg.suggested}</div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                        {editable && ai && <form action={fixIssueAction.bind(null, id, done!.id, i.code)}><SubmitButton className="text-xs text-violet-700 hover:underline">↻ Write a new fix</SubmitButton></form>}
+                      </div>
+                    ) : editable && ai ? (
+                      <form action={fixIssueAction.bind(null, id, done!.id, i.code)}><SubmitButton className="btn-secondary text-xs">✨ Get AI fix</SubmitButton></form>
+                    ) : null}
+                  </div>
+  );
 
   return (
     <div className="space-y-6">
@@ -107,19 +145,17 @@ export default async function AuditPage({ params, searchParams }: { params: Prom
 
       {done && (
         <>
-          <section className="grid gap-6 md:grid-cols-3">
-            <div className="card flex items-center gap-4">
-              <ScoreRing score={done.score} size={96} />
-              <div>
-                <div className="font-semibold">Site health</div>
-                <div className="text-xs text-slate-500">{done.pagesCrawled} pages · {fmtDate(done.finishedAt)}</div>
-                <div className="mt-2 space-y-0.5 text-xs">
-                  {(["error", "warning", "notice"] as const).map((k) => <div key={k} className="flex items-center gap-1.5"><span className={`h-2 w-2 rounded-full ${SEV[k].dot}`} />{counts[k]} {SEV[k].label.toLowerCase()}</div>)}
-                </div>
-              </div>
-            </div>
-            <div className="card md:col-span-2">
-              <div className="mb-2 font-semibold">Site-wide checks</div>
+          <AuditBoard
+            score={done.score ?? 0}
+            pages={done.pagesCrawled}
+            date={fmtDate(done.finishedAt)}
+            cats={deep?.categories.map((c) => ({ label: c.label, score: c.score })) ?? []}
+            initialOpen={open}
+            issues={issues.map((i) => ({ code: i.code, severity: i.severity, title: i.title, hint: i.hint, count: i.count, aiReady: !!fixes[i.code], isNew: !!diff?.added.some((x) => x.code === i.code) }))}
+            details={Object.fromEntries(issues.map((i) => [i.code, issueDetail(i)]))}
+            checks={
+              <>
+                <div className="mb-2 text-[11px] font-semibold tracking-widest text-slate-400 uppercase">Site-wide checks</div>
               <div className="flex flex-wrap gap-1.5">
                 {Object.entries(DOMAIN_CHECKS).filter(([k]) => domain.checks && k in domain.checks).map(([k, label]) => {
                   const ok = DOMAIN_BAD.has(k) ? !domain.checks![k] : !!domain.checks![k];
@@ -127,7 +163,7 @@ export default async function AuditPage({ params, searchParams }: { params: Prom
                 })}
                 {domain.checks?.start_page_deny_flag && <span className="rounded-full bg-red-50 px-2.5 py-1 text-xs text-red-700 ring-1 ring-red-200 ring-inset">✕ Home page blocked for crawlers</span>}
               </div>
-              <div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-1 text-xs text-slate-600 md:grid-cols-4">
+              <div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-1 text-xs text-slate-600 ">
                 {domain.cms ? <span>CMS: {String(domain.cms)}</span> : null}
                 {domain.server ? <span>Server: {String(domain.server)}</span> : null}
                 {metrics.links_internal != null && <span>Internal links: {metrics.links_internal.toLocaleString()}</span>}
@@ -137,8 +173,9 @@ export default async function AuditPage({ params, searchParams }: { params: Prom
                 {metrics.duplicate_content != null && <span>Duplicate content: {metrics.duplicate_content}</span>}
                 {metrics.non_indexable != null && <span>Not indexable: {metrics.non_indexable}</span>}
               </div>
-            </div>
-          </section>
+              </>
+            }
+          />
 
           <section className="card flex flex-wrap items-center gap-3">
             <div className="min-w-0 flex-1">
@@ -185,64 +222,6 @@ export default async function AuditPage({ params, searchParams }: { params: Prom
 
           {deep && <DeepAudit d={deep} />}
 
-          {issues.length === 0 ? <p className="card text-sm text-emerald-700">🎉 No issues found.</p> : (
-            <section className="card space-y-2">
-              <h2 className="mb-1 font-semibold">Issues to fix ({issues.length})</h2>
-              {issues.map((i) => (
-                <details key={i.code} id={`issue-${i.code}`} open={open === i.code} className="scroll-mt-4 rounded-xl border border-slate-100 p-3">
-                  <summary className="flex items-center gap-3">
-                    <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${SEV[i.severity].dot}`} />
-                    <span className="min-w-0 flex-1 text-sm font-medium">{i.title}</span>
-                    {fixes[i.code] && <span className="rounded-full bg-violet-50 px-2 py-0.5 text-[11px] font-semibold text-violet-700 ring-1 ring-violet-200 ring-inset">✨ AI fix ready</span>}
-                    <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ring-1 ring-inset ${SEV[i.severity].chip}`}>{i.count.toLocaleString()} page{i.count === 1 ? "" : "s"}</span>
-                  </summary>
-                  <div className="mt-2 space-y-2 pl-5 text-sm">
-                    {i.hint && <p className="text-slate-600">💡 {i.hint}</p>}
-                    {i.links && i.links.length > 0 && (
-                      <div className="text-xs">
-                        <div className="mb-1 font-medium text-slate-600">Page → broken link</div>
-                        <ul className="space-y-0.5">{i.links.map((l, k) => <li key={k} className="flex min-w-0 gap-1.5"><a className="max-w-[45%] truncate text-indigo-600 hover:underline" href={l.from} target="_blank" rel="noreferrer">{l.from.replace(/^https?:\/\/[^/]+/, "") || "/"}</a><span className="text-slate-400">→</span><span className="min-w-0 flex-1 truncate text-red-700">{l.to}</span>{l.status ? <span className="text-slate-400">{l.status}</span> : null}</li>)}</ul>
-                      </div>
-                    )}
-                    {i.groups && i.groups.length > 0 && (
-                      <div className="space-y-1.5 text-xs">
-                        {i.groups.map((g, k) => <div key={k}><div className="font-medium">&ldquo;{g.value || "(empty)"}&rdquo; <span className="text-slate-400">· {g.urls.length} pages</span></div><ul className="pl-3">{g.urls.map((u) => <li key={u} className="truncate"><a className="text-indigo-600 hover:underline" href={u} target="_blank" rel="noreferrer">{u}</a></li>)}</ul></div>)}
-                      </div>
-                    )}
-                    {i.urls.length > 0 && !i.links?.length && !i.groups?.length && (
-                      <ul className="space-y-0.5 text-xs">
-                        {i.urls.map((u) => <li key={u} className="truncate"><a className="text-indigo-600 hover:underline" href={u} target="_blank" rel="noreferrer">{u}</a></li>)}
-                        {i.count > i.urls.length && <li className="text-slate-400">…and {(i.count - i.urls.length).toLocaleString()} more</li>}
-                      </ul>
-                    )}
-                    {fixes[i.code] ? (
-                      <div className="space-y-2 rounded-xl bg-violet-50/60 p-3 ring-1 ring-violet-100">
-                        <div className="flex flex-wrap items-center gap-2"><span className="font-semibold text-violet-800">✨ How to fix it</span>{fixes[i.code].effort && <span className="rounded-full bg-white px-2 py-0.5 text-[11px] text-slate-600 ring-1 ring-slate-200">⏱ {fixes[i.code].effort}</span>}</div>
-                        {fixes[i.code].summary && <p>{fixes[i.code].summary}</p>}
-                        {fixes[i.code].why && <p className="text-xs text-slate-600"><b>Why it matters:</b> {fixes[i.code].why}</p>}
-                        {fixes[i.code].steps.length > 0 && <ol className="list-decimal space-y-1 pl-5">{fixes[i.code].steps.map((st, k) => <li key={k}>{st.replace(/^\s*\d+[.)]\s*/, "")}</li>)}</ol>}
-                        {fixes[i.code].pages.length > 0 && (
-                          <div className="space-y-2 pt-1">
-                            <div className="text-xs font-semibold text-slate-600">Ready-to-paste fixes for these pages</div>
-                            {fixes[i.code].pages.map((pg) => (
-                              <div key={pg.url} className="rounded-lg bg-white p-2.5 text-xs ring-1 ring-slate-200">
-                                <a href={pg.url} target="_blank" rel="noreferrer" className="block truncate font-medium text-indigo-600 hover:underline">{pg.url}</a>
-                                {pg.current && <div className="mt-1 text-slate-500"><span className="font-semibold">Now:</span> {pg.current}</div>}
-                                <div className="mt-1 whitespace-pre-line text-slate-900"><span className="font-semibold text-emerald-700">Use:</span> {pg.suggested}</div>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                        {editable && ai && <form action={fixIssueAction.bind(null, id, done!.id, i.code)}><SubmitButton className="text-xs text-violet-700 hover:underline">↻ Write a new fix</SubmitButton></form>}
-                      </div>
-                    ) : editable && ai ? (
-                      <form action={fixIssueAction.bind(null, id, done!.id, i.code)}><SubmitButton className="btn-secondary text-xs">✨ Get AI fix</SubmitButton></form>
-                    ) : null}
-                  </div>
-                </details>
-              ))}
-            </section>
-          )}
         </>
       )}
 

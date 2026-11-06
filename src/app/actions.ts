@@ -467,6 +467,45 @@ export async function pushArticleAction(articleId: string) {
   revalidatePath(`/articles/${articleId}`);
 }
 
+// ---------- Review queue (Today page) ----------
+
+export type QueueKind = "keyword" | "topic" | "article";
+export type QueueDecision = "approve" | "reject" | "undo";
+
+/** One decision from the keyboard review queue. "undo" puts the item back to waiting. */
+export async function reviewQueueAction(kind: QueueKind, id: string, decision: QueueDecision): Promise<{ ok: boolean; error?: string }> {
+  try {
+    const user = await requireUser();
+    if (kind === "keyword") {
+      const k = await db.keyword.findUniqueOrThrow({ where: { id }, select: { clientId: true } });
+      await requireClientAccess(user, k.clientId, "edit");
+      const status = decision === "approve" ? "APPROVED" : decision === "reject" ? "REJECTED" : "PENDING";
+      await db.keyword.update({ where: { id }, data: { status, approvedById: status === "APPROVED" ? user.id : null } });
+      await logActivity({ actorId: user.id, clientId: k.clientId, action: `keyword.${status.toLowerCase()}`, entity: "keyword", entityId: id, after: { count: 1, via: "queue" } });
+      revalidatePath(`/clients/${k.clientId}/keywords`);
+    } else if (kind === "topic") {
+      const t = await db.topic.findUniqueOrThrow({ where: { id }, select: { clientId: true } });
+      await requireClientAccess(user, t.clientId, "edit");
+      const status = decision === "approve" ? "APPROVED" : decision === "reject" ? "REJECTED" : "GENERATED";
+      await db.topic.update({ where: { id }, data: { status, approvedById: status === "APPROVED" ? user.id : null } });
+      await logActivity({ actorId: user.id, clientId: t.clientId, action: `topic.${status.toLowerCase()}`, entity: "topic", entityId: id, after: { count: 1, via: "queue" } });
+      revalidatePath(`/clients/${t.clientId}/topics`);
+    } else {
+      const { article } = await articleForEdit(id);
+      if (decision === "reject") return { ok: false, error: "Open the article to request changes with a note." };
+      if (decision === "approve" && article.status !== "READY_FOR_REVIEW") return { ok: false, error: "This article was already reviewed." };
+      const approve = decision === "approve";
+      await db.article.update({ where: { id }, data: { status: approve ? "APPROVED" : "READY_FOR_REVIEW", approvedById: approve ? user.id : null, approvedAt: approve ? new Date() : null } });
+      await logActivity({ actorId: user.id, clientId: article.clientId, action: approve ? "article.approved" : "article.ready", entity: "article", entityId: id, after: { via: "queue" } });
+      revalidatePath(`/articles/${id}`);
+    }
+    revalidatePath("/", "layout");
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : String(e) };
+  }
+}
+
 // ---------- Intake ----------
 
 export async function retrySubmissionAction(submissionId: string, fd: FormData) {

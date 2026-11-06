@@ -61,7 +61,7 @@ export default async function ArticleReview({ params }: { params: Promise<{ id: 
     <>
       <div className="mb-4 text-sm"><Link className="text-indigo-600 hover:underline" href={`/clients/${article.clientId}/articles`}>← {article.client.name}</Link></div>
       <div className="mb-6 flex flex-wrap items-center gap-3">
-        <h1 className="bg-gradient-to-r from-slate-900 via-indigo-900 to-violet-800 bg-clip-text text-2xl font-bold tracking-tight text-transparent">{article.metaTitle}</h1>
+        <h1 className="font-display text-slate-900 text-2xl font-bold tracking-tight ">{article.metaTitle}</h1>
         <StatusBadge status={article.status} />
       </div>
 

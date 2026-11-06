@@ -4,7 +4,7 @@ import { BRAND } from "@/lib/brand";
 
 export default function LoginPage() {
   return (
-    <main className="relative flex min-h-screen items-center justify-center overflow-hidden bg-gradient-to-br from-slate-950 via-indigo-950 to-slate-900 p-4">
+    <main className="relative flex min-h-screen items-center justify-center overflow-hidden bg-[#0d0e19] p-4">
       <div className="pointer-events-none absolute top-[-10%] left-[-10%] h-[28rem] w-[28rem] animate-float rounded-full bg-indigo-500/30 blur-3xl" />
       <div className="pointer-events-none absolute right-[-10%] bottom-[-15%] h-[30rem] w-[30rem] animate-float rounded-full bg-fuchsia-500/20 blur-3xl [animation-delay:-5s]" />
       <div className="pointer-events-none absolute top-1/3 right-1/4 h-64 w-64 animate-float rounded-full bg-sky-400/10 blur-3xl [animation-delay:-9s]" />
