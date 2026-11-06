@@ -3,15 +3,18 @@
  * and logo. Rendered on the server with @react-pdf/renderer. Uses the built-in Helvetica font, so text is
  * cleaned to Latin-1 (emoji and symbols are dropped).
  */
-import { Document, Page, Text, View, Image, StyleSheet, renderToBuffer } from "@react-pdf/renderer";
+import { Document, Page, Text, View, Image, StyleSheet, renderToBuffer, Svg, Polyline, Line, Circle, Text as SvgText } from "@react-pdf/renderer";
 import type { SiteCrawl } from "@prisma/client";
 import { compareIssues, type CrawlIssue } from "./crawl";
 import { db } from "./db";
+import { getAgency, logoForPdf } from "./report-brand";
 import type { CrawlDeep, DeepPage } from "./crawl-deep";
 import { SECURITY_LABELS } from "./crawl-deep";
 import type { CrawlFix } from "./crawl-fix";
 
-type Brand = { client: string; agency: string; color: string; logo: { data: Buffer; format: "png" | "jpg" } | null };
+type Logo = { data: Buffer; format: "png" | "jpg" } | null;
+type Brand = { client: string; agency: string; agencyWebsite: string; color: string; logo: Logo; agencyLogo: Logo };
+type TrendPoint = { date: string; score: number | null; overall: number | null };
 
 const clean = (s: unknown) => String(s ?? "")
   .replace(/[‘’]/g, "'").replace(/[“”]/g, '"').replace(/[–—]/g, "-").replace(/…/g, "...")
@@ -72,6 +75,30 @@ function List({ title, items, fmt, hint, max = 12 }: { title: string; items: Dee
 
 type Prev = { date: string; score: number | null; overall: number | null; diff: ReturnType<typeof compareIssues> } | null;
 
+/** Score trend over the last audits (overall score solid, site health dashed). */
+function Trend({ points, color }: { points: TrendPoint[]; color: string }) {
+  const W = 485, H = 130, L = 26, R = 18, T = 14, B = 22;
+  const x = (i: number) => L + (i * (W - L - R)) / Math.max(1, points.length - 1);
+  const y = (v: number) => T + (1 - v / 100) * (H - T - B);
+  const line = (k: "score" | "overall") => points.map((p, i) => (p[k] == null ? null : `${x(i)},${y(p[k]!)}`)).filter(Boolean).join(" ");
+  const hasOverall = points.some((p) => p.overall != null);
+  return (
+    <View style={[s.card, { paddingBottom: 4 }]} wrap={false}>
+      <Text style={{ fontFamily: "Helvetica-Bold", marginBottom: 2 }}>Score trend</Text>
+      <Svg width={W} height={H}>
+        {[0, 50, 100].map((v) => <Line key={v} x1={L} x2={W - R} y1={y(v)} y2={y(v)} stroke="#e2e8f0" strokeWidth={0.75} />)}
+        {[0, 50, 100].map((v) => <SvgText key={`t${v}`} x={4} y={y(v) + 3} style={{ fontSize: 7 }} fill="#94a3b8">{String(v)}</SvgText>)}
+        <Polyline points={line("score")} stroke="#94a3b8" strokeWidth={1.5} strokeDasharray="4,3" fill="none" />
+        {hasOverall && <Polyline points={line("overall")} stroke={color} strokeWidth={2.2} fill="none" />}
+        {points.map((p, i) => (p.overall ?? p.score) != null ? <Circle key={`c${i}`} cx={x(i)} cy={y((p.overall ?? p.score)!)} r={3} fill={hasOverall ? color : "#94a3b8"} /> : null)}
+        {points.map((p, i) => (p.overall ?? p.score) != null ? <SvgText key={`v${i}`} x={x(i) - 5} y={y((p.overall ?? p.score)!) - 6} style={{ fontSize: 7.5 }} fill="#1e293b">{String(p.overall ?? p.score)}</SvgText> : null)}
+        {points.map((p, i) => <SvgText key={`d${i}`} x={x(i) - 12} y={H - 6} style={{ fontSize: 7 }} fill="#64748b">{p.date.slice(5)}</SvgText>)}
+      </Svg>
+      <Text style={s.small}>{hasOverall ? "Solid line: overall SEO score.  Dashed: technical site health." : "Technical site health per audit."}</Text>
+    </View>
+  );
+}
+
 function Changes({ title, items, color }: { title: string; items: { code: string; title: string; from: number; to: number }[]; color: string }) {
   return (
     <View style={[s.card, { flex: 1 }]}>
@@ -83,7 +110,7 @@ function Changes({ title, items, color }: { title: string; items: { code: string
   );
 }
 
-function Report({ crawl, deep, b, prev }: { crawl: SiteCrawl; deep: CrawlDeep | null; b: Brand; prev: Prev }) {
+function Report({ crawl, deep, b, prev, trend }: { crawl: SiteCrawl; deep: CrawlDeep | null; b: Brand; prev: Prev; trend: TrendPoint[] }) {
   const issues = (crawl.issues as unknown as CrawlIssue[] | null) ?? [];
   const fixes = (crawl.aiFixes ?? {}) as Record<string, CrawlFix>;
   const domain = (crawl.domainInfo ?? {}) as Record<string, unknown> & { checks?: Record<string, boolean> };
@@ -98,6 +125,7 @@ function Report({ crawl, deep, b, prev }: { crawl: SiteCrawl; deep: CrawlDeep | 
       {/* Cover */}
       <Page size="A4" style={{ fontFamily: "Helvetica", color: "#1e293b" }}>
         <View style={{ backgroundColor: b.color, height: 250, paddingHorizontal: 44, paddingTop: 44 }}>
+          {b.agencyLogo && <Image src={b.agencyLogo} style={{ position: "absolute", top: 40, right: 44, height: 34, maxWidth: 130, objectFit: "contain", backgroundColor: "#ffffff", padding: 4, borderRadius: 4 }} />}
           {b.logo && <Image src={b.logo} style={{ height: 42, maxWidth: 180, objectFit: "contain", marginBottom: 18, backgroundColor: "#ffffff", padding: 4, borderRadius: 4 }} />}
           <Text style={{ color: "#ffffff", fontSize: 11, opacity: 0.85, letterSpacing: 1.5 }}>TECHNICAL SEO AUDIT</Text>
           <Text style={{ color: "#ffffff", fontSize: 30, fontFamily: "Helvetica-Bold", marginTop: 6 }}>{clean(b.client)}</Text>
@@ -126,7 +154,7 @@ function Report({ crawl, deep, b, prev }: { crawl: SiteCrawl; deep: CrawlDeep | 
           ))}
           {deep?.categories.length ? <Text style={[s.small, { marginTop: 4 }]}>{deep.categories.map((c) => `${clean(c.label)}: ${clean(c.note)}`).join("   |   ")}</Text> : null}
         </View>
-        <Text style={{ position: "absolute", bottom: 28, left: 44, fontSize: 9, color: "#94a3b8" }}>Prepared by {clean(b.agency)}</Text>
+        <Text style={{ position: "absolute", bottom: 28, left: 44, fontSize: 9, color: "#94a3b8" }}>Prepared by {clean(b.agency)}{b.agencyWebsite ? `  |  ${clean(b.agencyWebsite.replace(/^https?:\/\//, ""))}` : ""}</Text>
       </Page>
 
       {/* Summary and plan */}
@@ -233,6 +261,7 @@ function Report({ crawl, deep, b, prev }: { crawl: SiteCrawl; deep: CrawlDeep | 
             <Text style={{ marginBottom: 6 }}>
               Site health {prev.score ?? "-"} -&gt; {crawl.score ?? "-"}{prev.overall != null && deep ? `   |   Overall score ${prev.overall} -> ${deep.overall}` : ""}   |   {prev.diff.fixed.length} issue types fixed, {prev.diff.added.length} new, {prev.diff.worse.length} worse, {prev.diff.better.length} better
             </Text>
+            {trend.length > 1 && <Trend points={trend} color={b.color} />}
             <View style={[s.row, { gap: 8 }]}>
               <Changes title="Fixed" items={prev.diff.fixed} color="#059669" />
               <Changes title="New problems" items={prev.diff.added} color="#dc2626" />
@@ -317,7 +346,7 @@ function Report({ crawl, deep, b, prev }: { crawl: SiteCrawl; deep: CrawlDeep | 
         </Page>
       )}
 
-      {deep && (deep.files || (deep.schema?.length ?? 0) > 0) && (
+      {deep && (deep.files || (deep.schema?.length ?? 0) > 0 || deep.hreflang) && (
         <Page size="A4" style={s.page}>
           <Text style={s.h1}>Sitemap, structured data and AI search</Text>
           {deep.files && (
@@ -351,6 +380,17 @@ function Report({ crawl, deep, b, prev }: { crawl: SiteCrawl; deep: CrawlDeep | 
               ))}
               <Text style={[s.small, { marginTop: 6 }]}>Business schema (LocalBusiness or Organization) on the home page, Article, FAQ and Service schema on content pages, and open access for AI crawlers help Google AI Overviews, ChatGPT and Perplexity understand and cite the business.</Text>
             </>
+          )}
+          {deep.hreflang && (
+            <View style={[s.card, { marginTop: 10 }]} wrap={false}>
+              <Text style={{ fontFamily: "Helvetica-Bold", marginBottom: 3 }}>Languages (hreflang)</Text>
+              {deep.hreflang.multiLangNoTags
+                ? <Text>Pages are in different languages ({clean(deep.hreflang.langs.join(", "))}) but have no hreflang tags, so Google may show the wrong language version.</Text>
+                : <>
+                    <Text style={s.muted}>{deep.hreflang.pages} key pages tagged. Languages: {clean(deep.hreflang.langs.join(", "))}</Text>
+                    {deep.hreflang.problems.length === 0 ? <Text style={{ color: "#059669" }}>No hreflang problems on the pages checked.</Text> : deep.hreflang.problems.slice(0, 12).map((p, i) => <Text key={i} style={{ fontSize: 8.5 }}>{clean(path(p.url)).slice(0, 40)}: <Text style={{ color: "#dc2626" }}>{clean(p.problem)}</Text></Text>)}
+                  </>}
+            </View>
           )}
           <Footer b={b} domain={crawl.target} />
         </Page>
@@ -390,7 +430,8 @@ async function loadLogo(url: string | null | undefined): Promise<Brand["logo"]> 
 
 export async function auditPdf(crawl: SiteCrawl, client: { name: string; brandPrimaryColor: string | null; logoUrl: string | null }) {
   const color = /^#[0-9a-f]{6}$/i.test(client.brandPrimaryColor ?? "") ? client.brandPrimaryColor! : "#4f46e5";
-  const b: Brand = { client: client.name, agency: process.env.REPORT_AGENCY_NAME || "Digital Oasis", color, logo: await loadLogo(client.logoUrl) };
+  const agency = await getAgency();
+  const b: Brand = { client: client.name, agency: agency.name, agencyWebsite: agency.website, color, logo: await loadLogo(client.logoUrl), agencyLogo: logoForPdf(agency.logo) };
   const deep = (crawl.advanced as unknown as CrawlDeep | null) ?? null;
   const p = await db.siteCrawl.findFirst({ where: { clientId: crawl.clientId, status: "DONE", startedAt: { lt: crawl.startedAt } }, orderBy: { startedAt: "desc" } });
   const prev: Prev = p ? {
@@ -398,12 +439,14 @@ export async function auditPdf(crawl: SiteCrawl, client: { name: string; brandPr
     overall: (p.advanced as unknown as CrawlDeep | null)?.overall ?? null,
     diff: compareIssues((p.issues as unknown as CrawlIssue[] | null) ?? [], (crawl.issues as unknown as CrawlIssue[] | null) ?? []),
   } : null;
+  const history = await db.siteCrawl.findMany({ where: { clientId: crawl.clientId, status: "DONE", startedAt: { lte: crawl.startedAt } }, orderBy: { startedAt: "desc" }, take: 12, select: { startedAt: true, finishedAt: true, score: true, advanced: true } });
+  const trend: TrendPoint[] = history.reverse().map((h) => ({ date: (h.finishedAt ?? h.startedAt).toISOString().slice(0, 10), score: h.score, overall: (h.advanced as unknown as CrawlDeep | null)?.overall ?? null }));
   try {
-    return await renderToBuffer(<Report crawl={crawl} deep={deep} b={b} prev={prev} />);
+    return await renderToBuffer(<Report crawl={crawl} deep={deep} b={b} prev={prev} trend={trend} />);
   } catch (e) {
-    // A logo in an unusual image format can break rendering: try again without it.
-    if (!b.logo) throw e;
-    console.error("Audit PDF failed with logo, retrying without it:", e);
-    return renderToBuffer(<Report crawl={crawl} deep={deep} b={{ ...b, logo: null }} prev={prev} />);
+    // A logo in an unusual image format can break rendering: try again without logos.
+    if (!b.logo && !b.agencyLogo) throw e;
+    console.error("Audit PDF failed with a logo, retrying without:", e);
+    return renderToBuffer(<Report crawl={crawl} deep={deep} b={{ ...b, logo: null, agencyLogo: null }} prev={prev} trend={trend} />);
   }
 }

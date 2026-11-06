@@ -1,1 +1,1 @@
-{ "regions": ["lhr1"], "crons": [{ "path": "/api/cron/gsc", "schedule": "0 5 * * *" }] }
+{"regions": ["lhr1"], "crons": [{"path": "/api/cron/gsc", "schedule": "0 5 * * *"}, {"path": "/api/cron/audits", "schedule": "0 6 * * *"}]}

@@ -17,7 +17,7 @@ export type Cannibal = { query: string; impressions: number; pages: { url: strin
 export type Category = { key: string; label: string; score: number; note: string };
 export type Action = { title: string; why: string; impact: "high" | "medium" | "low"; effort: string; category: string };
 /** Bump when the analysis changes, so older reports are rebuilt automatically when opened. */
-export const DEEP_VERSION = 2;
+export const DEEP_VERSION = 3;
 export type SiteFiles = {
   robots: boolean;
   sitemaps: string[];
@@ -31,7 +31,8 @@ export type SiteFiles = {
   llmsTxt: boolean;
   aiBotsBlocked: string[];
 };
-export type SchemaPage = { url: string; types: string[]; og: boolean; lang: string; viewport: boolean };
+export type SchemaPage = { url: string; types: string[]; og: boolean; lang: string; viewport: boolean; hreflang?: { lang: string; href: string }[] };
+export type Hreflang = { pages: number; langs: string[]; problems: { url: string; problem: string }[]; multiLangNoTags: boolean };
 export type CrawlDeep = {
   version?: number;
   generatedAt: string;
@@ -39,6 +40,8 @@ export type CrawlDeep = {
   gscState?: "ok" | "not_linked" | "no_data" | "mismatch";
   files?: SiteFiles | null;
   schema?: SchemaPage[];
+  /** Only filled for multi-language sites (hreflang tags found, or pages in different languages). */
+  hreflang?: Hreflang | null;
   overall: number;
   categories: Category[];
   speed: { url: string; mobile: PsiSummary; desktop: PsiSummary }[];
@@ -191,12 +194,40 @@ export function schemaFor(url: string, html: string): SchemaPage {
     og: /<meta[^>]+property=["']og:title["']/i.test(html) && /<meta[^>]+property=["']og:image["']/i.test(html),
     lang: html.match(/<html[^>]*\slang=["']([^"']+)/i)?.[1] ?? "",
     viewport: /<meta[^>]+name=["']viewport["']/i.test(html),
+    hreflang: [...html.matchAll(/<link\b[^>]*>/gi)].map((m) => m[0]).filter((t) => /rel=["']alternate["']/i.test(t) && /hreflang=/i.test(t))
+      .map((t) => ({ lang: t.match(/hreflang=["']([^"']+)/i)?.[1] ?? "", href: t.match(/href=["']([^"']+)/i)?.[1] ?? "" })).filter((h) => h.lang && h.href).slice(0, 40),
   };
 }
 
 async function schemaPages(urls: string[]) {
   const res = await Promise.all(urls.map(async (u) => { const r = await getText(u); return r && /html/i.test(r.type) ? schemaFor(u, r.text) : null; }));
   return res.filter((x): x is SchemaPage => !!x);
+}
+
+const LANG_RE = /^(x-default|[a-z]{2,3}(-([a-z]{4}|[a-z]{2}|\d{3}))?)$/i;
+
+/** hreflang checks on the key pages: valid codes, self-reference, x-default and return links. */
+export async function checkHreflang(pages: SchemaPage[], fetchPage = schemaPages): Promise<Hreflang | null> {
+  const tagged = pages.filter((p) => p.hreflang?.length);
+  const langs = [...new Set(pages.map((p) => p.lang.toLowerCase().slice(0, 2)).filter(Boolean))];
+  if (!tagged.length) return langs.length > 1 ? { pages: 0, langs, problems: [], multiLangNoTags: true } : null;
+  const problems: { url: string; problem: string }[] = [];
+  for (const p of tagged) {
+    const tags = p.hreflang!;
+    const bad = tags.filter((t) => !LANG_RE.test(t.lang)).map((t) => t.lang);
+    if (bad.length) problems.push({ url: p.url, problem: `Invalid language codes: ${[...new Set(bad)].join(", ")} (use e.g. en, en-GB, ur-PK)` });
+    if (!tags.some((t) => norm(t.href) === norm(p.url))) problems.push({ url: p.url, problem: "Doesn't list itself in its own hreflang tags" });
+    if (!tags.some((t) => t.lang.toLowerCase() === "x-default")) problems.push({ url: p.url, problem: "No x-default (the fallback page for other languages)" });
+    const dup = tags.map((t) => t.lang.toLowerCase()).filter((l, i, a) => a.indexOf(l) !== i);
+    if (dup.length) problems.push({ url: p.url, problem: `Same language listed twice: ${[...new Set(dup)].join(", ")}` });
+    if (tags.some((t) => !/^https?:\/\//i.test(t.href))) problems.push({ url: p.url, problem: "Uses relative URLs; hreflang needs full https:// URLs" });
+  }
+  // Return links: the alternates of the first tagged page must point back to it.
+  const first = tagged[0];
+  const alts = first.hreflang!.filter((t) => /^https?:\/\//i.test(t.href) && norm(t.href) !== norm(first.url)).map((t) => t.href);
+  const altPages = await fetchPage([...new Set(alts)].slice(0, 6)).catch(() => [] as SchemaPage[]);
+  for (const a of altPages) if (!a.hreflang?.some((t) => norm(t.href) === norm(first.url))) problems.push({ url: a.url, problem: `No return link to ${first.url.replace(/^https?:\/\/[^/]+/, "") || "/"} (hreflang must be reciprocal or Google ignores it)` });
+  return { pages: tagged.length, langs: [...new Set([...langs, ...tagged.flatMap((p) => p.hreflang!.map((t) => t.lang.toLowerCase()))])].slice(0, 20), problems: problems.slice(0, 30), multiLangNoTags: false };
 }
 
 /** AI search readiness: can ChatGPT, Claude, Perplexity and Google's AI read the site and understand the business? */
@@ -245,6 +276,8 @@ export async function runDeep(crawl: SiteCrawl): Promise<CrawlDeep> {
     siteFiles(crawl.target, pages).catch(() => null),
     schemaPages(schemaUrls).catch(() => [] as SchemaPage[]),
   ]);
+
+  const hreflang = await checkHreflang(schema).catch(() => null);
 
   // 3) Crawl-based metrics.
   const status: Record<string, number> = { "2xx": 0, "3xx": 0, "4xx": 0, "5xx": 0 };
@@ -320,7 +353,7 @@ export async function runDeep(crawl: SiteCrawl): Promise<CrawlDeep> {
   const overall = clamp(categories.reduce((s, c) => s + c.score * (weights[c.key] ?? 1), 0) / categories.reduce((s, c) => s + (weights[c.key] ?? 1), 0));
 
   const deep: CrawlDeep = {
-    version: DEEP_VERSION, gscState, files, schema,
+    version: DEEP_VERSION, gscState, files, schema, hreflang,
     generatedAt: new Date().toISOString(), overall, categories, speed, status, depth, deepPages, weakLinked, slowPages, heavyPages,
     thinPages, lowScorePages, bigImages, indexing, cannibal, security: sec, ai: null, notes,
   };
@@ -349,6 +382,7 @@ async function aiPlan(d: CrawlDeep, issues: CrawlIssue[], c: { name: string; typ
     d.gscState && d.gscState !== "ok" ? `Search Console data is NOT available (${d.gscState === "not_linked" ? "not linked" : d.gscState === "no_data" ? "returned no rows" : "property doesn't match the site"}). Do not say anything about Google visibility, impressions or indexing; at most recommend linking Search Console.` : "",
     d.files ? `Sitemap: ${d.files.sitemaps.length ? `${d.files.sitemapUrls} URLs` : "none found"}; ${d.files.sitemapBad.length} sitemap URLs redirect or error; ${d.files.notInSitemap.length} live pages missing from the sitemap. robots.txt ${d.files.robots ? "found" : "missing"}. AI crawlers blocked: ${d.files.aiBotsBlocked.join(", ") || "none"}. llms.txt: ${d.files.llmsTxt ? "yes" : "no"}.` : "",
     d.schema?.length ? `Structured data: ${d.schema.map((p) => `${p.url.replace(/^https?:\/\/[^/]+/, "") || "/"} [${p.types.join(", ") || "none"}]`).join("; ")}.` : "",
+    d.hreflang ? (d.hreflang.multiLangNoTags ? `Multi-language site (${d.hreflang.langs.join(", ")}) without hreflang tags.` : `hreflang: ${d.hreflang.pages} key pages tagged, languages ${d.hreflang.langs.join(", ")}; problems: ${d.hreflang.problems.slice(0, 6).map((p) => p.problem).join("; ") || "none"}.`) : "",
     d.indexing ? `Google visibility: ${d.indexing.withImpressions}/${d.indexing.crawledOk} crawled pages had impressions in 28 days; ${d.indexing.notCrawled.length} pages get impressions but weren't found by the crawl (old URLs or orphans).` : "",
     d.cannibal.length ? `Keyword cannibalisation: ${d.cannibal.slice(0, 5).map((x) => `"${x.query}" split across ${x.pages.length} pages`).join("; ")}.` : "",
     d.security ? `Security: HTTPS ${d.security.https ? "yes" : "no"}; missing headers: ${Object.entries(d.security.headers).filter(([, v]) => !v).map(([k]) => k).join(", ") || "none"}; insecure files: ${d.security.mixedContent.length}.` : "",

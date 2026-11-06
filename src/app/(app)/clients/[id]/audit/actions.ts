@@ -44,3 +44,26 @@ export async function rerunDeepAction(clientId: string, crawlId: string) {
   if (crawl && (await claimDeep(crawlId, true))) after(() => runDeepSafe(crawlId, true));
   redirect(`/clients/${clientId}/audit`);
 }
+
+/** Monthly schedule, auto-email recipients and JavaScript rendering for this client's audits. */
+export async function saveAuditSettingsAction(clientId: string, formData: FormData) {
+  const user = await requireUser();
+  await requireClientAccess(user, clientId, "edit");
+  const schedule = formData.get("schedule") === "monthly" ? "monthly" : "off";
+  const emails = [...new Set(String(formData.get("emails") ?? "").split(/[\s,;]+/).map((x) => x.trim().toLowerCase()).filter(Boolean))];
+  const bad = emails.filter((x) => !/^[^@\s]+@[^@\s]+\.[a-z]{2,}$/i.test(x));
+  if (bad.length) redirect(`/clients/${clientId}/audit?err=${encodeURIComponent(`Settings: not a valid email: ${bad.join(", ")}`)}#audit-settings`);
+  const day = String(formData.get("next") ?? "");
+  const next = /^\d{4}-\d{2}-\d{2}$/.test(day) ? new Date(`${day}T06:00:00Z`) : null;
+  await db.client.update({
+    where: { id: clientId },
+    data: {
+      auditSchedule: schedule,
+      auditNextAt: schedule === "monthly" ? next ?? new Date(Date.now() + 864e5) : null,
+      auditAutoEmail: formData.get("autoEmail") === "on",
+      auditJsRender: formData.get("js") === "on",
+      reportEmails: emails.slice(0, 10),
+    },
+  });
+  redirect(`/clients/${clientId}/audit?saved=1#audit-settings`);
+}

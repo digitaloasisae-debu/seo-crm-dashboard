@@ -232,6 +232,21 @@ export function DeepAudit({ d }: { d: CrawlDeep }) {
                 </table>
               </div>
             )}
+            {d.hreflang && (
+              <div className="rounded-xl border border-slate-100 p-3 text-xs">
+                <div className="mb-1 font-semibold">🌐 Languages (hreflang)</div>
+                {d.hreflang.multiLangNoTags ? (
+                  <p className="text-amber-800">Pages are in different languages ({d.hreflang.langs.join(", ")}) but have no hreflang tags, so Google may show the wrong language version. Add them with WPML, Polylang or TranslatePress.</p>
+                ) : (
+                  <>
+                    <p className="text-slate-600">{d.hreflang.pages} key page{d.hreflang.pages === 1 ? "" : "s"} tagged · {d.hreflang.langs.join(", ")}</p>
+                    {d.hreflang.problems.length === 0 ? <p className="mt-1 text-emerald-700">✓ No hreflang problems on the pages checked.</p> : (
+                      <ul className="mt-1 space-y-0.5">{d.hreflang.problems.map((p, i) => <li key={i} className="flex gap-2"><a href={p.url} target="_blank" rel="noreferrer" className="max-w-[35%] shrink-0 truncate text-indigo-600 hover:underline">{path(p.url)}</a><span className="text-red-700">{p.problem}</span></li>)}</ul>
+                    )}
+                  </>
+                )}
+              </div>
+            )}
             <p className="text-xs text-slate-500">💡 Business schema (LocalBusiness or Organization) on the home page, Article/FAQ/Service schema on content, and open access for AI crawlers help Google AI Overviews, ChatGPT and Perplexity understand and cite the business. Rank Math and Yoast add most of this.</p>
           </div>
         </section>

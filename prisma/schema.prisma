@@ -250,6 +250,13 @@ model Client {
   backlinkReports BacklinkReport[]
   /// Remembered recipients for emailed audit reports
   reportEmails    String[]
+  /// Scheduled full audits: "off" or "monthly". The next one starts at auditNextAt.
+  auditSchedule   String             @default("off")
+  auditNextAt     DateTime?
+  /// Email the PDF to reportEmails when a scheduled audit finishes.
+  auditAutoEmail  Boolean            @default(true)
+  /// Crawl with JavaScript rendering (page builders that load content late). Costs more per page.
+  auditJsRender   Boolean            @default(false)
   ga4PropertyId   String?
   ga4PropertyName String?
   ga4ConnectionId String?
@@ -570,6 +577,11 @@ model SiteCrawl {
   advancedAt        DateTime?
   advancedError     String?
   error             String?
+  /// Started by the monthly schedule (emailed automatically when done).
+  scheduled         Boolean     @default(false)
+  jsRender          Boolean     @default(false)
+  emailedAt         DateTime?
+  emailError        String?
   startedById       String?
   startedAt         DateTime    @default(now())
   lastPolledAt      DateTime?

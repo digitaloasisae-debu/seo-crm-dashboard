@@ -2,6 +2,7 @@
  * Full technical audit with the DataForSEO On-Page API: it crawls the whole site (up to maxPages)
  * and runs 60+ checks per page. The crawl runs at DataForSEO; we start it, then poll until it's finished.
  */
+import { createHmac } from "crypto";
 import type { Prisma, SiteCrawl } from "@prisma/client";
 import { db } from "./db";
 import { dfsPost, dfsTask } from "./dataforseo";
@@ -96,17 +97,29 @@ export function crawlTarget(siteUrl: string) {
 }
 
 /** Starts a crawl at DataForSEO. */
-export async function startCrawl(clientId: string, actorId?: string) {
-  const client = await db.client.findUniqueOrThrow({ where: { id: clientId }, select: { siteUrl: true } });
+/** Secret token DataForSEO sends back when a crawl finishes (so only it can trigger our pingback). */
+export function pingbackToken() {
+  const secret = process.env.CRON_SECRET || process.env.AUTH_SECRET || "";
+  return createHmac("sha256", secret).update("dfs-onpage-pingback").digest("hex").slice(0, 32);
+}
+
+/** Starts a crawl at DataForSEO. */
+export async function startCrawl(clientId: string, actorId?: string, opts: { scheduled?: boolean } = {}) {
+  const client = await db.client.findUniqueOrThrow({ where: { id: clientId }, select: { siteUrl: true, auditJsRender: true } });
   if (!client.siteUrl) throw new Error("This client has no website URL");
   const target = crawlTarget(client.siteUrl);
   const maxPages = Number(process.env.DATAFORSEO_AUDIT_MAX_PAGES) || 500;
+  const app = (process.env.APP_URL ?? "").replace(/\/+$/, "");
   const task = await dfsTask("on_page/task_post", [{
-    target, max_crawl_pages: maxPages, load_resources: true, enable_javascript: false, check_spell: false,
+    target, max_crawl_pages: maxPages, load_resources: true, check_spell: false,
+    // JavaScript rendering: a real browser runs the page's scripts first (Elementor, Divi, Wix, React sites).
+    enable_javascript: client.auditJsRender, ...(client.auditJsRender ? { enable_browser_rendering: true } : {}),
     validate_micromarkup: true, calculate_keyword_density: false, store_raw_html: false, respect_sitemap: true, crawl_sitemap_only: false,
+    // DataForSEO calls this when the crawl is finished, so the analysis and email don't wait for someone to open the page.
+    ...(app.startsWith("https://") ? { pingback_url: `${app}/api/audit/pingback?task=$id&t=${pingbackToken()}` } : {}),
   }]);
-  const crawl = await db.siteCrawl.create({ data: { clientId, taskId: task.id, target, maxPages, startedById: actorId ?? null } });
-  await logActivity({ actorId, clientId, action: "audit.full_start", entity: "client", entityId: clientId, after: { target, maxPages } });
+  const crawl = await db.siteCrawl.create({ data: { clientId, taskId: task.id, target, maxPages, startedById: actorId ?? null, scheduled: !!opts.scheduled, jsRender: client.auditJsRender } });
+  await logActivity({ actorId, clientId, action: opts.scheduled ? "audit.scheduled_start" : "audit.full_start", entity: "client", entityId: clientId, after: { target, maxPages, jsRender: client.auditJsRender } });
   return crawl;
 }
 
@@ -234,9 +247,9 @@ export function compareIssues(prev: CrawlIssue[], cur: CrawlIssue[]) {
 }
 
 /** Checks progress; when the crawl is finished, builds the issue list. Safe to call often. */
-export async function pollCrawl(crawl: SiteCrawl) {
+export async function pollCrawl(crawl: SiteCrawl, force = false) {
   if (crawl.status !== "RUNNING" || !crawl.taskId) return crawl;
-  if (crawl.lastPolledAt && Date.now() - crawl.lastPolledAt.getTime() < 15_000) return crawl;
+  if (!force && crawl.lastPolledAt && Date.now() - crawl.lastPolledAt.getTime() < 15_000) return crawl;
   if (Date.now() - crawl.startedAt.getTime() > 6 * 3600_000) {
     return db.siteCrawl.update({ where: { id: crawl.id }, data: { status: "FAILED", error: "The crawl took more than 6 hours", finishedAt: new Date() } });
   }
