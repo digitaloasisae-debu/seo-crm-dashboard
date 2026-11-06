@@ -113,7 +113,8 @@ export async function startCrawl(clientId: string, actorId?: string, opts: { sch
   const task = await dfsTask("on_page/task_post", [{
     target, max_crawl_pages: maxPages, load_resources: true, check_spell: false,
     // JavaScript rendering: a real browser runs the page's scripts first (Elementor, Divi, Wix, React sites).
-    enable_javascript: client.auditJsRender, ...(client.auditJsRender ? { enable_browser_rendering: true } : {}),
+    // (enable_browser_rendering would add per-page Core Web Vitals at ~11× the price; PageSpeed covers that for free.)
+    enable_javascript: client.auditJsRender,
     validate_micromarkup: true, calculate_keyword_density: false, store_raw_html: false, respect_sitemap: true, crawl_sitemap_only: false,
     // DataForSEO calls this when the crawl is finished, so the analysis and email don't wait for someone to open the page.
     ...(app.startsWith("https://") ? { pingback_url: `${app}/api/audit/pingback?task=$id&t=${pingbackToken()}` } : {}),
