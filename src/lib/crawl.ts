@@ -8,12 +8,21 @@ import { dfsPost, dfsTask } from "./dataforseo";
 import { logActivity } from "./activity";
 
 export type Sev = "error" | "warning" | "notice";
-export type CrawlIssue = { code: string; severity: Sev; title: string; hint: string; count: number; urls: string[] };
+export type CrawlIssue = {
+  code: string; severity: Sev; title: string; hint: string; count: number; urls: string[];
+  /** Broken links: which page links to which broken URL. */
+  links?: { from: string; to: string; status?: number }[];
+  /** Duplicate titles/descriptions: the repeated text and the pages that share it. */
+  groups?: { value: string; urls: string[] }[];
+};
 
 /** Checks where true is GOOD (the problem is the pages where it's false). */
 const POSITIVE = new Set(["is_https", "has_html_doctype", "canonical", "meta_charset_consistency", "seo_friendly_url", "seo_friendly_url_characters_check", "seo_friendly_url_dynamic_check", "seo_friendly_url_keywords_check", "seo_friendly_url_relative_length_check", "has_micromarkup"]);
 /** Facts, not problems. */
-const IGNORE = new Set(["is_www", "has_frame", "has_flash", "is_redirect", "frame", "flash", "has_micromarkup", "seo_friendly_url_keywords_check", "no_image_title", "irrelevant_meta_keywords", "high_content_rate", "high_character_count"]);
+const IGNORE = new Set(["is_www", "has_frame", "has_flash", "is_redirect", "frame", "flash", "has_micromarkup", "seo_friendly_url_keywords_check", "no_image_title", "irrelevant_meta_keywords", "high_content_rate", "high_character_count",
+  // Noise: text-to-code ratio isn't a ranking factor, and the spell checker flags names, places and non-English words.
+  "low_content_rate", "has_misspelling",
+]);
 
 const CATALOG: Record<string, [Sev, string, string]> = {
   is_4xx_code: ["error", "Pages returning 4xx errors", "Fix or redirect these URLs, and remove internal links to them."],
@@ -93,7 +102,7 @@ export async function startCrawl(clientId: string, actorId?: string) {
   const target = crawlTarget(client.siteUrl);
   const maxPages = Number(process.env.DATAFORSEO_AUDIT_MAX_PAGES) || 500;
   const task = await dfsTask("on_page/task_post", [{
-    target, max_crawl_pages: maxPages, load_resources: true, enable_javascript: false, check_spell: true,
+    target, max_crawl_pages: maxPages, load_resources: true, enable_javascript: false, check_spell: false,
     validate_micromarkup: true, calculate_keyword_density: false, store_raw_html: false, respect_sitemap: true, crawl_sitemap_only: false,
   }]);
   const crawl = await db.siteCrawl.create({ data: { clientId, taskId: task.id, target, maxPages, startedById: actorId ?? null } });
@@ -117,6 +126,113 @@ async function samples(taskId: string, filter: unknown[]) {
   }
 }
 
+async function count(taskId: string, filters: unknown[]) {
+  try {
+    const r = await dfsPost<{ total_items_count?: number; items?: { url: string }[] }>("on_page/pages", [{ id: taskId, filters, limit: 10 }], 20_000);
+    return { total: r[0]?.total_items_count ?? r[0]?.items?.length ?? 0, urls: (r[0]?.items ?? []).map((i) => i.url) };
+  } catch {
+    return null;
+  }
+}
+
+async function brokenLinks(taskId: string) {
+  try {
+    const r = await dfsPost<{ items?: { page_from?: string; link_from?: string; link_to?: string; page_to?: string; page_to_status_code?: number }[] }>("on_page/links", [{ id: taskId, filters: [["is_broken", "=", true]], limit: 30 }], 20_000);
+    return (r[0]?.items ?? []).map((l) => ({ from: l.page_from ?? l.link_from ?? "", to: l.link_to ?? l.page_to ?? "", status: l.page_to_status_code })).filter((l) => l.from && l.to);
+  } catch {
+    return [];
+  }
+}
+
+async function duplicateGroups(taskId: string, type: "duplicate_title" | "duplicate_description") {
+  try {
+    const r = await dfsPost<{ items?: { accumulator?: string; pages?: { url: string }[] }[] }>("on_page/duplicate_tags", [{ id: taskId, type, limit: 10 }], 20_000);
+    return (r[0]?.items ?? []).map((g) => ({ value: String(g.accumulator ?? ""), urls: (g.pages ?? []).map((p) => p.url).slice(0, 10) })).filter((g) => g.urls.length > 1);
+  } catch {
+    return [];
+  }
+}
+
+const HTML_OK = [["resource_type", "=", "html"], "and", ["status_code", "=", 200]];
+
+/** Builds the issue list from a finished crawl's summary. */
+async function buildIssues(taskId: string, s: Summary): Promise<CrawlIssue[]> {
+  const crawled = s.crawl_status?.pages_crawled ?? 0;
+  const pm = s.page_metrics ?? {};
+  const checks = pm.checks ?? {};
+  const found: (Omit<CrawlIssue, "urls"> & { urls?: string[] })[] = [];
+  // "Positive" checks (true = good) used to be counted as crawled - passed, which also counted every redirect,
+  // 404 and image as failing. Count only real HTML pages that load, straight from the crawl.
+  const positive = await Promise.all(Object.keys(checks).filter((c) => POSITIVE.has(c) && !IGNORE.has(c)).map(async (c) => [c, await count(taskId, [[`checks.${c}`, "=", false], "and", ...HTML_OK])] as const));
+  const posMap = new Map(positive);
+  for (const [code, n] of Object.entries(checks)) {
+    if (IGNORE.has(code)) continue;
+    let bad = n;
+    let urls: string[] | undefined;
+    if (POSITIVE.has(code)) {
+      const r = posMap.get(code);
+      bad = r ? r.total : Math.max(0, crawled - n);
+      urls = r?.urls;
+    }
+    if (!bad) continue;
+    const [severity, title, hint] = CATALOG[code] ?? ["notice", humanize(code), ""];
+    found.push({ code, severity, title, hint, count: bad, urls });
+  }
+  // "Broken pages" repeats the 4xx/5xx lists; keep the more specific ones.
+  const errPages = (checks.is_4xx_code ?? 0) + (checks.is_5xx_code ?? 0);
+  const brokenAt = found.findIndex((f) => f.code === "is_broken");
+  if (brokenAt >= 0 && errPages && found[brokenAt].count <= errPages) found.splice(brokenAt, 1);
+  for (const [key, [severity, title, hint]] of Object.entries(METRIC_ISSUES)) {
+    const n = Number(pm[key] ?? 0);
+    if (n > 0 && !found.some((f) => f.title === title)) found.push({ code: key, severity, title, hint, count: n });
+  }
+  found.sort((a, b) => WEIGHT[b.severity] - WEIGHT[a.severity] || b.count - a.count);
+
+  // Example URLs for the most important issues.
+  return Promise.all(found.map(async (f, i): Promise<CrawlIssue> => {
+    if (f.urls) return { ...f, urls: f.urls };
+    if (i >= 20) return { ...f, urls: [] };
+    if (f.code === "broken_links") {
+      const links = await brokenLinks(taskId);
+      const pages = links.length ? [...new Set(links.map((l) => l.from))].slice(0, 10) : (await count(taskId, [["broken_links", "=", true]]))?.urls ?? [];
+      return { ...f, urls: pages, links: links.slice(0, 20) };
+    }
+    if (f.code === "duplicate_title" || f.code === "duplicate_description") {
+      const groups = await duplicateGroups(taskId, f.code);
+      if (groups.length) return { ...f, urls: [...new Set(groups.flatMap((g) => g.urls))].slice(0, 10), groups };
+    }
+    const metric = METRIC_ISSUES[f.code];
+    const filter = metric
+      ? (f.code === "non_indexable" ? ["meta.robots", "like", "%noindex%"] : f.code === "redirect_loop" ? ["checks.redirect_chain", "=", true] : [metric[3], "=", true])
+      : [`checks.${f.code}`, "=", true];
+    return { ...f, urls: await samples(taskId, filter) };
+  }));
+}
+
+/** Rebuilds the issue list of a finished crawl (DataForSEO keeps crawl results for 30 days). */
+export async function refreshIssues(crawl: SiteCrawl) {
+  if (!crawl.taskId || crawl.status !== "DONE") return crawl;
+  const s = (await dfsPost<Summary>(`on_page/summary/${crawl.taskId}`, [], 25_000))[0];
+  if (!s || s.crawl_progress !== "finished") return crawl;
+  const issues = await buildIssues(crawl.taskId, s);
+  return db.siteCrawl.update({ where: { id: crawl.id }, data: { issues: issues as unknown as Prisma.InputJsonValue } });
+}
+
+export type IssueChange = { code: string; title: string; severity: Sev; from: number; to: number };
+/** What changed since the previous audit: new problems, fixed ones, and ones that got worse or better. */
+export function compareIssues(prev: CrawlIssue[], cur: CrawlIssue[]) {
+  const before = new Map(prev.map((i) => [i.code, i]));
+  const now = new Map(cur.map((i) => [i.code, i]));
+  const added: IssueChange[] = [], fixed: IssueChange[] = [], worse: IssueChange[] = [], better: IssueChange[] = [];
+  for (const i of cur) {
+    const p = before.get(i.code);
+    const c = { code: i.code, title: i.title, severity: i.severity, from: p?.count ?? 0, to: i.count };
+    if (!p) added.push(c); else if (i.count > p.count) worse.push(c); else if (i.count < p.count) better.push(c);
+  }
+  for (const p of prev) if (!now.has(p.code)) fixed.push({ code: p.code, title: p.title, severity: p.severity, from: p.count, to: 0 });
+  return { added, fixed, worse, better };
+}
+
 /** Checks progress; when the crawl is finished, builds the issue list. Safe to call often. */
 export async function pollCrawl(crawl: SiteCrawl) {
   if (crawl.status !== "RUNNING" || !crawl.taskId) return crawl;
@@ -137,30 +253,7 @@ export async function pollCrawl(crawl: SiteCrawl) {
   }
 
   const pm = s.page_metrics ?? {};
-  const checks = pm.checks ?? {};
-  const found: Omit<CrawlIssue, "urls">[] = [];
-  for (const [code, n] of Object.entries(checks)) {
-    if (IGNORE.has(code)) continue;
-    const bad = POSITIVE.has(code) ? Math.max(0, crawled - n) : n;
-    if (!bad) continue;
-    const [severity, title, hint] = CATALOG[code] ?? ["notice", humanize(code), ""];
-    found.push({ code, severity, title, hint, count: bad });
-  }
-  for (const [key, [severity, title, hint]] of Object.entries(METRIC_ISSUES)) {
-    const n = Number(pm[key] ?? 0);
-    if (n > 0 && !found.some((f) => f.title === title)) found.push({ code: key, severity, title, hint, count: n });
-  }
-  found.sort((a, b) => WEIGHT[b.severity] - WEIGHT[a.severity] || b.count - a.count);
-
-  // Example URLs for the most important issues.
-  const issues: CrawlIssue[] = await Promise.all(found.map(async (f, i) => {
-    if (i >= 18) return { ...f, urls: [] };
-    const metric = METRIC_ISSUES[f.code];
-    const filter = metric
-      ? (f.code === "broken_links" ? ["checks.is_broken", "=", true] : f.code === "non_indexable" ? ["meta.robots", "like", "%noindex%"] : f.code === "redirect_loop" ? ["checks.redirect_chain", "=", true] : [metric[3], "=", true])
-      : [`checks.${f.code}`, "=", !POSITIVE.has(f.code)];
-    return { ...f, urls: await samples(crawl.taskId!, filter) };
-  }));
+  const issues = await buildIssues(crawl.taskId, s);
 
   const { checks: dChecks, ...domain } = s.domain_info ?? {};
   const { checks: _c, ...metrics } = pm;

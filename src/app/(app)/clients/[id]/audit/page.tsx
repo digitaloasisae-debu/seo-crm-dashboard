@@ -7,10 +7,10 @@ import { RefreshWhile } from "@/components/refresh-while";
 import { Spinner } from "@/components/spinner";
 import { fmtDate } from "@/lib/utils";
 import { dataforseoConfigured } from "@/lib/dataforseo";
-import { pollCrawl, type CrawlIssue } from "@/lib/crawl";
+import { compareIssues, pollCrawl, type CrawlIssue } from "@/lib/crawl";
 import { after } from "next/server";
 import { fixIssueAction, rerunDeepAction, startCrawlAction } from "./actions";
-import { claimDeep, runDeepSafe, type CrawlDeep } from "@/lib/crawl-deep";
+import { claimDeep, DEEP_VERSION, runDeepSafe, type CrawlDeep } from "@/lib/crawl-deep";
 import { DeepAudit } from "@/components/deep-audit";
 import { EmailReport } from "@/components/email-report";
 import { emailConfigured } from "@/lib/email";
@@ -55,13 +55,23 @@ export default async function AuditPage({ params, searchParams }: { params: Prom
   issues.forEach((i) => (counts[i.severity] += 1));
   const ready = dataforseoConfigured();
   const fixes = (done?.aiFixes ?? {}) as Record<string, CrawlFix>;
-  // The deep analysis starts by itself the first time a finished audit is opened.
+  // The deep analysis starts by itself the first time a finished audit is opened, and is rebuilt
+  // (with the issue list) once when the report was made by an older version of the audit.
+  const oldDeep = done?.advanced as unknown as CrawlDeep | null;
   if (done && !done.advancedAt && (await claimDeep(done.id))) {
     const crawlId = done.id;
     after(() => runDeepSafe(crawlId));
     done.advancedStartedAt = new Date();
+  } else if (done && oldDeep && done.advancedAt && !done.advancedError && (oldDeep.version ?? 1) < DEEP_VERSION && (await claimDeep(done.id, true))) {
+    const crawlId = done.id;
+    after(() => runDeepSafe(crawlId, true));
+    done.advancedAt = null;
+    done.advancedStartedAt = new Date();
   }
-  const deep = done?.advanced as unknown as CrawlDeep | null;
+  const deep = oldDeep;
+  const prev = done ? crawls.find((c) => c.status === "DONE" && c.id !== done.id && c.startedAt < done.startedAt) ?? null : null;
+  const diff = prev ? compareIssues((prev.issues as unknown as CrawlIssue[] | null) ?? [], issues) : null;
+  const prevOverall = (prev?.advanced as unknown as CrawlDeep | null)?.overall ?? null;
   const clientInfo = await db.client.findUnique({ where: { id }, select: { reportEmails: true, submittedBy: true } });
   const reportTo = clientInfo?.reportEmails.length ? clientInfo.reportEmails.join(", ") : /@/.test(clientInfo?.submittedBy ?? "") ? clientInfo!.submittedBy! : "";
   const deepRunning = !!done && !done.advancedAt && !!done.advancedStartedAt && Date.now() - done.advancedStartedAt.getTime() < 6 * 60_000;
@@ -138,11 +148,36 @@ export default async function AuditPage({ params, searchParams }: { params: Prom
             ) : (
               <>
                 {deep && <a href={`/api/audit/${done.id}/pdf`} className="btn-primary">📄 Download PDF report</a>}
+                <a href={`/api/audit/${done.id}/csv`} className="btn-secondary">⬇️ CSV</a>
                 {editable && <form action={rerunDeepAction.bind(null, id, done.id)}><SubmitButton className="btn-secondary">🔄 Re-run analysis</SubmitButton></form>}
                 {deep && editable && <EmailReport crawlId={done.id} defaultTo={reportTo} configured={emailConfigured()} />}
               </>
             )}
           </section>
+
+          {prev && diff && (
+            <section className="card space-y-3">
+              <div className="flex flex-wrap items-baseline gap-3">
+                <h2 className="font-semibold">📈 Since the last audit</h2>
+                <span className="text-xs text-slate-500">compared with {fmtDate(prev.finishedAt ?? prev.startedAt)}</span>
+              </div>
+              <div className="flex flex-wrap gap-2 text-sm">
+                <Delta label="Site health" from={prev.score} to={done.score} />
+                {deep && prevOverall != null && <Delta label="Overall score" from={prevOverall} to={deep.overall} />}
+                <Delta label="Pages crawled" from={prev.pagesCrawled} to={done.pagesCrawled} neutral />
+                <span className="rounded-lg bg-emerald-50 px-2.5 py-1 text-emerald-800 ring-1 ring-emerald-200 ring-inset">✓ {diff.fixed.length} fixed</span>
+                <span className="rounded-lg bg-red-50 px-2.5 py-1 text-red-700 ring-1 ring-red-200 ring-inset">＋ {diff.added.length} new</span>
+                <span className="rounded-lg bg-slate-50 px-2.5 py-1 text-slate-700 ring-1 ring-slate-200 ring-inset">↑ {diff.worse.length} worse · ↓ {diff.better.length} better</span>
+              </div>
+              {(diff.fixed.length > 0 || diff.added.length > 0 || diff.worse.length > 0) && (
+                <div className="grid gap-3 text-xs md:grid-cols-3">
+                  <ChangeList title="Fixed" items={diff.fixed} tone="text-emerald-700" />
+                  <ChangeList title="New problems" items={diff.added} tone="text-red-700" />
+                  <ChangeList title="Got worse" items={diff.worse} tone="text-amber-700" />
+                </div>
+              )}
+            </section>
+          )}
 
           {deep && <DeepAudit d={deep} />}
 
@@ -159,7 +194,18 @@ export default async function AuditPage({ params, searchParams }: { params: Prom
                   </summary>
                   <div className="mt-2 space-y-2 pl-5 text-sm">
                     {i.hint && <p className="text-slate-600">💡 {i.hint}</p>}
-                    {i.urls.length > 0 && (
+                    {i.links && i.links.length > 0 && (
+                      <div className="text-xs">
+                        <div className="mb-1 font-medium text-slate-600">Page → broken link</div>
+                        <ul className="space-y-0.5">{i.links.map((l, k) => <li key={k} className="flex min-w-0 gap-1.5"><a className="max-w-[45%] truncate text-indigo-600 hover:underline" href={l.from} target="_blank" rel="noreferrer">{l.from.replace(/^https?:\/\/[^/]+/, "") || "/"}</a><span className="text-slate-400">→</span><span className="min-w-0 flex-1 truncate text-red-700">{l.to}</span>{l.status ? <span className="text-slate-400">{l.status}</span> : null}</li>)}</ul>
+                      </div>
+                    )}
+                    {i.groups && i.groups.length > 0 && (
+                      <div className="space-y-1.5 text-xs">
+                        {i.groups.map((g, k) => <div key={k}><div className="font-medium">&ldquo;{g.value || "(empty)"}&rdquo; <span className="text-slate-400">· {g.urls.length} pages</span></div><ul className="pl-3">{g.urls.map((u) => <li key={u} className="truncate"><a className="text-indigo-600 hover:underline" href={u} target="_blank" rel="noreferrer">{u}</a></li>)}</ul></div>)}
+                      </div>
+                    )}
+                    {i.urls.length > 0 && !i.links?.length && !i.groups?.length && (
                       <ul className="space-y-0.5 text-xs">
                         {i.urls.map((u) => <li key={u} className="truncate"><a className="text-indigo-600 hover:underline" href={u} target="_blank" rel="noreferrer">{u}</a></li>)}
                         {i.count > i.urls.length && <li className="text-slate-400">…and {(i.count - i.urls.length).toLocaleString()} more</li>}
@@ -205,6 +251,21 @@ export default async function AuditPage({ params, searchParams }: { params: Prom
           </table>
         </section>
       )}
+    </div>
+  );
+}
+
+function Delta({ label, from, to, neutral }: { label: string; from: number | null; to: number | null; neutral?: boolean }) {
+  const d = from != null && to != null ? to - from : null;
+  const tone = neutral || !d ? "bg-slate-50 text-slate-700 ring-slate-200" : d > 0 ? "bg-emerald-50 text-emerald-800 ring-emerald-200" : "bg-red-50 text-red-700 ring-red-200";
+  return <span className={`rounded-lg px-2.5 py-1 ring-1 ring-inset ${tone}`}>{label}: {from ?? "—"} → <b>{to ?? "—"}</b>{d ? ` (${d > 0 ? "+" : ""}${d})` : ""}</span>;
+}
+
+function ChangeList({ title, items, tone }: { title: string; items: { code: string; title: string; from: number; to: number }[]; tone: string }) {
+  return (
+    <div className="rounded-xl border border-slate-100 p-3">
+      <div className={`mb-1 font-semibold ${tone}`}>{title} ({items.length})</div>
+      {items.length === 0 ? <p className="text-slate-400">None</p> : <ul className="space-y-0.5">{items.slice(0, 12).map((c) => <li key={c.code} className="flex gap-2"><span className="min-w-0 flex-1 truncate">{c.title}</span><span className="shrink-0 tabular-nums text-slate-500">{c.from} → {c.to}</span></li>)}</ul>}
     </div>
   );
 }

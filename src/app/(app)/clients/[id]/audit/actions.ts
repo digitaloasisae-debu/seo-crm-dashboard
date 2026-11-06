@@ -41,6 +41,6 @@ export async function rerunDeepAction(clientId: string, crawlId: string) {
   const user = await requireUser();
   await requireClientAccess(user, clientId, "edit");
   const crawl = await db.siteCrawl.findFirst({ where: { id: crawlId, clientId } });
-  if (crawl && (await claimDeep(crawlId, true))) after(() => runDeepSafe(crawlId));
+  if (crawl && (await claimDeep(crawlId, true))) after(() => runDeepSafe(crawlId, true));
   redirect(`/clients/${clientId}/audit`);
 }

@@ -105,6 +105,7 @@ export function DeepAudit({ d }: { d: CrawlDeep }) {
               </tbody>
             </table>
           </div>
+          {!d.speed.some((x) => x.mobile.field) && <p className="px-4 pb-3 text-xs text-slate-500">ℹ️ &ldquo;Real users&rdquo; is empty because Google doesn&apos;t have enough Chrome visits to this site yet to publish field data. That&apos;s normal for smaller sites; the lab scores still apply.</p>}
           {(d.speed[0]?.mobile.opportunities?.length ?? 0) > 0 && (
             <div className="border-t border-slate-100 p-4 text-sm">
               <div className="mb-1 font-medium">Biggest speed savings on the home page (mobile)</div>
@@ -123,8 +124,8 @@ export function DeepAudit({ d }: { d: CrawlDeep }) {
               {Object.entries(d.depth).map(([k, v]) => (
                 <div key={k} className="flex h-full flex-1 flex-col items-center justify-end gap-1">
                   <span className="text-[11px] tabular-nums text-slate-500">{v}</span>
-                  <div className={`w-full rounded-t ${k === "4" || k === "5+" ? "bg-amber-400" : "bg-indigo-400"}`} style={{ height: `${Math.max(2, (v / depthMax) * 70)}%` }} />
-                  <span className="text-[11px] text-slate-500">{k}</span>
+                  <div className={`w-full rounded-t ${k === "4" || k === "5+" ? "bg-amber-400" : k === "none" ? "bg-red-400" : "bg-indigo-400"}`} style={{ height: `${Math.max(2, (v / depthMax) * 70)}%` }} />
+                  <span className="whitespace-nowrap text-[11px] text-slate-500" title={k === "none" ? "Found only through the sitemap: no internal link leads to these pages" : undefined}>{k === "none" ? "no link" : k}</span>
                 </div>
               ))}
             </div>
@@ -140,7 +141,13 @@ export function DeepAudit({ d }: { d: CrawlDeep }) {
               <PageList title="Pages Google isn't showing" items={d.indexing.noImpressions} fmt={(v) => `${v} link${v === 1 ? "" : "s"} in`} empty="Every page got impressions." hint="Check they're indexed (Search Console → URL Inspection), improve them, link to them, or noindex/merge ones with no value." />
               <PageList title="Pages getting impressions that the crawl didn't find" items={d.indexing.notCrawled} fmt={(v) => `${v.toLocaleString()} impr.`} empty="None." hint="Usually old URLs or orphan pages. Redirect old ones (301) or link to the live ones." />
             </>
-          ) : <p className="text-sm text-slate-500">Link Search Console for this client to see which pages Google shows.</p>}
+          ) : (
+            <p className="rounded-lg bg-amber-50 p-3 text-sm text-amber-900">
+              {d.gscState === "no_data" ? "Search Console is linked but returned no data for the last 28 days, so this wasn't scored. Check the property on the Google page."
+                : d.gscState === "mismatch" ? "The linked Search Console property belongs to a different website, so this wasn't scored. Pick the right property on the Google page."
+                : "Search Console isn't linked for this client, so this wasn't scored. Link it on the Google page to see which pages Google shows."}
+            </p>
+          )}
           {d.cannibal.length > 0 && (
             <details className="rounded-xl border border-slate-100 p-3">
               <summary className="flex items-center gap-2 text-sm font-medium"><span className="flex-1">Keyword cannibalisation (pages competing for the same search)</span><span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs text-amber-800">{d.cannibal.length}</span></summary>
@@ -184,7 +191,57 @@ export function DeepAudit({ d }: { d: CrawlDeep }) {
           </div>
         </div>
       </section>
+      {(d.files || (d.schema?.length ?? 0) > 0) && (
+        <section className="grid gap-6 lg:grid-cols-2">
+          <div className="card space-y-3">
+            <h2 className="font-semibold">🗺️ Sitemap and robots.txt</h2>
+            {d.files ? (
+              <>
+                <div className="flex flex-wrap gap-1.5 text-xs">
+                  <Pill ok={d.files.robots}>robots.txt</Pill>
+                  <Pill ok={d.files.sitemaps.length > 0}>XML sitemap{d.files.sitemapUrls ? `: ${d.files.sitemapUrls.toLocaleString()} URLs` : ""}</Pill>
+                  <Pill ok={d.files.sitemapBad.length === 0}>{d.files.sitemapBad.length} sitemap URLs redirect or error</Pill>
+                  <Pill ok={d.files.notInSitemap.length === 0} warn>{d.files.notInSitemap.length} live pages not in the sitemap</Pill>
+                </div>
+                {d.files.sitemapNotCrawled > 0 && <p className="text-xs text-slate-500">{d.files.sitemapNotCrawled.toLocaleString()} sitemap URLs weren&apos;t reached by the crawl: they have no internal links pointing to them, or the site is bigger than the page limit.</p>}
+                <PageList title="Sitemap URLs that redirect or error" items={d.files.sitemapBad} fmt={(v) => (v ? String(v) : "—")} empty="All sitemap URLs load fine." hint="A sitemap should only list final, working, indexable URLs. Regenerate it in your SEO plugin." />
+                <PageList title="Live pages missing from the sitemap" items={d.files.notInSitemap} fmt={(v) => `${v} links in`} empty="Every live page is in the sitemap." hint="Make sure these post types/taxonomies are included in the sitemap settings of Yoast or Rank Math (or noindex them if they shouldn't rank)." />
+              </>
+            ) : <p className="text-sm text-slate-500">Couldn&apos;t load robots.txt or a sitemap.</p>}
+          </div>
+          <div className="card space-y-3">
+            <h2 className="font-semibold">🤖 Structured data and AI search</h2>
+            {d.files && (
+              <div className="flex flex-wrap gap-1.5 text-xs">
+                <Pill ok={d.files.aiBotsBlocked.length === 0}>{d.files.aiBotsBlocked.length ? `Blocks ${d.files.aiBotsBlocked.join(", ")}` : "AI crawlers allowed (ChatGPT, Claude, Perplexity, Gemini)"}</Pill>
+                <Pill ok={d.files.llmsTxt} warn>llms.txt</Pill>
+              </div>
+            )}
+            {(d.schema?.length ?? 0) > 0 && (
+              <div className="overflow-x-auto">
+                <table className="table text-xs">
+                  <thead><tr><th>Page</th><th>Schema types</th><th>Social preview</th><th>Lang</th></tr></thead>
+                  <tbody>{d.schema!.map((p) => (
+                    <tr key={p.url}>
+                      <td className="max-w-[10rem] truncate"><a href={p.url} target="_blank" rel="noreferrer" className="text-indigo-600 hover:underline">{path(p.url)}</a></td>
+                      <td className={p.types.length ? "" : "text-red-600"}>{p.types.join(", ") || "None"}</td>
+                      <td>{p.og ? "✓" : <span className="text-amber-600">✕</span>}</td>
+                      <td className="whitespace-nowrap">{p.lang || <span className="text-amber-600">—</span>}</td>
+                    </tr>
+                  ))}</tbody>
+                </table>
+              </div>
+            )}
+            <p className="text-xs text-slate-500">💡 Business schema (LocalBusiness or Organization) on the home page, Article/FAQ/Service schema on content, and open access for AI crawlers help Google AI Overviews, ChatGPT and Perplexity understand and cite the business. Rank Math and Yoast add most of this.</p>
+          </div>
+        </section>
+      )}
+
       {d.notes.length > 0 && <p className="text-xs text-slate-400">Notes: {d.notes.join(" · ")}</p>}
     </div>
   );
+}
+
+function Pill({ ok, warn, children }: { ok: boolean; warn?: boolean; children: React.ReactNode }) {
+  return <span className={`rounded-full px-2.5 py-1 ring-1 ring-inset ${ok ? "bg-emerald-50 text-emerald-800 ring-emerald-200" : warn ? "bg-amber-50 text-amber-800 ring-amber-200" : "bg-red-50 text-red-700 ring-red-200"}`}>{ok ? "✓" : "✕"} {children}</span>;
 }

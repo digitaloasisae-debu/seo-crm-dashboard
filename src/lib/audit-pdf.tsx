@@ -5,7 +5,8 @@
  */
 import { Document, Page, Text, View, Image, StyleSheet, renderToBuffer } from "@react-pdf/renderer";
 import type { SiteCrawl } from "@prisma/client";
-import type { CrawlIssue } from "./crawl";
+import { compareIssues, type CrawlIssue } from "./crawl";
+import { db } from "./db";
 import type { CrawlDeep, DeepPage } from "./crawl-deep";
 import { SECURITY_LABELS } from "./crawl-deep";
 import type { CrawlFix } from "./crawl-fix";
@@ -69,7 +70,20 @@ function List({ title, items, fmt, hint, max = 12 }: { title: string; items: Dee
   );
 }
 
-function Report({ crawl, deep, b }: { crawl: SiteCrawl; deep: CrawlDeep | null; b: Brand }) {
+type Prev = { date: string; score: number | null; overall: number | null; diff: ReturnType<typeof compareIssues> } | null;
+
+function Changes({ title, items, color }: { title: string; items: { code: string; title: string; from: number; to: number }[]; color: string }) {
+  return (
+    <View style={[s.card, { flex: 1 }]}>
+      <Text style={{ fontFamily: "Helvetica-Bold", color, marginBottom: 3 }}>{title} ({items.length})</Text>
+      {items.length === 0 ? <Text style={s.muted}>None</Text> : items.slice(0, 8).map((c) => (
+        <View key={c.code} style={[s.row, { justifyContent: "space-between" }]}><Text style={{ flex: 1, fontSize: 8.5 }}>{clean(c.title)}</Text><Text style={{ fontSize: 8.5, color: "#64748b" }}>{c.from} -&gt; {c.to}</Text></View>
+      ))}
+    </View>
+  );
+}
+
+function Report({ crawl, deep, b, prev }: { crawl: SiteCrawl; deep: CrawlDeep | null; b: Brand; prev: Prev }) {
   const issues = (crawl.issues as unknown as CrawlIssue[] | null) ?? [];
   const fixes = (crawl.aiFixes ?? {}) as Record<string, CrawlFix>;
   const domain = (crawl.domainInfo ?? {}) as Record<string, unknown> & { checks?: Record<string, boolean> };
@@ -174,6 +188,7 @@ function Report({ crawl, deep, b }: { crawl: SiteCrawl; deep: CrawlDeep | null; 
                 <Text style={{ width: "10%" }}>{x.mobile.field?.cls != null ? x.mobile.field.cls.toFixed(2) : "-"}</Text>
               </View>
             ))}
+            {!deep.speed.some((x) => x.mobile.field) && <Text style={[s.small, { marginTop: 4 }]}>Real-user columns are empty because Google does not yet have enough Chrome visits to this site to publish field data. That is normal for smaller sites; the lab scores still apply.</Text>}
             {(deep.speed[0]?.mobile.opportunities?.length ?? 0) > 0 && (
               <View style={[s.card, { marginTop: 8 }]}>
                 <Text style={{ fontFamily: "Helvetica-Bold", marginBottom: 3 }}>Biggest speed savings (home page, mobile)</Text>
@@ -203,7 +218,8 @@ function Report({ crawl, deep, b }: { crawl: SiteCrawl; deep: CrawlDeep | null; 
           <>
             <Text style={s.h2}>HTTP status and click depth</Text>
             <Text>Status codes: {Object.entries(deep.status).map(([k, v]) => `${k}: ${v}`).join("   ")}</Text>
-            <Text>Pages by clicks from the home page: {Object.entries(deep.depth).map(([k, v]) => `${k}: ${v}`).join("   ")}</Text>
+            <Text>Pages by clicks from the home page: {Object.entries(deep.depth).map(([k, v]) => `${k === "none" ? "no link path" : k}: ${v}`).join("   ")}</Text>
+            {(deep.depth.none ?? 0) > 0 && <Text style={s.small}>&quot;No link path&quot; pages were found only through the sitemap: no internal link leads to them.</Text>}
           </>
         )}
         <Footer b={b} domain={crawl.target} />
@@ -211,6 +227,19 @@ function Report({ crawl, deep, b }: { crawl: SiteCrawl; deep: CrawlDeep | null; 
 
       {/* Issues */}
       <Page size="A4" style={s.page}>
+        {prev && (
+          <View wrap={false} style={{ marginBottom: 12 }}>
+            <Text style={s.h1}>Progress since the last audit ({prev.date})</Text>
+            <Text style={{ marginBottom: 6 }}>
+              Site health {prev.score ?? "-"} -&gt; {crawl.score ?? "-"}{prev.overall != null && deep ? `   |   Overall score ${prev.overall} -> ${deep.overall}` : ""}   |   {prev.diff.fixed.length} issue types fixed, {prev.diff.added.length} new, {prev.diff.worse.length} worse, {prev.diff.better.length} better
+            </Text>
+            <View style={[s.row, { gap: 8 }]}>
+              <Changes title="Fixed" items={prev.diff.fixed} color="#059669" />
+              <Changes title="New problems" items={prev.diff.added} color="#dc2626" />
+              <Changes title="Got worse" items={prev.diff.worse} color="#d97706" />
+            </View>
+          </View>
+        )}
         <Text style={s.h1}>Issues found ({issues.length})</Text>
         <View style={s.tr}><Text style={[s.th, { width: "13%" }]}>Severity</Text><Text style={[s.th, { width: "45%" }]}>Issue</Text><Text style={[s.th, { width: "10%" }]}>Pages</Text><Text style={[s.th, { width: "32%" }]}>How to fix</Text></View>
         {issues.map((i) => (
@@ -221,7 +250,7 @@ function Report({ crawl, deep, b }: { crawl: SiteCrawl; deep: CrawlDeep | null; 
             <Text style={{ width: "32%", fontSize: 8.5, color: "#475569" }}>{clean(i.hint)}</Text>
           </View>
         ))}
-        {Object.keys(fixes).length > 0 && (
+        {issues.some((i) => fixes[i.code]) && (
           <>
             <Text style={[s.h2, { marginTop: 18 }]} minPresenceAhead={120}>Detailed fixes</Text>
             {issues.filter((i) => fixes[i.code]).map((i) => {
@@ -256,6 +285,11 @@ function Report({ crawl, deep, b }: { crawl: SiteCrawl; deep: CrawlDeep | null; 
           <Text style={s.h1}>Internal links, visibility and content</Text>
           <List title="Weakly linked pages (0-1 internal links in)" items={deep.weakLinked} fmt={(v) => `${v} link${v === 1 ? "" : "s"}`} hint="Link to these from related posts and service pages so Google finds and values them." />
           <List title="Buried pages (more than 3 clicks deep)" items={deep.deepPages} fmt={(v) => `${v} clicks`} />
+          {!deep.indexing && deep.gscState && (
+            <Text style={[s.muted, { marginBottom: 6 }]}>
+              {deep.gscState === "no_data" ? "Google visibility: Search Console returned no data for this site, so it was not scored." : deep.gscState === "mismatch" ? "Google visibility: the linked Search Console property belongs to another website, so it was not scored." : "Google visibility: Search Console is not linked yet, so it was not scored."}
+            </Text>
+          )}
           {deep.indexing && (
             <>
               <Text style={[s.muted, { marginBottom: 6 }]}>{deep.indexing.withImpressions} of {deep.indexing.crawledOk} live pages appeared in Google search in the last 28 days.</Text>
@@ -283,13 +317,56 @@ function Report({ crawl, deep, b }: { crawl: SiteCrawl; deep: CrawlDeep | null; 
         </Page>
       )}
 
+      {deep && (deep.files || (deep.schema?.length ?? 0) > 0) && (
+        <Page size="A4" style={s.page}>
+          <Text style={s.h1}>Sitemap, structured data and AI search</Text>
+          {deep.files && (
+            <>
+              <View style={[s.row, { flexWrap: "wrap", gap: 5, marginBottom: 8 }]}>
+                {([
+                  [deep.files.robots, "robots.txt"],
+                  [deep.files.sitemaps.length > 0, `XML sitemap${deep.files.sitemapUrls ? ` (${deep.files.sitemapUrls} URLs)` : ""}`],
+                  [deep.files.sitemapBad.length === 0, `${deep.files.sitemapBad.length} sitemap URLs redirect or error`],
+                  [deep.files.notInSitemap.length === 0, `${deep.files.notInSitemap.length} live pages not in the sitemap`],
+                  [deep.files.aiBotsBlocked.length === 0, deep.files.aiBotsBlocked.length ? `Blocks AI crawlers: ${deep.files.aiBotsBlocked.join(", ")}` : "AI crawlers allowed"],
+                  [deep.files.llmsTxt, "llms.txt"],
+                ] as [boolean, string][]).map(([ok, label]) => <Text key={label} style={[s.pill, { backgroundColor: ok ? "#059669" : "#d97706", fontSize: 8, paddingVertical: 3 }]}>{ok ? "OK" : "CHECK"}  {clean(label)}</Text>)}
+              </View>
+              {deep.files.sitemapNotCrawled > 0 && <Text style={[s.small, { marginBottom: 6 }]}>{deep.files.sitemapNotCrawled} sitemap URLs were not reached by following links (no internal links to them, or beyond the crawl limit).</Text>}
+              <List title="Sitemap URLs that redirect or error" items={deep.files.sitemapBad} fmt={(v) => (v ? String(v) : "-")} hint="A sitemap should only list final, working, indexable URLs." />
+              <List title="Live pages missing from the sitemap" items={deep.files.notInSitemap} fmt={(v) => `${v} links in`} />
+            </>
+          )}
+          {(deep.schema?.length ?? 0) > 0 && (
+            <>
+              <Text style={s.h2}>Structured data on key pages</Text>
+              <View style={s.tr}>{["Page", "Schema types", "Social preview", "Lang"].map((h, i) => <Text key={h} style={[s.th, { width: ["32%", "44%", "14%", "10%"][i] }]}>{h}</Text>)}</View>
+              {deep.schema!.map((p) => (
+                <View key={p.url} style={s.tr} wrap={false}>
+                  <Text style={{ width: "32%", fontSize: 8.5 }}>{clean(path(p.url)).slice(0, 45)}</Text>
+                  <Text style={{ width: "44%", fontSize: 8.5, color: p.types.length ? "#1e293b" : "#dc2626" }}>{clean(p.types.join(", ")) || "None"}</Text>
+                  <Text style={{ width: "14%", fontSize: 8.5 }}>{p.og ? "Yes" : "No"}</Text>
+                  <Text style={{ width: "10%", fontSize: 8.5 }}>{clean(p.lang) || "-"}</Text>
+                </View>
+              ))}
+              <Text style={[s.small, { marginTop: 6 }]}>Business schema (LocalBusiness or Organization) on the home page, Article, FAQ and Service schema on content pages, and open access for AI crawlers help Google AI Overviews, ChatGPT and Perplexity understand and cite the business.</Text>
+            </>
+          )}
+          <Footer b={b} domain={crawl.target} />
+        </Page>
+      )}
+
       {/* Appendix */}
       <Page size="A4" style={s.page}>
         <Text style={s.h1}>Appendix: example pages per issue</Text>
-        {issues.filter((i) => i.urls.length).map((i) => (
+        {issues.filter((i) => i.urls.length || i.links?.length).map((i) => (
           <View key={i.code} style={{ marginBottom: 7 }} wrap={false}>
             <Text style={{ fontFamily: "Helvetica-Bold" }}>{clean(i.title)} ({i.count})</Text>
-            {i.urls.slice(0, 10).map((u) => <Text key={u} style={{ fontSize: 8, color: "#475569" }}>{clean(u).slice(0, 110)}</Text>)}
+            {i.links?.length
+              ? i.links.slice(0, 12).map((l, k) => <Text key={k} style={{ fontSize: 8, color: "#475569" }}>{clean(path(l.from)).slice(0, 50)}  -&gt;  {clean(l.to).slice(0, 70)}{l.status ? ` (${l.status})` : ""}</Text>)
+              : i.groups?.length
+                ? i.groups.slice(0, 5).map((g, k) => <Text key={k} style={{ fontSize: 8, color: "#475569" }}>&quot;{clean(g.value).slice(0, 60)}&quot;: {g.urls.slice(0, 4).map((u) => clean(path(u))).join(", ").slice(0, 120)}</Text>)
+                : i.urls.slice(0, 10).map((u) => <Text key={u} style={{ fontSize: 8, color: "#475569" }}>{clean(u).slice(0, 110)}</Text>)}
           </View>
         ))}
         <Footer b={b} domain={crawl.target} />
@@ -315,12 +392,18 @@ export async function auditPdf(crawl: SiteCrawl, client: { name: string; brandPr
   const color = /^#[0-9a-f]{6}$/i.test(client.brandPrimaryColor ?? "") ? client.brandPrimaryColor! : "#4f46e5";
   const b: Brand = { client: client.name, agency: process.env.REPORT_AGENCY_NAME || "Digital Oasis", color, logo: await loadLogo(client.logoUrl) };
   const deep = (crawl.advanced as unknown as CrawlDeep | null) ?? null;
+  const p = await db.siteCrawl.findFirst({ where: { clientId: crawl.clientId, status: "DONE", startedAt: { lt: crawl.startedAt } }, orderBy: { startedAt: "desc" } });
+  const prev: Prev = p ? {
+    date: (p.finishedAt ?? p.startedAt).toISOString().slice(0, 10), score: p.score,
+    overall: (p.advanced as unknown as CrawlDeep | null)?.overall ?? null,
+    diff: compareIssues((p.issues as unknown as CrawlIssue[] | null) ?? [], (crawl.issues as unknown as CrawlIssue[] | null) ?? []),
+  } : null;
   try {
-    return await renderToBuffer(<Report crawl={crawl} deep={deep} b={b} />);
+    return await renderToBuffer(<Report crawl={crawl} deep={deep} b={b} prev={prev} />);
   } catch (e) {
     // A logo in an unusual image format can break rendering: try again without it.
     if (!b.logo) throw e;
     console.error("Audit PDF failed with logo, retrying without it:", e);
-    return renderToBuffer(<Report crawl={crawl} deep={deep} b={{ ...b, logo: null }} />);
+    return renderToBuffer(<Report crawl={crawl} deep={deep} b={{ ...b, logo: null }} prev={prev} />);
   }
 }
