@@ -15,16 +15,20 @@ export type QueueItem = {
   clientName: string;
   title: string;
   note?: string;
+  /** The customer's words (a review), shown as a quote. */
+  quote?: string;
+  /** The AI draft to approve (a reply or a post). */
+  body?: string;
   facts: { label: string; value: string }[];
   href: string;
 };
 
-const KIND_LABEL: Record<QueueKind, string> = { keyword: "Keyword", topic: "Topic", article: "Article" };
+const KIND_LABEL: Record<QueueKind, string> = { keyword: "Keyword", topic: "Topic", article: "Article", review: "Review reply", post: "Google post" };
 type Out = "approve" | "reject" | "skip";
 
 /** Big "review queue" card on Today; opens a full-screen, keyboard-driven card stack. */
 export function ReviewQueue({ items, counts, streak }: { items: QueueItem[]; counts: Record<QueueKind, number>; streak: number }) {
-  const total = counts.keyword + counts.topic + counts.article;
+  const total = Object.values(counts).reduce((a, b) => a + b, 0);
   const params = useSearchParams();
   const path = usePathname();
   const router = useRouter();
@@ -48,7 +52,7 @@ export function ReviewQueue({ items, counts, streak }: { items: QueueItem[]; cou
     return () => window.removeEventListener("keydown", onKey);
   }, [open, items.length]);
 
-  const mins = Math.max(1, Math.round(counts.keyword * 0.15 + counts.topic * 0.3 + counts.article * 2));
+  const mins = Math.max(1, Math.round(counts.keyword * 0.15 + counts.topic * 0.3 + counts.article * 2 + counts.review * 0.3 + counts.post * 0.5));
   return (
     <>
       <div className="card group relative overflow-hidden p-6 lg:col-span-2">
@@ -68,6 +72,8 @@ export function ReviewQueue({ items, counts, streak }: { items: QueueItem[]; cou
           <span className="rounded-full bg-slate-100 px-2.5 py-1 text-slate-600">{counts.keyword} keyword{counts.keyword === 1 ? "" : "s"}</span>
           <span className="rounded-full bg-slate-100 px-2.5 py-1 text-slate-600">{counts.topic} topic{counts.topic === 1 ? "" : "s"}</span>
           <span className="rounded-full bg-slate-100 px-2.5 py-1 text-slate-600">{counts.article} article{counts.article === 1 ? "" : "s"}</span>
+          {counts.review > 0 && <span className="rounded-full bg-amber-50 px-2.5 py-1 text-amber-700">{counts.review} review repl{counts.review === 1 ? "y" : "ies"}</span>}
+          {counts.post > 0 && <span className="rounded-full bg-amber-50 px-2.5 py-1 text-amber-700">{counts.post} Google post{counts.post === 1 ? "" : "s"}</span>}
           {streak > 0 && <span className="rounded-full bg-amber-50 px-2.5 py-1 text-amber-700">🔥 {streak}-day streak</span>}
         </div>
         <button type="button" disabled={!items.length} onClick={() => setOpen(true)} className="btn-primary px-5 py-2.5">
@@ -189,7 +195,7 @@ function ReviewOverlay({ items, onClose }: { items: QueueItem[]; onClose: () => 
                 <path d="M30 47l11 10 21-22" fill="none" stroke="var(--color-emerald-500)" strokeWidth="6" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
               <h3 className="font-display text-2xl font-bold">Queue cleared</h3>
-              <p className="mt-1 mb-5 text-sm text-slate-500">{approved} approved. n8n picks up approved keywords and topics on its next run.</p>
+              <p className="mt-1 mb-5 text-sm text-slate-500">{approved} approved. n8n picks up approved keywords and topics on its next run, and approved Google replies and posts wait on the Google profile tab.</p>
               <button type="button" className="btn-primary" onClick={close}>Back to Today</button>
             </div>
           ) : (
@@ -228,7 +234,9 @@ function QueueCard({ item, className, front }: { item: QueueItem; className: str
           Open <Icon name="external" className="h-3.5 w-3.5" />
         </Link>
       </div>
-      <h3 className="font-display text-2xl leading-tight font-bold text-balance">{item.title}</h3>
+      <h3 className={`font-display leading-tight font-bold text-balance ${item.body ? "text-lg" : "text-2xl"}`}>{item.title}</h3>
+      {item.quote && <p className="line-clamp-3 border-l-2 border-slate-200 pl-3 text-sm text-slate-500 italic">{item.quote}</p>}
+      {item.body && <p className="line-clamp-6 rounded-xl bg-indigo-50 px-3.5 py-3 text-sm leading-relaxed text-slate-800">{item.body}</p>}
       {item.note && <p className="line-clamp-3 text-sm text-slate-500">{item.note}</p>}
       {item.facts.length > 0 && (
         <div className="mt-auto grid grid-cols-2 gap-2.5 sm:grid-cols-3">

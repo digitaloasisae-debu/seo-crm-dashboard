@@ -21,6 +21,7 @@ import { addKeywords, processSubmission } from "@/lib/intake";
 import { ensureSlots } from "@/lib/posting";
 import { pushArticle, testConnection } from "@/lib/wordpress";
 import { triggerN8n } from "@/lib/n8n";
+import { suggestLinks } from "@/lib/links";
 import { toSafeHtml } from "@/lib/content";
 import { slugify, splitList, stripTrailingSlash } from "@/lib/utils";
 
@@ -454,6 +455,7 @@ export async function reviewArticleAction(articleId: string, decision: "APPROVED
     },
   });
   await logActivity({ actorId: user.id, clientId: article.clientId, action: `article.${decision.toLowerCase()}`, entity: "article", entityId: articleId, after: { note: str(fd, "note") } });
+  if (decision === "APPROVED" && geminiConfigured()) afterResponse(() => suggestLinks(articleId).catch(() => 0));
   revalidatePath(`/articles/${articleId}`);
 }
 
@@ -469,7 +471,7 @@ export async function pushArticleAction(articleId: string) {
 
 // ---------- Review queue (Today page) ----------
 
-export type QueueKind = "keyword" | "topic" | "article";
+export type QueueKind = "keyword" | "topic" | "article" | "review" | "post";
 export type QueueDecision = "approve" | "reject" | "undo";
 
 /** One decision from the keyboard review queue. "undo" puts the item back to waiting. */
@@ -490,6 +492,20 @@ export async function reviewQueueAction(kind: QueueKind, id: string, decision: Q
       await db.topic.update({ where: { id }, data: { status, approvedById: status === "APPROVED" ? user.id : null } });
       await logActivity({ actorId: user.id, clientId: t.clientId, action: `topic.${status.toLowerCase()}`, entity: "topic", entityId: id, after: { count: 1, via: "queue" } });
       revalidatePath(`/clients/${t.clientId}/topics`);
+    } else if (kind === "review") {
+      const r = await db.gbpReview.findUniqueOrThrow({ where: { id }, select: { clientId: true } });
+      await requireClientAccess(user, r.clientId, "edit");
+      const status = decision === "approve" ? "APPROVED" : decision === "reject" ? "SKIPPED" : "DRAFTED";
+      await db.gbpReview.update({ where: { id }, data: { status } });
+      await logActivity({ actorId: user.id, clientId: r.clientId, action: `gbp.reply_${status.toLowerCase()}`, entity: "gbpReview", entityId: id, after: { via: "queue" } });
+      revalidatePath(`/clients/${r.clientId}/gbp`);
+    } else if (kind === "post") {
+      const p = await db.gbpPost.findUniqueOrThrow({ where: { id }, select: { clientId: true } });
+      await requireClientAccess(user, p.clientId, "edit");
+      const status = decision === "approve" ? "APPROVED" : decision === "reject" ? "SKIPPED" : "DRAFTED";
+      await db.gbpPost.update({ where: { id }, data: { status } });
+      await logActivity({ actorId: user.id, clientId: p.clientId, action: `gbp.post_${status.toLowerCase()}`, entity: "gbpPost", entityId: id, after: { via: "queue" } });
+      revalidatePath(`/clients/${p.clientId}/gbp`);
     } else {
       const { article } = await articleForEdit(id);
       if (decision === "reject") return { ok: false, error: "Open the article to request changes with a note." };
@@ -497,6 +513,7 @@ export async function reviewQueueAction(kind: QueueKind, id: string, decision: Q
       const approve = decision === "approve";
       await db.article.update({ where: { id }, data: { status: approve ? "APPROVED" : "READY_FOR_REVIEW", approvedById: approve ? user.id : null, approvedAt: approve ? new Date() : null } });
       await logActivity({ actorId: user.id, clientId: article.clientId, action: approve ? "article.approved" : "article.ready", entity: "article", entityId: id, after: { via: "queue" } });
+      if (approve && geminiConfigured()) afterResponse(() => suggestLinks(id).catch(() => 0));
       revalidatePath(`/articles/${id}`);
     }
     revalidatePath("/", "layout");

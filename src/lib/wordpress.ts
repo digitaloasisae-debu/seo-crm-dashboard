@@ -90,7 +90,8 @@ export async function pushArticle(articleId: string, actorId?: string) {
       const payload: Record<string, unknown> = {
         title: article.metaTitle,
         content: article.bodyHtml,
-        status: "draft",
+        // New posts go in as drafts; an update (e.g. a content refresh) keeps the post's current status.
+        ...(article.wpPostId ? {} : { status: "draft" }),
         slug: article.slug,
         excerpt: article.metaDescription ?? "",
         meta: {

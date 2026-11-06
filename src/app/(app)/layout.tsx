@@ -37,6 +37,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       db.keyword.count({ where: { ...scope, status: "PENDING" } }),
       db.topic.count({ where: { ...scope, status: "GENERATED" } }),
       db.article.count({ where: { ...scope, status: "READY_FOR_REVIEW" } }),
+      db.gbpReview.count({ where: { ...scope, status: "DRAFTED" } }),
+      db.gbpPost.count({ where: { ...scope, status: "DRAFTED" } }),
     ]).then((n) => n.reduce((a, b) => a + b, 0)),
   ]);
   nav[0].badge = waiting;

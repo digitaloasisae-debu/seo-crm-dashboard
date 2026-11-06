@@ -10,7 +10,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   const { id } = await params;
   const client = await db.client.findFirst({
     where: { OR: [{ id }, { slug: id }, { name: { equals: decodeURIComponent(id), mode: "insensitive" } }] },
-    include: { brain: true },
+    include: { brain: true, brandProfile: true },
   });
   if (!client) return NextResponse.json({ error: "Client not found" }, { status: 404 });
   return NextResponse.json(clientForN8n(client));

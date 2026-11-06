@@ -4,20 +4,130 @@ import { requireUser } from "@/lib/session";
 import { SubmitButton } from "@/components/submit-button";
 import { fmtDate } from "@/lib/utils";
 import { directoryLinks, hoursText, type GbpAi, type GbpFinding, type GbpInfo } from "@/lib/gbp";
-import { addGbpAction, deleteGbpAction, refreshGbpAction, renameGbpAction } from "./actions";
+import { googleLinks } from "@/lib/gbp-content";
+import { dataforseoConfigured } from "@/lib/dataforseo";
+import { geminiConfigured } from "@/lib/gemini";
+import { RefreshWhile } from "@/components/refresh-while";
+import { addGbpAction, deleteGbpAction, draftPostsAction, draftRepliesAction, fetchReviewsAction, refreshGbpAction, renameGbpAction, savePostAction, saveReplyAction } from "./actions";
+import { CopyOpen } from "./copy-open";
 
 export const maxDuration = 120;
 
 const SEV: Record<GbpFinding["severity"], string> = { error: "✕ text-red-700", warning: "⚠ text-amber-700", info: "ⓘ text-slate-600", ok: "✓ text-emerald-700" };
 const PRI: Record<string, string> = { P1: "text-red-700", P2: "text-amber-700", P3: "text-sky-700" };
 
-export default async function GbpPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ err?: string }> }) {
+export default async function GbpPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ err?: string; fetching?: string; drafted?: string }> }) {
   const { id } = await params;
-  const { err } = await searchParams;
+  const { err, fetching, drafted } = await searchParams;
   const user = await requireUser();
-  const [editable, profiles] = await Promise.all([canEdit(user, id), db.gbpProfile.findMany({ where: { clientId: id }, orderBy: { createdAt: "asc" } })]);
+  const [editable, profiles, reviews, posts, reviewStats] = await Promise.all([
+    canEdit(user, id),
+    db.gbpProfile.findMany({ where: { clientId: id }, orderBy: { createdAt: "asc" } }),
+    db.gbpReview.findMany({ where: { clientId: id, status: { in: ["NEW", "DRAFTED", "APPROVED"] } }, include: { profile: { select: { label: true, placeId: true, cid: true } } }, orderBy: { reviewedAt: "desc" }, take: 30 }),
+    db.gbpPost.findMany({ where: { clientId: id }, include: { profile: { select: { label: true } } }, orderBy: { weekOf: "desc" }, take: 8 }),
+    db.gbpReview.groupBy({ by: ["status"], where: { clientId: id }, _count: true }),
+  ]);
+  const fetchingNow = profiles.some((p) => p.reviewsTask);
+  const answered = reviewStats.find((r) => r.status === "POSTED")?._count ?? 0;
+  const lastFetch = profiles.map((p) => p.reviewsAt).filter(Boolean).sort((a, b) => b!.getTime() - a!.getTime())[0];
+  const STATUS: Record<string, string> = { NEW: "bg-slate-100 text-slate-600", DRAFTED: "bg-amber-50 text-amber-700", APPROVED: "bg-indigo-50 text-indigo-700", POSTED: "bg-emerald-50 text-emerald-700", SKIPPED: "bg-slate-100 text-slate-500" };
+  const label: Record<string, string> = { NEW: "New", DRAFTED: "Needs review", APPROVED: "Approved, post it", POSTED: "Posted", SKIPPED: "Skipped" };
   return (
     <div className="space-y-6">
+      {fetchingNow && <RefreshWhile ms={15000} />}
+      {profiles.length > 0 && (
+        <section id="content" className="grid scroll-mt-24 gap-4 xl:grid-cols-2">
+          <div id="reviews" className="card space-y-4">
+            <div className="flex flex-wrap items-start gap-3">
+              <div className="min-w-0 flex-1">
+                <h2 className="text-lg font-bold">Review replies</h2>
+                <p className="text-sm text-slate-500">New Google reviews are fetched every week and the AI drafts a reply in the brand voice. Approve here or in the review queue on Today, then copy it into Google.{lastFetch && <> Last checked {fmtDate(lastFetch)}, {answered} answered so far.</>}{fetchingNow && <span className="ml-1 text-indigo-600">Fetching reviews…</span>}</p>
+              </div>
+              {editable && (
+                <div className="flex gap-2">
+                  <form action={fetchReviewsAction.bind(null, id)}><SubmitButton className="btn-secondary text-xs" disabled={!dataforseoConfigured() || fetchingNow}>↻ Fetch reviews</SubmitButton></form>
+                  {reviews.some((r) => r.status === "NEW") && <form action={draftRepliesAction.bind(null, id)}><SubmitButton className="btn-secondary text-xs" disabled={!geminiConfigured()}>✦ Draft replies</SubmitButton></form>}
+                </div>
+              )}
+            </div>
+            {fetching && !fetchingNow && <p className="rounded-lg bg-indigo-50 p-2 text-sm text-indigo-800">Reviews are on the way. Drafts appear within a few minutes.</p>}
+            {reviews.length === 0 ? (
+              <p className="rounded-xl bg-slate-50 p-4 text-sm text-slate-500">{lastFetch ? "Every review has a reply. Nice." : "No reviews fetched yet. Press Fetch reviews to start."}</p>
+            ) : (
+              <ul className="space-y-3">
+                {reviews.map((r) => {
+                  const g = googleLinks(r.profile);
+                  return (
+                    <li key={r.id} className="rounded-xl border border-slate-200 p-3.5">
+                      <div className="mb-1.5 flex flex-wrap items-center gap-2 text-xs">
+                        <span className="text-amber-500">{"★".repeat(Math.round(r.rating ?? 0))}<span className="text-slate-300">{"★".repeat(5 - Math.round(r.rating ?? 0))}</span></span>
+                        <b className="font-medium text-slate-800">{r.author}</b>
+                        <span className="text-slate-400">{r.profile.label}{r.reviewedAt && ` · ${fmtDate(r.reviewedAt)}`}</span>
+                        <span className={`ml-auto rounded-full px-2 py-0.5 font-medium ${STATUS[r.status]}`}>{label[r.status]}</span>
+                      </div>
+                      <p className="mb-2.5 line-clamp-4 border-l-2 border-slate-200 pl-3 text-sm text-slate-600 italic">{r.text || "(rating only, no text)"}</p>
+                      {r.status === "NEW" ? (
+                        <p className="text-xs text-slate-400">Reply not drafted yet.</p>
+                      ) : (
+                        <form action={saveReplyAction.bind(null, id, r.id)} className="space-y-2">
+                          <textarea name="draft" defaultValue={r.draft ?? ""} rows={3} className="input text-sm" disabled={!editable} />
+                          {editable && (
+                            <div className="flex flex-wrap items-center gap-2">
+                              {r.status === "DRAFTED" && <SubmitButton name="status" value="APPROVED" className="btn-primary text-xs">Approve</SubmitButton>}
+                              <CopyOpen field="draft" href={g.reviews} />
+                              <SubmitButton name="status" value="POSTED" className="btn-secondary text-xs">✓ Mark posted</SubmitButton>
+                              <SubmitButton name="status" value="SKIPPED" className="ml-auto text-xs text-slate-400 hover:text-red-600">Skip</SubmitButton>
+                            </div>
+                          )}
+                        </form>
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </div>
+
+          <div id="posts" className="card space-y-4">
+            <div className="flex flex-wrap items-start gap-3">
+              <div className="min-w-0 flex-1">
+                <h2 className="text-lg font-bold">Weekly posts</h2>
+                <p className="text-sm text-slate-500">Every Monday the AI drafts one update post per profile, featuring the newest blog post. Profiles that post often look active to Google and to customers.</p>
+              </div>
+              {editable && <form action={draftPostsAction.bind(null, id)}><SubmitButton className="btn-secondary text-xs" disabled={!geminiConfigured()}>✦ Draft this week&apos;s post</SubmitButton></form>}
+            </div>
+            {drafted && <p className="rounded-lg bg-emerald-50 p-2 text-sm text-emerald-800">Drafts are ready below.</p>}
+            {posts.length === 0 ? (
+              <p className="rounded-xl bg-slate-50 p-4 text-sm text-slate-500">No posts yet. The first one is drafted on the next daily run, or press the button.</p>
+            ) : (
+              <ul className="space-y-3">
+                {posts.map((p) => (
+                  <li key={p.id} className={`rounded-xl border border-slate-200 p-3.5 ${p.status === "POSTED" || p.status === "SKIPPED" ? "opacity-70" : ""}`}>
+                    <div className="mb-1.5 flex flex-wrap items-center gap-2 text-xs">
+                      <b className="font-medium text-slate-800">Week of {fmtDate(p.weekOf)}</b>
+                      <span className="text-slate-400">{p.profile.label}</span>
+                      <span className={`ml-auto rounded-full px-2 py-0.5 font-medium ${STATUS[p.status]}`}>{label[p.status]}</span>
+                    </div>
+                    <form action={savePostAction.bind(null, id, p.id)} className="space-y-2">
+                      <textarea name="text" defaultValue={p.text} rows={5} className="input text-sm" disabled={!editable || p.status === "POSTED"} />
+                      <p className="text-xs text-slate-500">Button: <b className="font-medium">{(p.cta ?? "LEARN_MORE").replace("_", " ").toLowerCase()}</b>{p.link && <> → <a href={p.link} target="_blank" rel="noreferrer" className="break-all text-indigo-600 hover:underline">{p.link}</a></>}</p>
+                      {editable && p.status !== "POSTED" && (
+                        <div className="flex flex-wrap items-center gap-2">
+                          {p.status === "DRAFTED" && <SubmitButton name="status" value="APPROVED" className="btn-primary text-xs">Approve</SubmitButton>}
+                          <CopyOpen field="text" href={googleLinks({ placeId: null, cid: null }).posts} />
+                          <SubmitButton name="status" value="POSTED" className="btn-secondary text-xs">✓ Mark posted</SubmitButton>
+                          {p.status !== "SKIPPED" && <SubmitButton name="status" value="SKIPPED" className="ml-auto text-xs text-slate-400 hover:text-red-600">Skip</SubmitButton>}
+                        </div>
+                      )}
+                    </form>
+                  </li>
+                ))}
+              </ul>
+            )}
+            <p className="text-xs text-slate-400">Google only lets approved apps post for you, so publishing is copy and paste for now: Copy &amp; open Google, choose the profile, Add update, paste, add the button link.</p>
+          </div>
+        </section>
+      )}
       <section className="card space-y-3">
         <div className="flex flex-wrap items-center gap-3">
           <div className="min-w-0 flex-1">

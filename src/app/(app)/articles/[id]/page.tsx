@@ -15,6 +15,7 @@ import { ContentScoreCard } from "@/components/content-score-card";
 import { dataforseoConfigured } from "@/lib/dataforseo";
 import type { ContentScore } from "@/lib/serp";
 import { NoteForm } from "./note-form";
+import { InternalLinks } from "./links";
 import { runQuality, type QualityReport } from "@/lib/quality";
 import { geminiConfigured } from "@/lib/gemini";
 import { SubmitButton } from "@/components/submit-button";
@@ -23,8 +24,9 @@ import { Spinner } from "@/components/spinner";
 // WordPress push with retries, and AI rewrites that run in the background after the response.
 export const maxDuration = 300;
 
-export default async function ArticleReview({ params }: { params: Promise<{ id: string }> }) {
+export default async function ArticleReview({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ links?: string; linkErr?: string }> }) {
   const { id } = await params;
+  const sp = await searchParams;
   const user = await requireUser();
   const article = await db.article.findUnique({
     where: { id },
@@ -91,6 +93,10 @@ export default async function ArticleReview({ params }: { params: Promise<{ id: 
             {article.wpPostUrl && <div><a className="text-indigo-600 hover:underline" href={article.wpPostUrl} target="_blank" rel="noreferrer">Open WordPress draft #{article.wpPostId}</a></div>}
             {article.lastPushError && article.status === "PUSH_FAILED" && <div className="rounded bg-red-50 p-2 text-red-700">Push failed: {article.lastPushError}</div>}
           </section>
+
+          {["APPROVED", "PUSHING", "PUSHED_DRAFT", "PUSH_FAILED"].includes(article.status) && (
+            <InternalLinks articleId={article.id} editable={editable} ai={geminiConfigured()} hasCred={hasCred} note={sp.linkErr ? `err:${sp.linkErr}` : sp.links ? (sp.links === "0" ? "No good matches on the site yet." : `${sp.links} link${sp.links === "1" ? "" : "s"} suggested.`) : undefined} />
+          )}
 
           {article.status === "PUSHED_DRAFT" && (article.client.gscProperty || gaData) && (
             <section className="card space-y-3">

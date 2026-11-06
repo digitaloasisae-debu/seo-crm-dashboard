@@ -3,6 +3,7 @@
  * Uses the client's brain, the SOP and the notes on the article. The old version is kept as an ArticleRevision.
  */
 import { db } from "./db";
+import { brandContext } from "./brand-profile";
 import { geminiJson } from "./gemini";
 import { getSop } from "./sop";
 import { toSafeHtml } from "./content";
@@ -53,7 +54,7 @@ async function context(articleId: string) {
   const sop = await getSop();
   const c = article.client;
   const head = `SOP:\n${sop}\n\nCLIENT: ${c.name}${c.businessType ? ` (${c.businessType})` : ""}${c.primaryCity ? `, local client in ${c.primaryCity}` : ""}${c.siteUrl ? `, site ${c.siteUrl}` : ""}${c.ctaText ? `\nCTA: ${c.ctaText}${c.ctaLink ? ` -> ${c.ctaLink}` : ""}` : ""}
-CLIENT BRAIN (rules the team taught for this client, follow them strictly):\n${c.brain?.rules || "(none yet)"}
+BRAND PROFILE AND CLIENT BRAIN (how this client writes, and rules the team taught; follow them strictly):\n${(await brandContext(article.clientId)) || "(none yet)"}
 
 TOPIC: ${article.topic.title}${article.topic.angle ? `\nANGLE: ${article.topic.angle}` : ""}
 FOCUS KEYWORD: ${article.focusKeyword}`;

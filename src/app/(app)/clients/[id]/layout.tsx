@@ -20,10 +20,13 @@ export default async function ClientLayout({ children, params }: { children: Rea
     { href: `/clients/${id}/topics`, label: "Topics", icon: "lightbulb" as const },
     { href: `/clients/${id}/articles`, label: "Articles", icon: "file" as const },
     { href: `/clients/${id}/seo`, label: "SEO", icon: "chart" as const },
+    { href: `/clients/${id}/rankings`, label: "Rankings", icon: "trending" as const },
+    { href: `/clients/${id}/refresh`, label: "Refresh", icon: "refresh" as const },
     { href: `/clients/${id}/audit`, label: "Site audit", icon: "stethoscope" as const },
     { href: `/clients/${id}/gbp`, label: "Google profile", icon: "pin" as const },
     { href: `/clients/${id}/backlinks`, label: "Backlinks", icon: "link" as const },
     { href: `/clients/${id}/analytics`, label: "Analytics", icon: "activity" as const },
+    { href: `/clients/${id}/brand`, label: "Brand", icon: "palette" as const },
     { href: `/clients/${id}/brain`, label: "Brain", icon: "sparkles" as const },
     { href: `/clients/${id}/settings`, label: "Settings", icon: "shield" as const },
   ];
@@ -31,7 +34,7 @@ export default async function ClientLayout({ children, params }: { children: Rea
   return (
     <>
       <div className="mb-5 flex flex-wrap items-center gap-4">
-        <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-500 to-fuchsia-500 text-base font-bold text-white shadow-lg shadow-indigo-500/25">{initials}</span>
+        <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl font-display bg-indigo-600 text-base font-bold text-white">{initials}</span>
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             <h1 className="font-display text-slate-900 text-2xl font-bold tracking-tight  md:text-3xl">{client.name}</h1>

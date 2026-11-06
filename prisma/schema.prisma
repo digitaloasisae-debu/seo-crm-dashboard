@@ -248,6 +248,14 @@ model Client {
   gscPageWeeks    GscPageWeek[]
   crawls          SiteCrawl[]
   gbpProfiles     GbpProfile[]
+  brandProfile    BrandProfile?
+  rankKeywords    RankKeyword[]
+  /// Where rankings are checked: empty = the first Google profile's pin (or the target country).
+  rankLocation    String?
+  refreshes       ContentRefresh[]
+  internalLinks   InternalLink[]
+  gbpReviews      GbpReview[]
+  gbpPosts        GbpPost[]
   backlinkReports BacklinkReport[]
   /// Remembered recipients for emailed audit reports
   reportEmails    String[]
@@ -426,6 +434,7 @@ model Article {
   postingSlot PostingSlot?
   notes       ArticleNote[]
   revisions   ArticleRevision[]
+  linksOut    InternalLink[]
 
   @@index([clientId, status])
 }
@@ -647,9 +656,170 @@ model GbpProfile {
   ai        Json?
   error     String?
   fetchedAt DateTime?
+  /// Pending DataForSEO reviews task, and when reviews were last fetched.
+  reviewsTask String?
+  reviewsAt   DateTime?
   createdAt DateTime  @default(now())
+
+  client  Client      @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  reviews GbpReview[]
+  posts   GbpPost[]
+
+  @@index([clientId])
+}
+
+
+// ---------- Brand, rankings, refreshes, links, Google profile content ----------
+
+/// How a client's brand writes. Every AI writer (n8n WF2 and the app) follows it.
+model BrandProfile {
+  clientId    String   @id
+  voice       String   @default("")
+  audience    String   @default("")
+  toneWords   String[]
+  bannedWords String[]
+  alwaysUse   String[]
+  facts       String   @default("")
+  examples    String   @default("")
+  spelling    String   @default("US")
+  person      String   @default("we")
+  ctaStyle    String   @default("")
+  updatedById String?
+  updatedAt   DateTime @updatedAt
+
+  client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+}
+
+model RankKeyword {
+  id           String    @id @default(cuid())
+  clientId     String
+  keyword      String
+  position     Int?
+  mapPosition  Int?
+  url          String?
+  prevPosition Int?
+  bestPosition Int?
+  checkedAt    DateTime?
+  pendingTask  String?
+  error        String?
+  createdAt    DateTime  @default(now())
+
+  client Client      @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  checks RankCheck[]
+
+  @@unique([clientId, keyword])
+  @@index([pendingTask])
+}
+
+model RankCheck {
+  rankKeywordId String
+  date          DateTime @db.Date
+  position      Int?
+  mapPosition   Int?
+  url           String?
+
+  rankKeyword RankKeyword @relation(fields: [rankKeywordId], references: [id], onDelete: Cascade)
+
+  @@id([rankKeywordId, date])
+}
+
+enum RefreshStatus {
+  OPEN
+  DRAFTED
+  DONE
+  DISMISSED
+}
+
+/// A page that is losing Google clicks, and the AI's plan to update it.
+model ContentRefresh {
+  id           String        @id @default(cuid())
+  clientId     String
+  page         String
+  clicksBefore Int
+  clicksNow    Int
+  posBefore    Float?
+  posNow       Float?
+  articleId    String?
+  status       RefreshStatus @default(OPEN)
+  brief        Json?
+  error        String?
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
 
   client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
 
-  @@index([clientId])
+  @@unique([clientId, page])
+}
+
+enum LinkStatus {
+  SUGGESTED
+  ADDED
+  FAILED
+  DISMISSED
+}
+
+/// A link from an older page to a new article, suggested by AI and added through WordPress.
+model InternalLink {
+  id        String     @id @default(cuid())
+  clientId  String
+  articleId String
+  sourceUrl String
+  anchor    String
+  reason    String     @default("")
+  status    LinkStatus @default(SUGGESTED)
+  error     String?
+  createdAt DateTime   @default(now())
+  addedAt   DateTime?
+
+  client  Client  @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  article Article @relation(fields: [articleId], references: [id], onDelete: Cascade)
+
+  @@unique([articleId, sourceUrl])
+}
+
+enum GbpItemStatus {
+  NEW
+  DRAFTED
+  APPROVED
+  POSTED
+  SKIPPED
+}
+
+model GbpReview {
+  id         String        @id
+  clientId   String
+  profileId  String
+  author     String
+  rating     Int?
+  text       String        @default("")
+  reviewedAt DateTime?
+  ownerReply String?
+  draft      String?
+  status     GbpItemStatus @default(NEW)
+  createdAt  DateTime      @default(now())
+  updatedAt  DateTime      @updatedAt
+
+  client  Client     @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  profile GbpProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@index([clientId, status])
+}
+
+model GbpPost {
+  id        String        @id @default(cuid())
+  clientId  String
+  profileId String
+  text      String
+  cta       String?
+  link      String?
+  weekOf    DateTime      @db.Date
+  status    GbpItemStatus @default(DRAFTED)
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+
+  client  Client     @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  profile GbpProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@unique([profileId, weekOf])
+  @@index([clientId, status])
 }

@@ -29,6 +29,12 @@ const FEED: Record<string, { text: (n: number) => string; tone: string; icon: st
   "audit.done": { text: () => "finished a site audit", tone: "bg-emerald-50 text-emerald-600", icon: "↗" },
   "audit.email": { text: () => "emailed an audit report", tone: "bg-emerald-50 text-emerald-600", icon: "✉" },
   "backlinks.refresh": { text: () => "refreshed backlinks", tone: "bg-slate-100 text-slate-500", icon: "↻" },
+  "rank.up": { text: () => "climbed in Google", tone: "bg-emerald-50 text-emerald-600", icon: "▲" },
+  "rank.down": { text: () => "dropped in Google", tone: "bg-red-50 text-red-600", icon: "▼" },
+  "link.add": { text: () => "added an internal link in WordPress", tone: "bg-indigo-50 text-indigo-600", icon: "⇄" },
+  "brand.update": { text: () => "updated a brand profile", tone: "bg-violet-50 text-violet-600", icon: "◆" },
+  "gbp.reply_posted": { text: () => "replied to a Google review", tone: "bg-amber-50 text-amber-600", icon: "★" },
+  "gbp.post_posted": { text: () => "posted on a Google profile", tone: "bg-amber-50 text-amber-600", icon: "★" },
   "client.create": { text: () => "added a new client", tone: "bg-emerald-50 text-emerald-600", icon: "+" },
 };
 
@@ -38,14 +44,19 @@ export default async function Home() {
   const since12 = new Date(Date.now() - 12 * 7 * 864e5);
   const today = new Date(new Date().toISOString().slice(0, 10));
 
-  const [kw, topics, arts, counts, failedPushes, toPush, openRequests, failedIntake, wins, clients] = await Promise.all([
+  const [kw, topics, arts, replies, gposts, toPostGoogle, counts, failedPushes, toPush, openRequests, failedIntake, wins, clients] = await Promise.all([
     db.keyword.findMany({ where: { ...scope, status: "PENDING" }, select: { id: true, keyword: true, searchVolume: true, difficulty: true, intent: true, clientId: true, client: { select: { name: true } } }, orderBy: { addedAt: "asc" }, take: 25 }),
     db.topic.findMany({ where: { ...scope, status: "GENERATED" }, select: { id: true, title: true, keyword: true, category: true, angle: true, clientId: true, client: { select: { name: true } } }, orderBy: { generatedAt: "asc" }, take: 25 }),
     db.article.findMany({ where: { ...scope, status: "READY_FOR_REVIEW" }, select: { id: true, metaTitle: true, focusKeyword: true, qualityScore: true, contentScore: true, client: { select: { name: true } } }, orderBy: { createdAt: "asc" }, take: 15 }),
+    db.gbpReview.findMany({ where: { ...scope, status: "DRAFTED" }, select: { id: true, author: true, rating: true, text: true, draft: true, clientId: true, client: { select: { name: true } }, profile: { select: { label: true } } }, orderBy: { reviewedAt: "asc" }, take: 15 }),
+    db.gbpPost.findMany({ where: { ...scope, status: "DRAFTED" }, select: { id: true, text: true, cta: true, link: true, clientId: true, client: { select: { name: true } }, profile: { select: { label: true } } }, take: 10 }),
+    Promise.all([db.gbpReview.findFirst({ where: { ...scope, status: "APPROVED" }, select: { clientId: true } }), db.gbpReview.count({ where: { ...scope, status: "APPROVED" } }), db.gbpPost.count({ where: { ...scope, status: "APPROVED" } })]),
     Promise.all([
       db.keyword.count({ where: { ...scope, status: "PENDING" } }),
       db.topic.count({ where: { ...scope, status: "GENERATED" } }),
       db.article.count({ where: { ...scope, status: "READY_FOR_REVIEW" } }),
+      db.gbpReview.count({ where: { ...scope, status: "DRAFTED" } }),
+      db.gbpPost.count({ where: { ...scope, status: "DRAFTED" } }),
     ]),
     db.article.findMany({ where: { ...scope, status: "PUSH_FAILED" }, select: { id: true, metaTitle: true, status: true, client: { select: { name: true } } }, take: 8 }),
     db.article.findMany({ where: { ...scope, status: "APPROVED" }, select: { id: true, metaTitle: true, status: true, client: { select: { name: true } } }, orderBy: { approvedAt: "asc" }, take: 8 }),
@@ -130,12 +141,33 @@ export default async function Home() {
       ],
       href: `/articles/${a.id}`,
     })),
+    ...replies.map((r) => ({
+      kind: "review" as const,
+      id: r.id,
+      clientName: `${r.client.name} · ${r.profile.label}`,
+      title: `${"★".repeat(Math.round(r.rating ?? 0)) || "?"} from ${r.author.split(/\s+/)[0]}`,
+      quote: r.text || "(rating only, no text)",
+      body: r.draft ?? "",
+      facts: [],
+      href: `/clients/${r.clientId}/gbp#reviews`,
+    })),
+    ...gposts.map((p) => ({
+      kind: "post" as const,
+      id: p.id,
+      clientName: `${p.client.name} · ${p.profile.label}`,
+      title: "This week's Google post",
+      body: p.text,
+      facts: [{ label: "Button", value: (p.cta ?? "LEARN_MORE").replace("_", " ").toLowerCase().replace(/^./, (c) => c.toUpperCase()) }, ...(p.link ? [{ label: "Links to", value: p.link.replace(/^https?:\/\/(www\.)?/, "") }] : [])],
+      href: `/clients/${p.clientId}/gbp#posts`,
+    })),
   ];
-  const [nKw, nTopic, nArt] = counts;
-  const total = nKw + nTopic + nArt;
+  const [nKw, nTopic, nArt, nRev, nPost] = counts;
+  const total = nKw + nTopic + nArt + nRev + nPost;
+  const [firstGoogle, okReplies, okPosts] = toPostGoogle;
   const alerts = [
     failedPushes.length > 0 && { href: `/articles/${failedPushes[0].id}`, text: `${failedPushes.length} article${failedPushes.length === 1 ? "" : "s"} failed to push to WordPress`, tone: "bg-red-50 text-red-700 border-red-200" },
     openRequests > 0 && { href: "/access", text: `${openRequests} access request${openRequests === 1 ? "" : "s"} waiting`, tone: "bg-amber-50 text-amber-700 border-amber-200" },
+    okReplies + okPosts > 0 && { href: `/clients/${firstGoogle?.clientId ?? ""}/gbp`, text: `${okReplies + okPosts} approved Google repl${okReplies + okPosts === 1 ? "y or post" : "ies and posts"} to publish`, tone: "bg-indigo-50 text-indigo-700 border-indigo-200" },
     failedIntake > 0 && { href: "/intake", text: `${failedIntake} Tally submission${failedIntake === 1 ? "" : "s"} need a look`, tone: "bg-amber-50 text-amber-700 border-amber-200" },
   ].filter(Boolean) as { href: string; text: string; tone: string }[];
   const medals = ["🥇", "🥈", "🥉"];
@@ -156,7 +188,7 @@ export default async function Home() {
       )}
 
       <section className="mb-8 grid gap-4 lg:grid-cols-3">
-        <ReviewQueue items={items} counts={{ keyword: nKw, topic: nTopic, article: nArt }} streak={wins.streak} />
+        <ReviewQueue items={items} counts={{ keyword: nKw, topic: nTopic, article: nArt, review: nRev, post: nPost }} streak={wins.streak} />
         <div className="card p-5">
           <h2 className="font-sans text-sm font-semibold tracking-normal">Live activity</h2>
           {feed.length === 0 ? (
