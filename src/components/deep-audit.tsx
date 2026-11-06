@@ -232,6 +232,15 @@ export function DeepAudit({ d }: { d: CrawlDeep }) {
                 </table>
               </div>
             )}
+            {d.market?.aiVisibility && (
+              <div className="rounded-xl border border-slate-100 p-3 text-xs">
+                <div className="mb-1 font-semibold">✨ Visibility in AI answers</div>
+                <table className="w-full"><thead><tr className="text-left text-slate-500"><th className="font-medium">AI engine</th><th className="font-medium">Brand mentions</th><th className="font-medium">Site cited</th></tr></thead>
+                  <tbody>{d.market.aiVisibility.platforms.map((p) => <tr key={p.key}><td>{p.label}</td><td className="tabular-nums">{p.mentions.toLocaleString()}</td><td className={`tabular-nums ${p.cited ? "text-emerald-700" : "text-red-600"}`}>{p.cited.toLocaleString()}</td></tr>)}</tbody>
+                </table>
+                {d.market.aiVisibility.topSources.length > 0 && <p className="mt-1 text-slate-500">AI engines cite: {d.market.aiVisibility.topSources.join(", ")}</p>}
+              </div>
+            )}
             {d.hreflang && (
               <div className="rounded-xl border border-slate-100 p-3 text-xs">
                 <div className="mb-1 font-semibold">🌐 Languages (hreflang)</div>

@@ -18,7 +18,7 @@ export type Cannibal = { query: string; impressions: number; pages: { url: strin
 export type Category = { key: string; label: string; score: number; note: string };
 export type Action = { title: string; why: string; impact: "high" | "medium" | "low"; effort: string; category: string };
 /** Bump when the analysis changes, so older reports are rebuilt automatically when opened. */
-export const DEEP_VERSION = 4;
+export const DEEP_VERSION = 5;
 export type SiteFiles = {
   robots: boolean;
   sitemaps: string[];
@@ -408,7 +408,7 @@ async function aiPlan(d: CrawlDeep, issues: CrawlIssue[], c: { name: string; typ
     d.keywords?.length ? `Home page keyword consistency (word: count, in title/meta/headings): ${d.keywords.map((k) => `${k.word}: ${k.count} ${k.title ? "T" : "-"}${k.description ? "M" : "-"}${k.headings ? "H" : "-"}`).join(", ")}.` : "",
     d.template ? `Templated pages: ${d.template.checked} similar-looking location/service pages checked, average ${d.template.avgPct}% text shared with the most similar page; most duplicated: ${d.template.pages.slice(0, 4).map((p) => `${p.url.replace(/^https?:\/\/[^/]+/, "")} ${p.pct}%`).join(", ")}.` : "",
     d.files?.newestPost ? `Newest blog post in sitemap: ${d.files.newestPost.date}.` : "",
-    d.market ? `Off-page: authority ${d.market.authority ?? "n/a"}/100, ${d.market.referringDomains ?? "n/a"} referring domains, ${d.market.backlinks ?? "n/a"} backlinks; organic traffic ~${d.market.traffic ?? "n/a"}/month from ${d.market.keywords ?? "n/a"} keywords (${d.market.top10 ?? "n/a"} in top 10). Competitors: ${d.market.competitors.filter((c) => !c.you).map((c) => `${c.domain} (traffic ${c.traffic ?? "?"}, keywords ${c.keywords ?? "?"})`).join("; ") || "unknown"}.${d.market.history.length > 2 ? ` Backlinks 12 months ago ${d.market.history[0].backlinks}, now ${d.market.history[d.market.history.length - 1].backlinks}.` : ""}` : "",
+    d.market ? `Off-page: authority ${d.market.authority ?? "n/a"}/100, ${d.market.referringDomains ?? "n/a"} referring domains, ${d.market.backlinks ?? "n/a"} backlinks; organic traffic ~${d.market.traffic ?? "n/a"}/month from ${d.market.keywords ?? "n/a"} keywords (${d.market.top10 ?? "n/a"} in top 10). Competitors: ${d.market.competitors.filter((c) => !c.you).map((c) => `${c.domain} (traffic ${c.traffic ?? "?"}, keywords ${c.keywords ?? "?"})`).join("; ") || "unknown"}.${d.market.aiVisibility ? ` AI answers: brand mentioned ${d.market.aiVisibility.mentions} times, site cited as a source ${d.market.aiVisibility.cited} times (${d.market.aiVisibility.platforms.map((p) => `${p.label}: ${p.mentions}/${p.cited}`).join(", ")}).` : ""}${d.market.history.length > 2 ? ` Backlinks 12 months ago ${d.market.history[0].backlinks}, now ${d.market.history[d.market.history.length - 1].backlinks}.` : ""}` : "",
     d.indexing ? `Google visibility: ${d.indexing.withImpressions}/${d.indexing.crawledOk} crawled pages had impressions in 28 days; ${d.indexing.notCrawled.length} pages get impressions but weren't found by the crawl (old URLs or orphans).` : "",
     d.cannibal.length ? `Keyword cannibalisation: ${d.cannibal.slice(0, 5).map((x) => `"${x.query}" split across ${x.pages.length} pages`).join("; ")}.` : "",
     d.security ? `Security: HTTPS ${d.security.https ? "yes" : "no"}; missing headers: ${Object.entries(d.security.headers).filter(([, v]) => !v).map(([k]) => k).join(", ") || "none"}; insecure files: ${d.security.mixedContent.length}.` : "",

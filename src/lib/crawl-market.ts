@@ -15,8 +15,30 @@ export type Market = {
   traffic: number | null; keywords: number | null; top3: number | null; top10: number | null;
   history: { date: string; backlinks: number; referringDomains: number }[];
   competitors: MarketCompetitor[];
+  /** Top referring domains, for the backlink network graph. */
+  network?: { domain: string; rank: number; backlinks: number }[];
+  /** How often AI answers mention the brand and cite the site (DataForSEO LLM Mentions: Google AI Overview/AI Mode and ChatGPT). */
+  aiVisibility?: { platforms: { key: string; label: string; mentions: number; cited: number }[]; mentions: number; cited: number; topSources: string[] } | null;
   notes: string[];
 };
+
+const PLATFORM: Record<string, string> = { google: "Google AI Overview / AI Mode", chat_gpt: "ChatGPT" };
+type Agg = { aggregated_metrics?: Record<string, { key?: string; mentions?: number }[] | undefined> };
+
+/** AI-answer visibility: brand-name mentions in AI answers, and how often the site is cited as a source. */
+async function aiVisibility(brand: string, domain: string, location: string): Promise<Market["aiVisibility"]> {
+  const base = { location_name: location, language_code: "en", internal_list_limit: 10 };
+  const [byName, bySource] = await Promise.all([
+    dfsPost<Agg>("ai_optimization/llm_mentions/target_metrics/live", [{ ...base, target: [{ keyword: brand, search_scope: ["answer"], match_type: "word_match" }] }], 120_000),
+    dfsPost<Agg>("ai_optimization/llm_mentions/target_metrics/live", [{ ...base, target: [{ domain, search_scope: ["sources"], include_subdomains: true }] }], 120_000),
+  ]);
+  const per = (r: Agg[]) => new Map((r[0]?.aggregated_metrics?.platform ?? []).map((g) => [String(g.key ?? ""), Number(g.mentions ?? 0)]));
+  const m = per(byName), c = per(bySource);
+  const keys = [...new Set(["google", "chat_gpt", ...m.keys(), ...c.keys()])].filter(Boolean);
+  const platforms = keys.map((k) => ({ key: k, label: PLATFORM[k] ?? k, mentions: m.get(k) ?? 0, cited: c.get(k) ?? 0 }));
+  const topSources = (byName[0]?.aggregated_metrics?.sources_domain ?? []).map((g) => String(g.key ?? "")).filter(Boolean).slice(0, 8);
+  return { platforms, mentions: platforms.reduce((a, p) => a + p.mentions, 0), cited: platforms.reduce((a, p) => a + p.cited, 0), topSources };
+}
 
 const STOP = new Set("about above after again against also among another because been before being below between both but came can come could does doing done down during each else even ever every from further have having here hers herself himself into itself just like made make many might more most much must myself never only other ours ourselves over same shall should some such than that their theirs them themselves then there these they this those through under until very what when where which while whom whose will with within without would your yours yourself yourselves home page click read learn call today contact menu skip content".split(" "));
 const strip = (html: string) => html.replace(/<(script|style|noscript|svg)[\s\S]*?<\/\1>/gi, " ").replace(/<[^>]+>/g, " ").replace(/&nbsp;|&#160;/g, " ").replace(/&amp;/g, "&").replace(/&#?\w+;/g, " ").replace(/\s+/g, " ").trim();
@@ -86,7 +108,7 @@ async function overview(target: string, location: string) {
 
 /** Authority, backlinks, organic traffic/keywords and the closest organic competitors. */
 export async function marketData(clientId: string, target: string): Promise<Market> {
-  const client = await db.client.findUniqueOrThrow({ where: { id: clientId }, select: { targetCountry: true, competitors: true } });
+  const client = await db.client.findUniqueOrThrow({ where: { id: clientId }, select: { name: true, targetCountry: true, competitors: true } });
   const location = client.targetCountry?.trim() || process.env.DATAFORSEO_DEFAULT_COUNTRY || "United States";
   const notes: string[] = [];
   const m: Market = { authority: null, backlinks: null, referringDomains: null, traffic: null, keywords: null, top3: null, top10: null, history: [], competitors: [], notes };
@@ -95,6 +117,7 @@ export async function marketData(clientId: string, target: string): Promise<Mark
   if (bl && Date.now() - bl.createdAt.getTime() < 45 * 864e5) {
     const s = bl.summary as { rank?: number; backlinks?: number; referringDomains?: number };
     Object.assign(m, { authority: s.rank ?? null, backlinks: s.backlinks ?? null, referringDomains: s.referringDomains ?? null });
+    m.network = ((bl.domains as { domain: string; rank: number; backlinks: number }[] | null) ?? []).slice(0, 40).map((d) => ({ domain: d.domain, rank: d.rank, backlinks: d.backlinks }));
     m.history = ((bl.history as { date: string; backlinks: number; referringDomains: number }[] | null) ?? []).map((h) => ({ date: h.date, backlinks: h.backlinks, referringDomains: h.referringDomains }));
   } else {
     try {
@@ -104,6 +127,13 @@ export async function marketData(clientId: string, target: string): Promise<Mark
       notes.push(`Backlinks: ${e instanceof Error ? e.message : e}`);
     }
   }
+  if (!m.network?.length) {
+    try {
+      const r = await dfsPost<{ items?: { domain: string; rank?: number; backlinks?: number }[] }>("backlinks/referring_domains/live", [{ target, include_subdomains: true, exclude_internal_backlinks: true, rank_scale: "one_hundred", backlinks_status_type: "live", limit: 40, order_by: ["rank,desc"] }], 30_000);
+      m.network = (r[0]?.items ?? []).map((d) => ({ domain: d.domain, rank: d.rank ?? 0, backlinks: d.backlinks ?? 0 }));
+    } catch { /* shown as "no data" */ }
+  }
+  m.aiVisibility = await aiVisibility(client.name, target, location).catch((e) => { notes.push(`AI visibility: ${e instanceof Error ? e.message : e}`); return null; });
   const own = await overview(target, location).catch((e) => { notes.push(`Organic traffic: ${e instanceof Error ? e.message : e}`); return null; });
   if (own) Object.assign(m, own);
 

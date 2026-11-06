@@ -4,7 +4,7 @@
  * Business Profile, then a plan of action and conclusion. Built from the latest crawl + deep analysis
  * and the client's GBP profiles.
  */
-import { Document, Page, Text, View, Image, StyleSheet, renderToBuffer, Svg, Polyline, Line, Text as SvgText } from "@react-pdf/renderer";
+import { Document, Page, Text, View, Image, StyleSheet, renderToBuffer, Svg, Polyline, Line, Circle, Text as SvgText } from "@react-pdf/renderer";
 import type { GbpProfile, SiteCrawl } from "@prisma/client";
 import { db } from "./db";
 import { clean, loadLogo } from "./audit-pdf";
@@ -142,6 +142,31 @@ function LineChart({ title, series, b }: { title: string; series: { date: string
   );
 }
 
+/** Backlink network: the site in the middle, referring domains around it (stronger domains closer, bigger = more links). */
+function NetworkGraph({ target, domains, b }: { target: string; domains: { domain: string; rank: number; backlinks: number }[]; b: B }) {
+  if (domains.length < 3) return null;
+  const W = 490, H = 250, cx = W / 2, cy = H / 2;
+  const nodes = domains.slice(0, 40).map((d, i) => {
+    const a = i * 2.39996;
+    const r = 38 + (1 - Math.min(100, d.rank) / 100) * 80 + (i % 3) * 6;
+    return { ...d, x: cx + Math.cos(a) * r * 1.75, y: cy + Math.sin(a) * r, size: Math.min(7, 2 + Math.sqrt(d.backlinks) / 2) };
+  });
+  const labelled = new Set([...nodes].sort((a, c) => c.rank - a.rank).slice(0, 8).map((n) => n.domain));
+  return (
+    <View style={{ borderWidth: 0.5, borderColor: "#e5e7eb", padding: 6, marginBottom: 6 }} wrap={false}>
+      <Text style={{ fontFamily: "Helvetica-Bold", fontSize: 9, marginBottom: 2 }}>Backlink network ({domains.length} top referring domains)</Text>
+      <Svg width={W} height={H}>
+        {nodes.map((n, i) => <Line key={`l${i}`} x1={cx} y1={cy} x2={n.x} y2={n.y} stroke="#d1d5db" strokeWidth={0.5} />)}
+        {nodes.map((n, i) => <Circle key={`c${i}`} cx={n.x} cy={n.y} r={n.size} fill={n.rank >= 40 ? b.color : "#94a3b8"} />)}
+        {nodes.filter((n) => labelled.has(n.domain)).map((n, i) => <SvgText key={`t${i}`} x={n.x + n.size + 2} y={n.y + 2} style={{ fontSize: 6 }} fill="#374151">{clean(n.domain).slice(0, 28)}</SvgText>)}
+        <Circle cx={cx} cy={cy} r={10} fill={b.dark} />
+        <SvgText x={cx - target.length * 2.2} y={cy + 20} style={{ fontSize: 7.5 }} fill={b.dark}>{clean(target)}</SvgText>
+      </Svg>
+      <Text style={s.small}>Closer to the centre = stronger linking site (higher authority). Coloured dots: authority 40+. Bigger dots: more links to you.</Text>
+    </View>
+  );
+}
+
 const CODES: Record<Exclude<SectionKey, "offpage" | "ai">, string[]> = {
   onpage: ["no_title", "title_too_long", "title_too_short", "irrelevant_title", "duplicate_title", "duplicate_title_tag", "no_description", "irrelevant_description", "duplicate_description", "duplicate_meta_tags", "no_h1_tag"],
   content: ["low_character_count", "duplicate_content", "low_readability_rate", "lorem_ipsum", "deprecated_html_tags"],
@@ -194,6 +219,7 @@ function Report({ crawl, deep, profiles, b, prevIssues }: { crawl: SiteCrawl; de
   const stronger = (m?.competitors ?? []).filter((c) => !c.you && (c.traffic ?? 0) > (m?.traffic ?? 0));
   if (stronger.length) offpage.push({ sev: "notice", title: `${stronger.length} competitor${stronger.length === 1 ? " gets" : "s get"} more organic traffic`, pages: "-", added: 0, fixed: 0 });
   const ai: Row[] = [];
+  if (m?.aiVisibility && m.aiVisibility.cited === 0) ai.push({ sev: "warning", title: "Site is never cited as a source in AI answers", pages: "-", added: 0, fixed: 0 });
   if (deep?.files && !deep.files.llmsTxt) ai.push({ sev: "notice", title: "No llms.txt file", pages: "-", added: 0, fixed: 0 });
   if (deep?.files?.aiBotsBlocked.length) ai.push({ sev: "error", title: `robots.txt blocks AI crawlers (${deep.files.aiBotsBlocked.join(", ")})`, pages: "-", added: 0, fixed: 0 });
   const homeSchema = deep?.schema?.[0]?.types ?? [];
@@ -308,6 +334,7 @@ function Report({ crawl, deep, profiles, b, prevIssues }: { crawl: SiteCrawl; de
         <Tiles b={b} items={[{ value: m?.authority != null ? String(m.authority) : "-", label: "Authority score" }, { value: num(m?.referringDomains), label: "Referring domains", color: b.color }, { value: num(m?.backlinks), label: "Backlinks", color: "#c62828", bg: "#fdecea" }]} />
         <Tiles b={b} items={[{ value: num(m?.traffic), label: "Organic traffic / mo", color: b.color }, { value: num(m?.keywords), label: "Organic keywords", color: b.color }, { value: num(m?.top10), label: "Keywords in top 10", color: b.color }]} />
         {m && m.history.length > 2 && <LineChart b={b} title="Backlinks over the last 12 months" series={m.history.map((h) => ({ date: h.date, value: h.backlinks }))} />}
+        {m?.network && m.network.length > 2 && <NetworkGraph b={b} target={crawl.target} domains={m.network} />}
         {m && m.history.length > 2 && <LineChart b={b} title="Referring domains over the last 12 months" series={m.history.map((h) => ({ date: h.date, value: h.referringDomains }))} />}
         <IssueTable rows={offpage} b={b} />
         {(m?.competitors.length ?? 0) > 1 && (
@@ -322,6 +349,13 @@ function Report({ crawl, deep, profiles, b, prevIssues }: { crawl: SiteCrawl; de
 
         <SectionBar b={b} title="AI / GEO Visibility" sub="Can ChatGPT, Google AI Overviews, Perplexity and Gemini read and cite the business?" rows={ai} />
         <IssueTable rows={ai} b={b} />
+        {m?.aiVisibility && (
+          <View wrap={false}>
+            <Tiles b={b} items={[{ value: num(m.aiVisibility.mentions), label: "Brand mentions in AI answers", color: b.color }, { value: num(m.aiVisibility.cited), label: "Times cited as a source", color: m.aiVisibility.cited ? b.color : "#c62828", bg: m.aiVisibility.cited ? "#eef4f3" : "#fdecea" }]} />
+            <Table b={b} head={["AI engine", "Mentions", "Cited"]} widths={["50%", "25%", "25%"]} rows={m.aiVisibility.platforms.map((p) => [p.label, num(p.mentions), { text: num(p.cited), color: p.cited ? "#047857" : "#c62828" }])} />
+            {m.aiVisibility.topSources.length > 0 && <Text style={[s.small, { marginBottom: 6 }]}>{clean(`Sites AI engines cite when mentioning the brand: ${m.aiVisibility.topSources.join(", ")}`)}</Text>}
+          </View>
+        )}
         {deep?.files && (
           <Table b={b} head={["Check", "Result"]} widths={["50%", "50%"]} rows={[
             ["AI crawlers (GPTBot, ClaudeBot, PerplexityBot, Google-Extended)", { text: deep.files.aiBotsBlocked.length ? `Blocked: ${deep.files.aiBotsBlocked.join(", ")}` : "Allowed", color: deep.files.aiBotsBlocked.length ? "#c62828" : "#047857" }],
