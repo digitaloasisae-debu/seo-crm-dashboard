@@ -31,7 +31,7 @@ export function EmailReport({ crawlId, defaultTo, configured }: { crawlId: strin
         <button type="button" className="btn-secondary" onClick={() => setOpen(true)}>✉️ Email report</button>
       ) : (
         <div className="mt-2 space-y-2 rounded-xl bg-slate-50 p-3 ring-1 ring-slate-200">
-          {!configured && <p className="text-xs text-amber-700">Email isn&apos;t set up yet: add RESEND_API_KEY in Vercel.</p>}
+          {!configured && <p className="text-xs text-amber-700">Email isn&apos;t set up yet: add GMAIL_USER and GMAIL_APP_PASSWORD in Vercel.</p>}
           <label className="block text-xs font-medium text-slate-600">To (separate several with commas)
             <input className="input mt-1" type="text" value={to} onChange={(e) => setTo(e.target.value)} placeholder="client@example.com, owner@example.com" />
           </label>
