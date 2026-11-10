@@ -272,6 +272,7 @@ model Client {
   ga4SyncedAt     DateTime?
   ga4Error        String?
   analytics       AnalyticsSnapshot?
+  socialProject   SocialProject?
 }
 
 enum CredentialKind {
@@ -822,4 +823,131 @@ model GbpPost {
 
   @@unique([profileId, weekOf])
   @@index([clientId, status])
+}
+
+// ---------- Social Studio (Super Admin only) ----------
+
+/// One of the agency's own social accounts, tied to a client (brand profile, colours, logo, website).
+model SocialProject {
+  id             String    @id @default(cuid())
+  clientId       String    @unique
+  active         Boolean   @default(true)
+  /// Ideas only come from these services ("targeted_services" in the old Projects Config tab)
+  services       String[]
+  /// facebook, instagram, linkedin
+  platforms      String[]
+  postsPerMonth  Int       @default(15)
+  /// "Random" spreads posts over the month, or weekdays like "Mon,Wed,Fri"
+  postingDays    String    @default("Random")
+  /// Earliest and latest posting hour, local time
+  postFromHour   Int       @default(10)
+  postToHour     Int       @default(19)
+  timezone       String    @default("Asia/Dubai")
+  fbPageId       String?
+  igUserId       String?
+  /// LinkedIn company page id (number). Empty = post as the connected person.
+  linkedinOrgId  String?
+  /// Extra notes for the image designer (style, things to avoid)
+  imageStyle     String    @default("")
+  /// Learned rules from approvals, rejections and edits (the learning agent rewrites this)
+  brain          String    @default("")
+  brainUpdatedAt DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  client       Client              @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  serviceCards SocialServiceCard[]
+  posts        SocialPost[]
+  feedback     SocialFeedback[]
+}
+
+/// What the AI knows about one targeted service: facts, buyers, objections, questions, proof.
+model SocialServiceCard {
+  id        String   @id @default(cuid())
+  projectId String
+  service   String
+  card      String   @default("")
+  updatedAt DateTime @updatedAt
+
+  project SocialProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, service])
+}
+
+enum SocialPostStatus {
+  DRAFT
+  APPROVED
+  REJECTED
+  PUBLISHING
+  PUBLISHED
+  FAILED
+}
+
+model SocialPost {
+  id               String           @id @default(cuid())
+  projectId        String
+  /// Month the post belongs to, "2026-12"
+  month            String
+  service          String
+  angle            String
+  idea             String
+  /// Why this idea should work (from the planner)
+  why              String           @default("")
+  score            Int              @default(0)
+  /// idea -> written -> ready (or error)
+  stage            String           @default("idea")
+  stageError       String?
+  attempts         Int              @default(0)
+  hooks            String[]
+  captionFacebook  String           @default("")
+  captionInstagram String           @default("")
+  captionLinkedin  String           @default("")
+  /// LinkedIn first comment (the link goes here, not in the post)
+  firstComment     String           @default("")
+  altText          String           @default("")
+  headlineTop      String           @default("")
+  headlineMain     String           @default("")
+  headlineBottom   String           @default("")
+  imageBrief       String           @default("")
+  imageLayout      String           @default("banner")
+  /// Notes from the Super Admin for the next regeneration
+  textNote         String?
+  imageNote        String?
+  photo            Bytes?
+  image            Bytes?
+  imageVersion     Int              @default(0)
+  scheduledAt      DateTime
+  status           SocialPostStatus @default(DRAFT)
+  rejectionReason  String?
+  /// Per platform: { facebook: { id, url, error, at } }
+  results          Json?
+  publishedAt      DateTime?
+  reviewedAt       DateTime?
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+
+  project  SocialProject    @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  feedback SocialFeedback[]
+
+  @@index([projectId, month])
+  @@index([status, scheduledAt])
+  @@index([stage])
+}
+
+/// Everything the learning agent learns from: rejections (with reason), edits, regenerate notes, approvals.
+model SocialFeedback {
+  id        String   @id @default(cuid())
+  projectId String
+  postId    String?
+  /// reject, edit, regenerate_text, regenerate_image, approve, note
+  kind      String
+  note      String   @default("")
+  before    String?
+  after     String?
+  createdAt DateTime @default(now())
+
+  project SocialProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  post    SocialPost?   @relation(fields: [postId], references: [id], onDelete: SetNull)
+
+  @@index([projectId, createdAt])
 }

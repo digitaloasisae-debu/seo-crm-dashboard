@@ -39,6 +39,8 @@ npm run dev                 # http://localhost:3000
 | `N8N_API_TOKEN` | `openssl rand -hex 32`. n8n sends this as a Bearer token. |
 | `N8N_ALLOWED_IPS` | Optional. Your Hostinger VPS public IP, so only n8n can call the API. |
 | `N8N_WF1_WEBHOOK_URL` / `N8N_WF2_WEBHOOK_URL` | Optional. Webhook-trigger URLs for the "Run n8n now" buttons. |
+| `GEMINI_IMAGE_MODEL` | Optional. Image model for Social Studio photos (default `gemini-3.1-flash-image`, falls back to `gemini-2.5-flash-image`). |
+| `GEMINI_SOCIAL_MODEL` | Optional. Text model for Social Studio ideas and captions (default: `GEMINI_WRITER_MODEL`, then `GEMINI_MODEL`). |
 
 ## 2. Deploy (Vercel + Supabase)
 
@@ -162,3 +164,13 @@ src/app/actions.ts          all form actions (approve, push, assign…)
 - URL inspection / indexing status from Search Console
 - Email notifications and client-facing reports
 - Background queue (Inngest) for pushes. Today a push runs in the request with 3 retries, up to 60 seconds.
+
+## Social Studio (Super Admin only)
+
+Posts for the agency's own social accounts, under **Social** in the Admin menu. Only the Super Admin sees it; every page, action and API route checks the role on the server and other users get a 404.
+
+1. **Projects**: add one per account. Pick the client (its brand profile, colours and logo are used), list the targeted services (ideas only come from these), platforms, posts per month and the Facebook Page / Instagram / LinkedIn company IDs. The AI writes a fact card per service from the website; edit it to add real results or offers.
+2. **Generate the whole month**: plans every post at once (services x proven angles, scored, no repeats of the last 120 days or of rejected ideas). Captions and images are then made one by one while the page is open, and by n8n every 15 minutes.
+3. **Review**: pick one of 3 opening lines, edit captions and the image headline, change the date, then Approve. Reject needs a reason ("Reject and make a new one" replaces it right away). "New image" and "New captions" take an optional note. Switching the design (Banner / Split / Photo / Statement) reuses the same photo.
+4. **Learning agent**: every rejection reason, regenerate note and caption edit is stored per project, and the agent rewrites that project's rules (Projects → project → Learning agent). Every new idea, caption and image follows them.
+5. **Publishing**: import `n8n/Social-Publisher.json` into n8n, pick the credentials (see the note inside), activate. Approved posts go out at their time; results and links show on the Published tab. Images are served publicly at `/api/social/image/<post id>.jpg` so Facebook, Instagram and LinkedIn can fetch them.
