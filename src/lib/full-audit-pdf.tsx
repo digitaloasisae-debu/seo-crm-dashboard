@@ -9,12 +9,13 @@ import type { GbpProfile, SiteCrawl } from "@prisma/client";
 import { db } from "./db";
 import { clean, loadLogo } from "./audit-pdf";
 import { getAgency, logoForPdf } from "./report-brand";
+import { CoverHero, polishLogo, type PdfLogo } from "./report-cover";
 import type { CrawlIssue, Sev } from "./crawl";
 import type { CrawlDeep, Section, SectionKey } from "./crawl-deep";
 import { grade } from "./crawl-market";
 import { directoryLinks, hoursText, type GbpAi, type GbpFinding, type GbpInfo } from "./gbp";
 
-type Logo = { data: Buffer; format: "png" | "jpg" } | null;
+type Logo = PdfLogo;
 type Row = { sev: Sev; title: string; pages: string; added: number; fixed: number };
 type B = { color: string; dark: string; gold: string; agency: string; agencyWebsite: string; logo: Logo; agencyLogo: Logo; client: string };
 
@@ -240,15 +241,10 @@ function Report({ crawl, deep, profiles, b, prevIssues }: { crawl: SiteCrawl; de
   return (
     <Document title={`Website & Google Business Profile Audit - ${crawl.target}`} author={b.agency}>
       {/* Cover */}
-      <Page size="A4" style={s.page}>
+      <Page size="A4" style={[s.page, { paddingTop: 0, paddingHorizontal: 0 }]}>
         <Chrome b={b} />
-        <View style={[s.row, { justifyContent: "space-between", alignItems: "flex-start", marginTop: 6, marginBottom: 14 }]}>
-          {b.logo ? <Image src={b.logo} style={{ height: 70, maxWidth: 190, objectFit: "contain" }} /> : <Text style={{ fontSize: 20, lineHeight: 1.2, fontFamily: "Helvetica-Bold", color: b.color }}>{clean(b.client)}</Text>}
-          {b.agencyLogo ? <Image src={b.agencyLogo} style={{ height: 34, maxWidth: 120, objectFit: "contain" }} /> : null}
-        </View>
-        <Text style={{ textAlign: "center", fontSize: 17, lineHeight: 1.2, height: 22, fontFamily: "Helvetica-Bold", color: b.dark }}>Website &amp; Google Business Profile Audit</Text>
-        <Text style={{ textAlign: "center", color: b.color, marginTop: 3, marginBottom: 12, textDecoration: "underline" }}>{crawl.target}</Text>
-        <View style={{ height: 2, backgroundColor: b.gold, marginBottom: 10 }} />
+        <CoverHero logo={b.logo} brand={clean(b.agency)} color={b.color} kicker="Website & Google Business Profile audit" title={clean(b.client)} subtitle={crawl.target} meta={`${(crawl.finishedAt ?? crawl.startedAt).toISOString().slice(0, 10)}   |   ${crawl.pagesCrawled} pages crawled`} />
+        <View style={{ paddingHorizontal: 50, paddingTop: 22 }}>
         <Tiles b={b} items={[{ value: grade(overall), label: "Health grade", color: "#2563eb" }, { value: String(recs), label: "Recommendations", color: b.gold, bg: "#fbf5e1" }, { value: String(gbps.length), label: "GBP profiles", color: b.color }]} />
         <Tiles b={b} items={[{ value: m?.authority != null ? String(m.authority) : "-", label: "Authority score" }, { value: num(m?.traffic), label: "Organic traffic / mo", color: b.color }, { value: num(m?.keywords), label: "Organic keywords", color: b.color }]} />
         <Text style={[s.h2, { marginTop: 16 }]}>Report Contents</Text>
@@ -258,6 +254,7 @@ function Report({ crawl, deep, profiles, b, prevIssues }: { crawl: SiteCrawl; de
           [`Part ${planLetter}`, `Plan of Action - Website${gbps.map((p) => `, GBP ${p.label}`).join("")}`],
         ]} />
         <Text style={[s.small, { marginTop: 8 }]}>{clean(`${crawl.pagesCrawled} pages crawled on ${(crawl.finishedAt ?? crawl.startedAt).toISOString().slice(0, 10)}. Prepared by ${b.agency}${b.agencyWebsite ? ` (${b.agencyWebsite.replace(/^https?:\/\//, "")})` : ""}.`)}</Text>
+        </View>
       </Page>
 
       {/* Part A */}
@@ -459,7 +456,7 @@ function Report({ crawl, deep, profiles, b, prevIssues }: { crawl: SiteCrawl; de
 export async function fullAuditPdf(crawl: SiteCrawl, client: { id?: string; name: string; brandPrimaryColor: string | null; logoUrl: string | null }) {
   const color = /^#[0-9a-f]{6}$/i.test(client.brandPrimaryColor ?? "") ? client.brandPrimaryColor! : "#0f7a6c";
   const agency = await getAgency();
-  const b: B = { color, dark: "#1f3a37", gold: "#c9a227", agency: agency.name, agencyWebsite: agency.website, logo: await loadLogo(client.logoUrl), agencyLogo: logoForPdf(agency.logo), client: client.name };
+  const b: B = { color, dark: "#1f3a37", gold: "#c9a227", agency: agency.name, agencyWebsite: agency.website, logo: await polishLogo(logoForPdf(agency.logo) ?? (await loadLogo(client.logoUrl))), agencyLogo: null, client: client.name };
   const deep = (crawl.advanced as unknown as CrawlDeep | null) ?? null;
   const [profiles, prev] = await Promise.all([
     db.gbpProfile.findMany({ where: { clientId: crawl.clientId }, orderBy: { createdAt: "asc" } }),

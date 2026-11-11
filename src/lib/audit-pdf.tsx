@@ -8,11 +8,12 @@ import type { SiteCrawl } from "@prisma/client";
 import { compareIssues, type CrawlIssue } from "./crawl";
 import { db } from "./db";
 import { getAgency, logoForPdf } from "./report-brand";
+import { CoverHero, polishLogo, type PdfLogo } from "./report-cover";
 import type { CrawlDeep, DeepPage } from "./crawl-deep";
 import { SECURITY_LABELS } from "./crawl-deep";
 import type { CrawlFix } from "./crawl-fix";
 
-type Logo = { data: Buffer; format: "png" | "jpg" } | null;
+type Logo = PdfLogo;
 type Brand = { client: string; agency: string; agencyWebsite: string; color: string; logo: Logo; agencyLogo: Logo };
 type TrendPoint = { date: string; score: number | null; overall: number | null };
 
@@ -124,14 +125,7 @@ function Report({ crawl, deep, b, prev, trend }: { crawl: SiteCrawl; deep: Crawl
     <Document title={`SEO audit - ${crawl.target}`} author={b.agency} subject="Technical SEO audit">
       {/* Cover */}
       <Page size="A4" style={{ fontFamily: "Helvetica", color: "#1e293b" }}>
-        <View style={{ backgroundColor: b.color, height: 250, paddingHorizontal: 44, paddingTop: 44 }}>
-          {b.agencyLogo && <Image src={b.agencyLogo} style={{ position: "absolute", top: 40, right: 44, height: 34, maxWidth: 130, objectFit: "contain", backgroundColor: "#ffffff", padding: 4, borderRadius: 4 }} />}
-          {b.logo && <Image src={b.logo} style={{ height: 42, maxWidth: 180, objectFit: "contain", marginBottom: 18, backgroundColor: "#ffffff", padding: 4, borderRadius: 4 }} />}
-          <Text style={{ color: "#ffffff", fontSize: 11, opacity: 0.85, letterSpacing: 1.5 }}>TECHNICAL SEO AUDIT</Text>
-          <Text style={{ color: "#ffffff", fontSize: 30, fontFamily: "Helvetica-Bold", marginTop: 6 }}>{clean(b.client)}</Text>
-          <Text style={{ color: "#ffffff", fontSize: 13, marginTop: 4 }}>{crawl.target}</Text>
-          <Text style={{ color: "#ffffff", fontSize: 10, marginTop: 14, opacity: 0.85 }}>{date}  |  {crawl.pagesCrawled} pages crawled</Text>
-        </View>
+        <CoverHero logo={b.logo} brand={clean(b.agency)} color={b.color} kicker="Technical SEO audit" title={clean(b.client)} subtitle={crawl.target} meta={`${date}   |   ${crawl.pagesCrawled} pages crawled`} height={250} />
         <View style={{ paddingHorizontal: 44, paddingTop: 30 }}>
           <View style={[s.row, { alignItems: "center", marginBottom: 22 }]}>
             <View style={{ width: 110, height: 110, borderRadius: 55, borderWidth: 9, borderColor: scoreColor(overall), alignItems: "center", justifyContent: "center", marginRight: 26 }}>
@@ -431,7 +425,7 @@ export async function loadLogo(url: string | null | undefined): Promise<Brand["l
 export async function auditPdf(crawl: SiteCrawl, client: { name: string; brandPrimaryColor: string | null; logoUrl: string | null }) {
   const color = /^#[0-9a-f]{6}$/i.test(client.brandPrimaryColor ?? "") ? client.brandPrimaryColor! : "#4f46e5";
   const agency = await getAgency();
-  const b: Brand = { client: client.name, agency: agency.name, agencyWebsite: agency.website, color, logo: await loadLogo(client.logoUrl), agencyLogo: logoForPdf(agency.logo) };
+  const b: Brand = { client: client.name, agency: agency.name, agencyWebsite: agency.website, color, logo: await polishLogo(logoForPdf(agency.logo) ?? (await loadLogo(client.logoUrl))), agencyLogo: null };
   const deep = (crawl.advanced as unknown as CrawlDeep | null) ?? null;
   const p = await db.siteCrawl.findFirst({ where: { clientId: crawl.clientId, status: "DONE", startedAt: { lt: crawl.startedAt } }, orderBy: { startedAt: "desc" } });
   const prev: Prev = p ? {
