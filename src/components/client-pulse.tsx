@@ -42,14 +42,14 @@ export function ClientPulse({ c }: { c: Pulse }) {
   return (
     <Link href={`/clients/${c.id}`} className="card rf-lift block min-w-0 p-4.5 hover:border-indigo-200">
       <div className="flex items-center gap-3">
-        <span className="font-display grid h-9 w-9 shrink-0 place-items-center rounded-xl text-[13px] font-bold text-white" style={{ background: c.color || "var(--color-indigo-600)" }}>
+        <span className="font-display grid h-9 w-9 shrink-0 place-items-center rounded-xl text-[13px] font-semibold text-white" style={{ background: c.color || "var(--color-indigo-600)" }}>
           {initials(c.name)}
         </span>
         <span className="min-w-0 flex-1">
           <span className="block truncate leading-tight font-semibold">{c.name}</span>
           <span className="block truncate text-xs text-slate-400">{host(c.site)}</span>
         </span>
-        <span title="Site health from the latest audit" className={`num shrink-0 rounded-full px-2 py-0.5 text-xs font-medium ${tone}`}>{c.health ?? "—"}</span>
+        <span title="Site health from the latest audit" className={`num shrink-0 rounded-md px-2 py-0.5 text-xs font-medium ${tone}`}>{c.health ?? "—"}</span>
       </div>
       <div className="mt-4 mb-2 flex justify-between gap-2 text-xs text-slate-500">
         <div>Clicks / wk<b className="num block text-lg font-medium text-slate-900">{c.clicks == null ? "—" : c.clicks.toLocaleString()}</b></div>

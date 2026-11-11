@@ -13,7 +13,7 @@ import { CopyOpen } from "./copy-open";
 
 export const maxDuration = 120;
 
-const SEV: Record<GbpFinding["severity"], string> = { error: "✕ text-red-700", warning: "⚠ text-amber-700", info: "ⓘ text-slate-600", ok: "✓ text-emerald-700" };
+const SEV: Record<GbpFinding["severity"], string> = { error: "✕ text-red-700", warning: "! text-amber-700", info: "ⓘ text-slate-600", ok: "✓ text-emerald-700" };
 const PRI: Record<string, string> = { P1: "text-red-700", P2: "text-amber-700", P3: "text-sky-700" };
 
 export default async function GbpPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ err?: string; fetching?: string; drafted?: string }> }) {
@@ -40,13 +40,13 @@ export default async function GbpPage({ params, searchParams }: { params: Promis
           <div id="reviews" className="card space-y-4">
             <div className="flex flex-wrap items-start gap-3">
               <div className="min-w-0 flex-1">
-                <h2 className="text-lg font-bold">Review replies</h2>
+                <h2 className="text-lg font-semibold">Review replies</h2>
                 <p className="text-sm text-slate-500">New Google reviews are fetched every week and the AI drafts a reply in the brand voice. Approve here or in the review queue on Today, then copy it into Google.{lastFetch && <> Last checked {fmtDate(lastFetch)}, {answered} answered so far.</>}{fetchingNow && <span className="ml-1 text-indigo-600">Fetching reviews…</span>}</p>
               </div>
               {editable && (
                 <div className="flex gap-2">
-                  <form action={fetchReviewsAction.bind(null, id)}><SubmitButton className="btn-secondary text-xs" disabled={!dataforseoConfigured() || fetchingNow}>↻ Fetch reviews</SubmitButton></form>
-                  {reviews.some((r) => r.status === "NEW") && <form action={draftRepliesAction.bind(null, id)}><SubmitButton className="btn-secondary text-xs" disabled={!geminiConfigured()}>✦ Draft replies</SubmitButton></form>}
+                  <form action={fetchReviewsAction.bind(null, id)}><SubmitButton className="btn-secondary text-xs" disabled={!dataforseoConfigured() || fetchingNow}>Fetch reviews</SubmitButton></form>
+                  {reviews.some((r) => r.status === "NEW") && <form action={draftRepliesAction.bind(null, id)}><SubmitButton className="btn-secondary text-xs" disabled={!geminiConfigured()}>Draft replies</SubmitButton></form>}
                 </div>
               )}
             </div>
@@ -63,7 +63,7 @@ export default async function GbpPage({ params, searchParams }: { params: Promis
                         <span className="text-amber-500">{"★".repeat(Math.round(r.rating ?? 0))}<span className="text-slate-300">{"★".repeat(5 - Math.round(r.rating ?? 0))}</span></span>
                         <b className="font-medium text-slate-800">{r.author}</b>
                         <span className="text-slate-400">{r.profile.label}{r.reviewedAt && ` · ${fmtDate(r.reviewedAt)}`}</span>
-                        <span className={`ml-auto rounded-full px-2 py-0.5 font-medium ${STATUS[r.status]}`}>{label[r.status]}</span>
+                        <span className={`ml-auto rounded-md px-2 py-0.5 font-medium ${STATUS[r.status]}`}>{label[r.status]}</span>
                       </div>
                       <p className="mb-2.5 line-clamp-4 border-l-2 border-slate-200 pl-3 text-sm text-slate-600 italic">{r.text || "(rating only, no text)"}</p>
                       {r.status === "NEW" ? (
@@ -75,7 +75,7 @@ export default async function GbpPage({ params, searchParams }: { params: Promis
                             <div className="flex flex-wrap items-center gap-2">
                               {r.status === "DRAFTED" && <SubmitButton name="status" value="APPROVED" className="btn-primary text-xs">Approve</SubmitButton>}
                               <CopyOpen field="draft" href={g.reviews} />
-                              <SubmitButton name="status" value="POSTED" className="btn-secondary text-xs">✓ Mark posted</SubmitButton>
+                              <SubmitButton name="status" value="POSTED" className="btn-secondary text-xs">Mark posted</SubmitButton>
                               <SubmitButton name="status" value="SKIPPED" className="ml-auto text-xs text-slate-400 hover:text-red-600">Skip</SubmitButton>
                             </div>
                           )}
@@ -91,10 +91,10 @@ export default async function GbpPage({ params, searchParams }: { params: Promis
           <div id="posts" className="card space-y-4">
             <div className="flex flex-wrap items-start gap-3">
               <div className="min-w-0 flex-1">
-                <h2 className="text-lg font-bold">Weekly posts</h2>
+                <h2 className="text-lg font-semibold">Weekly posts</h2>
                 <p className="text-sm text-slate-500">Every Monday the AI drafts one update post per profile, featuring the newest blog post. Profiles that post often look active to Google and to customers.</p>
               </div>
-              {editable && <form action={draftPostsAction.bind(null, id)}><SubmitButton className="btn-secondary text-xs" disabled={!geminiConfigured()}>✦ Draft this week&apos;s post</SubmitButton></form>}
+              {editable && <form action={draftPostsAction.bind(null, id)}><SubmitButton className="btn-secondary text-xs" disabled={!geminiConfigured()}>Draft this week&apos;s post</SubmitButton></form>}
             </div>
             {drafted && <p className="rounded-lg bg-emerald-50 p-2 text-sm text-emerald-800">Drafts are ready below.</p>}
             {posts.length === 0 ? (
@@ -106,7 +106,7 @@ export default async function GbpPage({ params, searchParams }: { params: Promis
                     <div className="mb-1.5 flex flex-wrap items-center gap-2 text-xs">
                       <b className="font-medium text-slate-800">Week of {fmtDate(p.weekOf)}</b>
                       <span className="text-slate-400">{p.profile.label}</span>
-                      <span className={`ml-auto rounded-full px-2 py-0.5 font-medium ${STATUS[p.status]}`}>{label[p.status]}</span>
+                      <span className={`ml-auto rounded-md px-2 py-0.5 font-medium ${STATUS[p.status]}`}>{label[p.status]}</span>
                     </div>
                     <form action={savePostAction.bind(null, id, p.id)} className="space-y-2">
                       <textarea name="text" defaultValue={p.text} rows={5} className="input text-sm" disabled={!editable || p.status === "POSTED"} />
@@ -115,7 +115,7 @@ export default async function GbpPage({ params, searchParams }: { params: Promis
                         <div className="flex flex-wrap items-center gap-2">
                           {p.status === "DRAFTED" && <SubmitButton name="status" value="APPROVED" className="btn-primary text-xs">Approve</SubmitButton>}
                           <CopyOpen field="text" href={googleLinks({ placeId: null, cid: null }).posts} />
-                          <SubmitButton name="status" value="POSTED" className="btn-secondary text-xs">✓ Mark posted</SubmitButton>
+                          <SubmitButton name="status" value="POSTED" className="btn-secondary text-xs">Mark posted</SubmitButton>
                           {p.status !== "SKIPPED" && <SubmitButton name="status" value="SKIPPED" className="ml-auto text-xs text-slate-400 hover:text-red-600">Skip</SubmitButton>}
                         </div>
                       )}
@@ -134,7 +134,7 @@ export default async function GbpPage({ params, searchParams }: { params: Promis
             <h2 className="font-semibold">Google Business Profile audit</h2>
             <p className="text-sm text-slate-500">Checks each Google Maps listing: claimed status, reviews, categories, hours, photos, description, website link and whether the name, address and phone match the website. It goes into the full audit PDF on the Site audit tab.</p>
           </div>
-          {editable && profiles.length > 0 && <form action={refreshGbpAction.bind(null, id)}><SubmitButton className="btn-secondary">🔄 Re-check all profiles</SubmitButton></form>}
+          {editable && profiles.length > 0 && <form action={refreshGbpAction.bind(null, id)}><SubmitButton className="btn-secondary">Re-check all profiles</SubmitButton></form>}
         </div>
         {err && <p className="rounded-lg bg-red-50 p-2 text-sm text-red-700">{err}</p>}
         {editable && (
@@ -144,7 +144,7 @@ export default async function GbpPage({ params, searchParams }: { params: Promis
             <SubmitButton className="btn-primary">＋ Add profile</SubmitButton>
           </form>
         )}
-        <p className="text-xs text-slate-500">💡 To get the link: search the business on Google Maps, open the listing, click <b>Share → Copy link</b>, and paste it here. Add one per location.</p>
+        <p className="text-xs text-slate-500">To get the link: search the business on Google Maps, open the listing, click <b>Share → Copy link</b>, and paste it here. Add one per location.</p>
       </section>
 
       {profiles.map((p) => {
@@ -155,9 +155,9 @@ export default async function GbpPage({ params, searchParams }: { params: Promis
         return (
           <section key={p.id} className="card space-y-4">
             <div className="flex flex-wrap items-center gap-3">
-              <h2 className="text-lg font-semibold">📍 {p.label}</h2>
-              {info?.is_claimed != null && <span className={`rounded-full px-2 py-0.5 text-xs ring-1 ring-inset ${info.is_claimed ? "bg-emerald-50 text-emerald-800 ring-emerald-200" : "bg-red-50 text-red-700 ring-red-200"}`}>{info.is_claimed ? "Claimed" : "Not claimed"}</span>}
-              {info?.rating?.value != null && <span className="text-sm">⭐ <b>{info.rating.value}</b> <span className="text-slate-500">({info.rating.votes_count ?? 0} reviews)</span></span>}
+              <h2 className="text-lg font-semibold">{p.label}</h2>
+              {info?.is_claimed != null && <span className={`rounded-md px-2 py-0.5 text-xs ring-1 ring-inset ${info.is_claimed ? "bg-emerald-50 text-emerald-800 ring-emerald-200" : "bg-red-50 text-red-700 ring-red-200"}`}>{info.is_claimed ? "Claimed" : "Not claimed"}</span>}
+              {info?.rating?.value != null && <span className="text-sm"><b>{info.rating.value}</b> <span className="text-slate-500">({info.rating.votes_count ?? 0} reviews)</span></span>}
               <span className="flex-1" />
               {p.fetchedAt && <span className="text-xs text-slate-400">checked {fmtDate(p.fetchedAt)}</span>}
               {editable && (
@@ -202,10 +202,10 @@ export default async function GbpPage({ params, searchParams }: { params: Promis
                       </ul>
                       {issues.length === 0 && <p className="text-sm text-emerald-700">No problems found.</p>}
                     </div>
-                    <div className="flex flex-wrap gap-1.5 text-xs">{directoryLinks(info).map((l) => <a key={l.label} href={l.url} target="_blank" rel="noreferrer" className="rounded-full bg-slate-50 px-2.5 py-1 text-indigo-700 ring-1 ring-slate-200 hover:bg-indigo-50">{l.label} ↗</a>)}</div>
+                    <div className="flex flex-wrap gap-1.5 text-xs">{directoryLinks(info).map((l) => <a key={l.label} href={l.url} target="_blank" rel="noreferrer" className="rounded-md bg-slate-50 px-2.5 py-1 text-indigo-700 ring-1 ring-slate-200 hover:bg-indigo-50">{l.label} ↗</a>)}</div>
                     {(info.people_also_search?.length ?? 0) > 0 && (
                       <div className="text-xs"><div className="mb-1 font-medium text-slate-600">Competitors Google shows next to this listing</div>
-                        <ul className="space-y-0.5">{info.people_also_search!.slice(0, 6).map((c, i) => <li key={i} className="flex justify-between gap-2"><span className="truncate">{c.title}</span><span className="shrink-0 text-slate-500">⭐ {c.rating?.value ?? "—"} · {c.rating?.votes_count ?? 0} reviews</span></li>)}</ul>
+                        <ul className="space-y-0.5">{info.people_also_search!.slice(0, 6).map((c, i) => <li key={i} className="flex justify-between gap-2"><span className="truncate">{c.title}</span><span className="shrink-0 text-slate-500">{c.rating?.value ?? "—"} · {c.rating?.votes_count ?? 0} reviews</span></li>)}</ul>
                       </div>
                     )}
                   </div>
@@ -217,7 +217,7 @@ export default async function GbpPage({ params, searchParams }: { params: Promis
                     {ai.actions.length > 0 && (
                       <table className="table text-sm md:col-span-2">
                         <thead><tr><th className="w-16">Priority</th><th>Action</th><th>Benefit</th></tr></thead>
-                        <tbody>{ai.actions.map((a, i) => <tr key={i}><td className={`font-bold ${PRI[a.priority]}`}>{a.priority}</td><td>{a.action}</td><td className="text-slate-500">{a.benefit}</td></tr>)}</tbody>
+                        <tbody>{ai.actions.map((a, i) => <tr key={i}><td className={`font-semibold ${PRI[a.priority]}`}>{a.priority}</td><td>{a.action}</td><td className="text-slate-500">{a.benefit}</td></tr>)}</tbody>
                       </table>
                     )}
                   </div>

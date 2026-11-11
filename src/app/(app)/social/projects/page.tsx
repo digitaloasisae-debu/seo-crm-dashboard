@@ -16,7 +16,7 @@ export default async function SocialProjects() {
               <div className={`card space-y-2 ${p.active ? "" : "opacity-60"}`}>
                 <div className="flex items-center justify-between"><b>{p.client.name}</b><span className="text-xs text-slate-500">{p.active ? "active" : "paused"}</span></div>
                 <div className="text-xs text-slate-500">{p.client.siteUrl}</div>
-                <div className="flex flex-wrap gap-1">{p.services.map((s) => <span key={s} className="rounded-full bg-slate-100 px-2 py-0.5 text-xs">{s}</span>)}</div>
+                <div className="flex flex-wrap gap-1">{p.services.map((s) => <span key={s} className="rounded-md bg-slate-100 px-2 py-0.5 text-xs">{s}</span>)}</div>
                 <div className="text-xs text-slate-500">{p.platforms.join(" · ")} · {p.postsPerMonth} posts/month · {p._count.posts} posts so far · {p._count.feedback} lessons</div>
               </div>
             </Link>

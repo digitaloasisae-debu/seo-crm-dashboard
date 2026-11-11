@@ -70,7 +70,7 @@ export default async function ClientSeo({ params }: { params: Promise<{ id: stri
         <>
           <section className="grid gap-4 md:grid-cols-3">
             <div className="card text-center">
-              <div className="mb-3 text-xs font-semibold tracking-wide text-slate-500 uppercase">Health score</div>
+              <div className="mb-3 text-xs font-medium text-slate-500">Health score</div>
               <ScoreRing score={latest.score} />
               <div className="mt-1 text-xs text-slate-500">{latest.pagesChecked} pages checked · {fmtDate(latest.finishedAt)}</div>
               <div className="mt-3 flex justify-center gap-2 text-xs"><Badge color="red">{counts.error} errors</Badge><Badge color="yellow">{counts.warning} warnings</Badge><Badge>{counts.notice} notices</Badge></div>

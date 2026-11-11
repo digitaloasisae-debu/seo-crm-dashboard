@@ -28,7 +28,7 @@ export function EmailReport({ crawlId, defaultTo, configured }: { crawlId: strin
   return (
     <div className={open ? "w-full" : ""}>
       {!open ? (
-        <button type="button" className="btn-secondary" onClick={() => setOpen(true)}>✉️ Email report</button>
+        <button type="button" className="btn-secondary" onClick={() => setOpen(true)}>Email report</button>
       ) : (
         <div className="mt-2 space-y-2 rounded-xl bg-slate-50 p-3 ring-1 ring-slate-200">
           {!configured && <p className="text-xs text-amber-700">Email isn&apos;t set up yet: add GMAIL_USER and GMAIL_APP_PASSWORD in Vercel.</p>}

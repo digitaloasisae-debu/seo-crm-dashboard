@@ -73,7 +73,7 @@ export default async function AuditPage({ params, searchParams }: { params: Prom
 
   const issueDetail = (i: CrawlIssue) => (
                   <div className="space-y-4 text-sm">
-                    {i.hint && <div><div className="mb-1 text-[11px] font-semibold tracking-widest text-slate-400 uppercase">Why it matters</div><p className="text-slate-700">{i.hint}</p></div>}
+                    {i.hint && <div><div className="mb-1 text-[11px] font-medium text-slate-400">Why it matters</div><p className="text-slate-700">{i.hint}</p></div>}
                     {i.links && i.links.length > 0 && (
                       <div className="text-xs">
                         <div className="mb-1 font-medium text-slate-600">Page → broken link</div>
@@ -92,8 +92,8 @@ export default async function AuditPage({ params, searchParams }: { params: Prom
                       </ul>
                     )}
                     {fixes[i.code] ? (
-                      <div className="space-y-2 rounded-xl bg-violet-50/60 p-3 ring-1 ring-violet-100">
-                        <div className="flex flex-wrap items-center gap-2"><span className="font-semibold text-violet-800">✨ How to fix it</span>{fixes[i.code].effort && <span className="rounded-full bg-white px-2 py-0.5 text-[11px] text-slate-600 ring-1 ring-slate-200">⏱ {fixes[i.code].effort}</span>}</div>
+                      <div className="space-y-2 rounded-xl bg-indigo-50/60 p-3 ring-1 ring-indigo-100">
+                        <div className="flex flex-wrap items-center gap-2"><span className="font-semibold text-indigo-800">How to fix it</span>{fixes[i.code].effort && <span className="rounded-md bg-white px-2 py-0.5 text-[11px] text-slate-600 ring-1 ring-slate-200">⏱ {fixes[i.code].effort}</span>}</div>
                         {fixes[i.code].summary && <p>{fixes[i.code].summary}</p>}
                         {fixes[i.code].why && <p className="text-xs text-slate-600"><b>Why it matters:</b> {fixes[i.code].why}</p>}
                         {fixes[i.code].steps.length > 0 && <ol className="list-decimal space-y-1 pl-5">{fixes[i.code].steps.map((st, k) => <li key={k}>{st.replace(/^\s*\d+[.)]\s*/, "")}</li>)}</ol>}
@@ -109,10 +109,10 @@ export default async function AuditPage({ params, searchParams }: { params: Prom
                             ))}
                           </div>
                         )}
-                        {editable && ai && <form action={fixIssueAction.bind(null, id, done!.id, i.code)}><SubmitButton className="text-xs text-violet-700 hover:underline">↻ Write a new fix</SubmitButton></form>}
+                        {editable && ai && <form action={fixIssueAction.bind(null, id, done!.id, i.code)}><SubmitButton className="text-xs text-indigo-700 hover:underline">Write a new fix</SubmitButton></form>}
                       </div>
                     ) : editable && ai ? (
-                      <form action={fixIssueAction.bind(null, id, done!.id, i.code)}><SubmitButton className="btn-secondary text-xs">✨ Get AI fix</SubmitButton></form>
+                      <form action={fixIssueAction.bind(null, id, done!.id, i.code)}><SubmitButton className="btn-secondary text-xs">Get AI fix</SubmitButton></form>
                     ) : null}
                   </div>
   );
@@ -124,11 +124,11 @@ export default async function AuditPage({ params, searchParams }: { params: Prom
           <h2 className="font-semibold">Full technical audit</h2>
           <p className="text-sm text-slate-500">Crawls the whole site (up to {current?.maxPages ?? (Number(process.env.DATAFORSEO_AUDIT_MAX_PAGES) || 500)} pages) and runs 60+ checks on every page: errors, redirects, duplicates, speed, indexing, schema and more.</p>
           {err && <p className="mt-2 rounded-lg bg-red-50 p-2 text-sm text-red-700">{err.startsWith("AI fix") || err.startsWith("Settings") ? err : <>Couldn&apos;t start: {err}</>}</p>}
-          {clientInfo?.auditSchedule === "monthly" && clientInfo.auditNextAt && <p className="mt-1 text-xs text-indigo-700">🗓️ Next automatic audit: {fmtDate(clientInfo.auditNextAt)}{clientInfo.auditAutoEmail && clientInfo.reportEmails.length ? `, emailed to ${clientInfo.reportEmails.join(", ")}` : ""}</p>}
+          {clientInfo?.auditSchedule === "monthly" && clientInfo.auditNextAt && <p className="mt-1 text-xs text-indigo-700">Next automatic audit: {fmtDate(clientInfo.auditNextAt)}{clientInfo.auditAutoEmail && clientInfo.reportEmails.length ? `, emailed to ${clientInfo.reportEmails.join(", ")}` : ""}</p>}
           {!ready && <p className="mt-2 text-xs text-slate-500">Needs the DataForSEO login in Vercel.</p>}
         </div>
         {editable && ready && current?.status !== "RUNNING" && (
-          <form action={startCrawlAction.bind(null, id)}><SubmitButton className="btn-primary">{done ? "🔄 Run a new full audit" : "🩺 Run full audit"}</SubmitButton></form>
+          <form action={startCrawlAction.bind(null, id)}><SubmitButton className="btn-primary">{done ? "Run a new full audit" : "Run full audit"}</SubmitButton></form>
         )}
       </section>
 
@@ -136,7 +136,7 @@ export default async function AuditPage({ params, searchParams }: { params: Prom
         <section className="card space-y-3">
           <RefreshWhile ms={15000} />
           <div className="flex items-center gap-3 text-sm"><Spinner className="h-5 w-5 text-indigo-600" /><span className="font-semibold">Crawling {current.target}…</span><span className="text-slate-500">{current.pagesCrawled} pages crawled{current.pagesInQueue ? `, ${current.pagesInQueue} in queue` : ""}</span></div>
-          <div className="h-2 overflow-hidden rounded-full bg-slate-100"><div className="h-full rounded-full bg-gradient-to-r from-indigo-500 to-violet-500 transition-all" style={{ width: `${Math.min(100, Math.max(3, (current.pagesCrawled / Math.max(1, Math.min(current.maxPages, current.pagesCrawled + current.pagesInQueue))) * 100))}%` }} /></div>
+          <div className="h-2 overflow-hidden rounded-full bg-slate-100"><div className="h-full rounded-full bg-indigo-600 transition-all" style={{ width: `${Math.min(100, Math.max(3, (current.pagesCrawled / Math.max(1, Math.min(current.maxPages, current.pagesCrawled + current.pagesInQueue))) * 100))}%` }} /></div>
           <p className="text-xs text-slate-500">Small sites take a few minutes, big ones up to an hour. You can leave this page; it keeps running.</p>
           {current.error && <p className="text-xs text-amber-700">Last check: {current.error}</p>}
         </section>
@@ -155,13 +155,13 @@ export default async function AuditPage({ params, searchParams }: { params: Prom
             details={Object.fromEntries(issues.map((i) => [i.code, issueDetail(i)]))}
             checks={
               <>
-                <div className="mb-2 text-[11px] font-semibold tracking-widest text-slate-400 uppercase">Site-wide checks</div>
+                <div className="mb-2 text-[11px] font-medium text-slate-400">Site-wide checks</div>
               <div className="flex flex-wrap gap-1.5">
                 {Object.entries(DOMAIN_CHECKS).filter(([k]) => domain.checks && k in domain.checks).map(([k, label]) => {
                   const ok = DOMAIN_BAD.has(k) ? !domain.checks![k] : !!domain.checks![k];
-                  return <span key={k} className={`rounded-full px-2.5 py-1 text-xs ring-1 ring-inset ${ok ? "bg-emerald-50 text-emerald-800 ring-emerald-200" : "bg-red-50 text-red-700 ring-red-200"}`}>{ok ? "✓" : "✕"} {label}</span>;
+                  return <span key={k} className={`rounded-md px-2.5 py-1 text-xs ring-1 ring-inset ${ok ? "bg-emerald-50 text-emerald-800 ring-emerald-200" : "bg-red-50 text-red-700 ring-red-200"}`}>{ok ? "✓" : "✕"} {label}</span>;
                 })}
-                {domain.checks?.start_page_deny_flag && <span className="rounded-full bg-red-50 px-2.5 py-1 text-xs text-red-700 ring-1 ring-red-200 ring-inset">✕ Home page blocked for crawlers</span>}
+                {domain.checks?.start_page_deny_flag && <span className="rounded-md bg-red-50 px-2.5 py-1 text-xs text-red-700 ring-1 ring-red-200 ring-inset">✕ Home page blocked for crawlers</span>}
               </div>
               <div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-1 text-xs text-slate-600 ">
                 {domain.cms ? <span>CMS: {String(domain.cms)}</span> : null}
@@ -187,10 +187,10 @@ export default async function AuditPage({ params, searchParams }: { params: Prom
               <span className="flex items-center gap-2 text-sm text-indigo-700"><RefreshWhile ms={8000} /><Spinner className="h-4 w-4" />Analysing… about 1–2 minutes</span>
             ) : (
               <>
-                {deep && <a href={`/api/audit/${done.id}/full-pdf`} className="btn-primary">📄 Full audit PDF (website + Google profile)</a>}
+                {deep && <a href={`/api/audit/${done.id}/full-pdf`} className="btn-primary">Full audit PDF (website + Google profile)</a>}
                 {deep && <a href={`/api/audit/${done.id}/pdf`} className="btn-secondary">Technical PDF</a>}
                 <a href={`/api/audit/${done.id}/csv`} className="btn-secondary">⬇️ CSV</a>
-                {editable && <form action={rerunDeepAction.bind(null, id, done.id)}><SubmitButton className="btn-secondary">🔄 Re-run analysis</SubmitButton></form>}
+                {editable && <form action={rerunDeepAction.bind(null, id, done.id)}><SubmitButton className="btn-secondary">Re-run analysis</SubmitButton></form>}
                 {deep && editable && <EmailReport crawlId={done.id} defaultTo={reportTo} configured={emailConfigured()} />}
               </>
             )}
@@ -199,7 +199,7 @@ export default async function AuditPage({ params, searchParams }: { params: Prom
           {prev && diff && (
             <section className="card space-y-3">
               <div className="flex flex-wrap items-baseline gap-3">
-                <h2 className="font-semibold">📈 Since the last audit</h2>
+                <h2 className="font-semibold">Since the last audit</h2>
                 <span className="text-xs text-slate-500">compared with {fmtDate(prev.finishedAt ?? prev.startedAt)}</span>
               </div>
               <div className="flex flex-wrap gap-2 text-sm">
@@ -227,7 +227,7 @@ export default async function AuditPage({ params, searchParams }: { params: Prom
 
       {editable && clientInfo && (
         <section id="audit-settings" className="card scroll-mt-4">
-          <h2 className="font-semibold">⚙️ Audit settings</h2>
+          <h2 className="font-semibold">Audit settings</h2>
           {saved && <p className="mt-2 rounded-lg bg-emerald-50 p-2 text-sm text-emerald-800">Saved.</p>}
           <form action={saveAuditSettingsAction.bind(null, id)} className="mt-3 grid gap-4 text-sm md:grid-cols-2">
             <label className="space-y-1"><span className="font-medium">Automatic audits</span>

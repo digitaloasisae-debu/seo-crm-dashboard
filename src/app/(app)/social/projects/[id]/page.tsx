@@ -28,7 +28,7 @@ export default async function SocialProjectPage({ params, searchParams }: { para
       {sp.created && <p className="mb-3 rounded-lg bg-emerald-50 p-3 text-sm text-emerald-800">Project added. Service cards are being written from the website; refresh in a minute.</p>}
       <div className="space-y-6">
         <form action={saveProjectAction.bind(null, p.id)} className="card space-y-4">
-          <h2 className="text-lg font-bold">Settings</h2>
+          <h2 className="text-lg font-semibold">Settings</h2>
           <ProjectFields p={p} />
           <p className="text-xs text-slate-500">
             Brand colours and logo come from the client settings: {p.client.logoUrl ? "logo set" : "no logo yet (the name is shown instead)"}, colours {[p.client.brandPrimaryColor, p.client.brandSecondaryColor, p.client.brandAccentColor].filter(Boolean).join(", ") || "not set (default blue)"}.
@@ -39,10 +39,10 @@ export default async function SocialProjectPage({ params, searchParams }: { para
         <section id="brain" className="card scroll-mt-24 space-y-3">
           <div className="flex flex-wrap items-start gap-3">
             <div className="flex-1">
-              <h2 className="text-lg font-bold">Learning agent</h2>
+              <h2 className="text-lg font-semibold">Learning agent</h2>
               <p className="text-sm text-slate-500">Rules this account has learned from your rejections, edits and regenerate notes. Every new idea, caption and image follows them. Updated automatically after each piece of feedback{p.brainUpdatedAt && <>, last on {fmtDate(p.brainUpdatedAt)}</>}. You can edit them too.</p>
             </div>
-            <form action={relearnAction.bind(null, p.id)}><SubmitButton className="btn-secondary text-xs">↻ Re-learn now</SubmitButton></form>
+            <form action={relearnAction.bind(null, p.id)}><SubmitButton className="btn-secondary text-xs">Re-learn now</SubmitButton></form>
           </div>
           <form action={saveBrainAction.bind(null, p.id)} className="space-y-2">
             <textarea name="brain" rows={8} defaultValue={p.brain} className="input font-mono text-xs leading-5" placeholder="Nothing learned yet. Reject or edit a few posts and rules appear here." />
@@ -64,7 +64,7 @@ export default async function SocialProjectPage({ params, searchParams }: { para
 
         <section id="cards" className="scroll-mt-24 space-y-3">
           <div>
-            <h2 className="text-lg font-bold">Service cards</h2>
+            <h2 className="text-lg font-semibold">Service cards</h2>
             <p className="text-sm text-slate-500">What the AI knows about each targeted service. Ideas and captions only use facts from here, so add real results, prices or offers you want mentioned.</p>
           </div>
           {p.services.map((s) => {
@@ -73,7 +73,7 @@ export default async function SocialProjectPage({ params, searchParams }: { para
               <div key={s} className="card space-y-2">
                 <div className="flex items-center gap-3">
                   <b className="flex-1">{s}</b>
-                  <form action={redraftCardAction.bind(null, p.id, s)}><SubmitButton className="btn-secondary text-xs">✦ Rewrite from website</SubmitButton></form>
+                  <form action={redraftCardAction.bind(null, p.id, s)}><SubmitButton className="btn-secondary text-xs">Rewrite from website</SubmitButton></form>
                 </div>
                 <form action={saveCardAction.bind(null, p.id, s)} className="space-y-2">
                   <textarea name="card" rows={10} defaultValue={c?.card ?? ""} className="input text-sm leading-5" placeholder="Not written yet. Press Rewrite from website, or type the facts yourself." />

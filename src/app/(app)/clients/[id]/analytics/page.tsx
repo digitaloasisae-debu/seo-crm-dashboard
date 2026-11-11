@@ -27,7 +27,7 @@ function Tile({ label, value, now, before, help }: { label: string; value: strin
   return (
     <div className="card p-4" title={help}>
       <div className="text-xs font-medium text-slate-500">{label}</div>
-      <div className="mt-1 text-2xl font-bold tabular-nums text-slate-900">{value}</div>
+      <div className="mt-1 text-2xl font-semibold tabular-nums text-slate-900">{value}</div>
       <Change now={now} before={before} />
     </div>
   );
@@ -117,7 +117,7 @@ export default async function AnalyticsPage({ params }: { params: Promise<{ id: 
           <p className="text-sm text-slate-500">Last 28 days compared with the 28 days before.{snap && <> Updated {fmtDate(snap.fetchedAt)}.</>}</p>
           {error && <p className="mt-2 rounded-lg bg-red-50 p-2 text-sm text-red-700">{error}</p>}
         </div>
-        {editable && <form action={syncAnalyticsAction.bind(null, id)}><SubmitButton className="btn-secondary">🔄 Refresh</SubmitButton></form>}
+        {editable && <form action={syncAnalyticsAction.bind(null, id)}><SubmitButton className="btn-secondary">Refresh</SubmitButton></form>}
       </section>
 
       {d && (
@@ -172,6 +172,7 @@ export default async function AnalyticsPage({ params }: { params: Promise<{ id: 
                   columns={[{ key: "post", label: "Post" }, { key: "visits", label: "Visits", type: "number" }, { key: "visitors", label: "Visitors", type: "number" }, { key: "conv", label: "Conversions", type: "number" }]}
                   rows={withVisits.map(({ a, sessions, users, keyEvents }) => ({
                     id: a.id,
+                    href: `/articles/${a.id}`,
                     values: { post: a.metaTitle, visits: sessions, visitors: users, conv: keyEvents },
                     cells: {
                       post: <div className="max-w-md"><Link href={`/articles/${a.id}`} className="block truncate text-indigo-600 hover:underline">{a.metaTitle}</Link></div>,
@@ -209,7 +210,7 @@ export default async function AnalyticsPage({ params }: { params: Promise<{ id: 
                     id: p.name || "/",
                     values: { page: p.name || "/", ours: art ? "Our post" : "Other page", visits: p.sessions, visitors: p.users, conv: p.keyEvents, engaged: p.engagementRate != null ? Math.round(p.engagementRate * 100) : null },
                     cells: {
-                      page: <div className="max-w-md truncate text-sm"><code className="text-xs">{p.name === "(not set)" ? "(not set)" : p.name || "/"}</code>{art && <Link href={`/articles/${art.id}`} className="ml-2 rounded-full bg-indigo-50 px-1.5 py-0.5 text-[10px] font-semibold text-indigo-700 ring-1 ring-indigo-200 ring-inset">our post</Link>}</div>,
+                      page: <div className="max-w-md truncate text-sm"><code className="text-xs">{p.name === "(not set)" ? "(not set)" : p.name || "/"}</code>{art && <Link href={`/articles/${art.id}`} className="ml-2 rounded-md bg-indigo-50 px-1.5 py-0.5 text-[10px] font-semibold text-indigo-700 ring-1 ring-indigo-200 ring-inset">our post</Link>}</div>,
                       conv: <span className={`num ${p.keyEvents ? "font-semibold text-emerald-700" : "text-slate-400"}`}>{fmt(p.keyEvents)}</span>,
                       engaged: <span className="text-xs">{p.engagementRate != null ? pct(p.engagementRate) : "—"}</span>,
                     },

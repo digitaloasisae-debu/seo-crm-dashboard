@@ -18,7 +18,7 @@ function Tile({ label, value, hint, tone }: { label: string; value: string; hint
   return (
     <div className="card p-4">
       <div className="text-xs font-medium text-slate-500">{label}</div>
-      <div className={`mt-1 text-2xl font-bold ${tone === "bad" ? "text-red-600" : tone === "good" ? "text-emerald-600" : "text-slate-900"}`}>{value}</div>
+      <div className={`mt-1 text-2xl font-semibold ${tone === "bad" ? "text-red-600" : tone === "good" ? "text-emerald-600" : "text-slate-900"}`}>{value}</div>
       {hint && <div className="mt-0.5 text-xs text-slate-400">{hint}</div>}
     </div>
   );
@@ -38,7 +38,7 @@ function Trend({ months }: { months: BlMonth[] }) {
       <div className="flex h-36 items-end gap-1.5">
         {months.map((m) => (
           <div key={m.date} className="group relative flex h-full flex-1 flex-col justify-end" title={`${m.date}: ${fmt(m.referringDomains)} domains, +${m.newDomains} new, −${m.lostDomains} lost`}>
-            <div className="rounded-t bg-gradient-to-t from-indigo-500 to-violet-400" style={{ height: `${Math.max(2, (m.referringDomains / max) * 100)}%` }} />
+            <div className="rounded-t bg-indigo-500 transition-colors hover:bg-indigo-700" style={{ height: `${Math.max(2, (m.referringDomains / max) * 100)}%` }} />
           </div>
         ))}
       </div>
@@ -83,7 +83,7 @@ function LinkTable({ id, links, empty, showDates }: { id: string; links: BlLink[
             </div>
           ),
           anchor: <div className="max-w-[12rem] truncate text-sm">{l.anchor || <span className="text-slate-400">{l.type === "image" ? "(image)" : "—"}</span>}</div>,
-          type: <span className={`rounded-full px-2 py-0.5 text-xs ring-1 ring-inset ${l.dofollow ? "bg-emerald-50 text-emerald-700 ring-emerald-200" : "bg-slate-50 text-slate-500 ring-slate-200"}`}>{l.dofollow ? "dofollow" : "nofollow"}</span>,
+          type: <span className={`rounded-md px-2 py-0.5 text-xs ring-1 ring-inset ${l.dofollow ? "bg-emerald-50 text-emerald-700 ring-emerald-200" : "bg-slate-50 text-slate-500 ring-slate-200"}`}>{l.dofollow ? "dofollow" : "nofollow"}</span>,
           date: <span className="text-xs text-slate-500">{showDates === "first" ? l.firstSeen : l.lastSeen}</span>,
         },
       }))}
@@ -130,7 +130,7 @@ export default async function BacklinksPage({ params, searchParams }: { params: 
           {!ready && <p className="mt-2 text-xs text-slate-500">Needs the DataForSEO login in Vercel.</p>}
         </div>
         {editable && ready && (
-          <form action={refreshBacklinksAction.bind(null, id)}><SubmitButton className="btn-primary">{r ? "🔄 Refresh backlinks" : "🔗 Get backlink data"}</SubmitButton></form>
+          <form action={refreshBacklinksAction.bind(null, id)}><SubmitButton className="btn-primary">{r ? "Refresh backlinks" : "Get backlink data"}</SubmitButton></form>
         )}
       </section>
 
@@ -184,7 +184,7 @@ export default async function BacklinksPage({ params, searchParams }: { params: 
                     values: { site: g.domain, rank: g.rank, count: g.linksTo.length, to: g.linksTo.join(", ") },
                     cells: {
                       site: <a href={`https://${g.domain}`} target="_blank" rel="noreferrer" className="font-medium text-indigo-600 hover:underline">{g.domain}</a>,
-                      count: g.linksTo.length > 1 ? <span className="num rounded-full bg-amber-50 px-1.5 py-0.5 text-xs font-semibold text-amber-800 ring-1 ring-amber-200 ring-inset">{g.linksTo.length}</span> : <span className="num">1</span>,
+                      count: g.linksTo.length > 1 ? <span className="num rounded-md bg-amber-50 px-1.5 py-0.5 text-xs font-semibold text-amber-800 ring-1 ring-amber-200 ring-inset">{g.linksTo.length}</span> : <span className="num">1</span>,
                       to: <span className="text-xs text-slate-600">{g.linksTo.join(", ")}</span>,
                     },
                   }))}
@@ -202,12 +202,12 @@ export default async function BacklinksPage({ params, searchParams }: { params: 
               <LinkTable id="backlinks-new" links={links.recent} empty="No new links found." showDates="first" />
             </details>
             <details className="border-t border-slate-100">
-              <summary className="p-4 font-semibold">📉 Lost links ({links.lost.length})</summary>
+              <summary className="p-4 font-semibold">Lost links ({links.lost.length})</summary>
               <p className="px-4 pb-2 text-xs text-slate-500">Worth checking: a lost link from a strong site can often be won back by emailing the site owner.</p>
               <LinkTable id="backlinks-lost" links={links.lost} empty="No lost links found." showDates="last" />
             </details>
             <details className="border-t border-slate-100">
-              <summary className="p-4 font-semibold">⭐ Strongest links, one per site ({links.best.length})</summary>
+              <summary className="p-4 font-semibold">Strongest links, one per site ({links.best.length})</summary>
               <LinkTable id="backlinks-best" links={links.best} empty="No links found." showDates="first" />
             </details>
           </section>

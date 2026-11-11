@@ -38,7 +38,7 @@ function Chart({ daily }: { daily: { date: Date; clicks: number; impressions: nu
       </svg>
       <div className="flex justify-between text-xs text-slate-500">
         <span>{fmtDate(daily[0].date)}</span>
-        <span><span className="text-indigo-600">■</span> clicks (max {maxC}) · <span className="text-violet-400">■</span> impressions (max {maxI})</span>
+        <span><span className="inline-block h-2 w-2 rounded-sm bg-indigo-600" /> clicks (max {maxC}) · <span className="inline-block h-2 w-2 rounded-sm bg-indigo-300" /> impressions (max {maxI})</span>
         <span>{fmtDate(daily.at(-1)!.date)}</span>
       </div>
     </div>
@@ -71,10 +71,10 @@ export async function SearchPerformance({ clientId, editable }: { clientId: stri
         {daily.length > 0 && (
           <>
             <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-              <div className="rounded-xl border border-indigo-100 bg-gradient-to-br from-white to-indigo-50/60 p-3 transition duration-200 hover:-translate-y-0.5 hover:shadow-md hover:shadow-indigo-500/10"><div className="text-xs font-medium text-slate-500">Clicks (28 days)</div><div className="text-2xl font-bold tracking-tight tabular-nums">{totals.clicks}</div><Delta cur={totals.clicks} prev={prevTotals?.clicks} /></div>
-              <div className="rounded-xl border border-indigo-100 bg-gradient-to-br from-white to-indigo-50/60 p-3 transition duration-200 hover:-translate-y-0.5 hover:shadow-md hover:shadow-indigo-500/10"><div className="text-xs font-medium text-slate-500">Impressions</div><div className="text-2xl font-bold tracking-tight tabular-nums">{totals.impressions}</div><Delta cur={totals.impressions} prev={prevTotals?.impressions} /></div>
-              <div className="rounded-xl border border-indigo-100 bg-gradient-to-br from-white to-indigo-50/60 p-3 transition duration-200 hover:-translate-y-0.5 hover:shadow-md hover:shadow-indigo-500/10"><div className="text-xs font-medium text-slate-500">CTR</div><div className="text-2xl font-bold tracking-tight tabular-nums">{(totals.ctr * 100).toFixed(1)}%</div><Delta cur={totals.ctr} prev={prevTotals?.ctr} pct digits={1} /></div>
-              <div className="rounded-xl border border-indigo-100 bg-gradient-to-br from-white to-indigo-50/60 p-3 transition duration-200 hover:-translate-y-0.5 hover:shadow-md hover:shadow-indigo-500/10"><div className="text-xs font-medium text-slate-500">Avg. position</div><div className="text-2xl font-bold tracking-tight tabular-nums">{totals.position.toFixed(1)}</div><Delta cur={totals.position} prev={prevTotals?.position} invert digits={1} /></div>
+              <div className="rounded-lg border border-slate-200 bg-white p-3 transition-colors hover:border-slate-300"><div className="text-xs font-medium text-slate-500">Clicks (28 days)</div><div className="text-2xl font-semibold tracking-tight tabular-nums">{totals.clicks}</div><Delta cur={totals.clicks} prev={prevTotals?.clicks} /></div>
+              <div className="rounded-lg border border-slate-200 bg-white p-3 transition-colors hover:border-slate-300"><div className="text-xs font-medium text-slate-500">Impressions</div><div className="text-2xl font-semibold tracking-tight tabular-nums">{totals.impressions}</div><Delta cur={totals.impressions} prev={prevTotals?.impressions} /></div>
+              <div className="rounded-lg border border-slate-200 bg-white p-3 transition-colors hover:border-slate-300"><div className="text-xs font-medium text-slate-500">CTR</div><div className="text-2xl font-semibold tracking-tight tabular-nums">{(totals.ctr * 100).toFixed(1)}%</div><Delta cur={totals.ctr} prev={prevTotals?.ctr} pct digits={1} /></div>
+              <div className="rounded-lg border border-slate-200 bg-white p-3 transition-colors hover:border-slate-300"><div className="text-xs font-medium text-slate-500">Avg. position</div><div className="text-2xl font-semibold tracking-tight tabular-nums">{totals.position.toFixed(1)}</div><Delta cur={totals.position} prev={prevTotals?.position} invert digits={1} /></div>
             </div>
             <Chart daily={daily} />
           </>
@@ -83,7 +83,7 @@ export async function SearchPerformance({ clientId, editable }: { clientId: stri
 
       {(move.up.length > 0 || move.down.length > 0) && (
         <section className="grid gap-6 md:grid-cols-2">
-          {([["🚀 Climbing", move.up, "Moved up the most in the last 4 weeks"], ["⚠️ Dropping", move.down, "Lost the most ground. Worth a refresh or new internal links."]] as const).map(([title, list, hint]) => (
+          {([["Climbing", move.up, "Moved up the most in the last 4 weeks"], ["Dropping", move.down, "Lost the most ground. Worth a refresh or new internal links."]] as const).map(([title, list, hint]) => (
             <div key={title} className="card">
               <h2 className="font-semibold">{title}</h2>
               <p className="mb-3 text-xs text-slate-500">{hint}</p>

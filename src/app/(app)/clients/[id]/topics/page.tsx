@@ -36,6 +36,7 @@ export default async function TopicsPage({ params, searchParams }: { params: Pro
           ]}
           rows={topics.map((t): Row => ({
             id: t.id,
+            href: t.article ? `/articles/${t.article.id}` : undefined,
             selectable: editable && !t.article,
             values: { title: t.title, keyword: t.keyword, category: t.category ?? "", status: t.status, article: t.article ? t.article.status : "No article", generated: t.generatedAt.toISOString(), angle: t.angle ?? "" },
             cells: {

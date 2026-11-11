@@ -24,6 +24,8 @@ export type QueueItem = {
 };
 
 const KIND_LABEL: Record<QueueKind, string> = { keyword: "Keyword", topic: "Topic", article: "Article", review: "Review reply", post: "Google post" };
+const KIND_PLURAL: Record<QueueKind, string> = { keyword: "Keywords", topic: "Topics", article: "Articles", review: "Review replies", post: "Google posts" };
+const KIND_ICON: Record<QueueKind, string> = { keyword: "tag", topic: "lightbulb", article: "file", review: "star", post: "pin" };
 type Out = "approve" | "reject" | "skip";
 
 /** Big "review queue" card on Today; opens a full-screen, keyboard-driven card stack. */
@@ -33,6 +35,9 @@ export function ReviewQueue({ items, counts, streak }: { items: QueueItem[]; cou
   const path = usePathname();
   const router = useRouter();
   const [open, setOpen] = useState(false);
+  // Which kind the overlay shows: null = everything.
+  const [only, setOnly] = useState<QueueKind | null>(null);
+  const shown = only ? items.filter((it) => it.kind === only) : items;
 
   useEffect(() => {
     if (params.get("review") === "1" && items.length) {
@@ -55,33 +60,55 @@ export function ReviewQueue({ items, counts, streak }: { items: QueueItem[]; cou
   const mins = Math.max(1, Math.round(counts.keyword * 0.15 + counts.topic * 0.3 + counts.article * 2 + counts.review * 0.3 + counts.post * 0.5));
   return (
     <>
-      <div className="card group relative overflow-hidden p-6 lg:col-span-2">
-        <div className="rf-stack pointer-events-none absolute top-6 right-6 hidden h-28 w-40 sm:block" aria-hidden>
-          <i className="absolute inset-0 rotate-[-8deg] -translate-x-3 translate-y-1.5 rounded-2xl border border-slate-200 bg-slate-100" />
-          <i className="absolute inset-0 rotate-[-3deg] -translate-x-1 translate-y-0.5 rounded-2xl border border-slate-200 bg-slate-100" />
-          <i className="absolute inset-0 rotate-[3deg] rounded-2xl border border-slate-200 bg-white p-4" style={{ boxShadow: "var(--shadow-card)" }}>
-            <span className="block h-2 w-16 rounded-full bg-indigo-200" />
-            <span className="mt-3 block h-2 w-24 rounded-full bg-slate-200" />
-            <span className="mt-2 block h-2 w-20 rounded-full bg-slate-200" />
-          </i>
+      <div className="card flex flex-col !p-0 lg:col-span-2">
+        <div className="flex flex-wrap items-end justify-between gap-4 p-5 pb-4">
+          <div>
+            <div className="text-sm text-slate-500">Your review queue</div>
+            <div className="mt-0.5 flex items-baseline gap-2">
+              <span className="num text-4xl font-semibold tracking-tight">{total}</span>
+              <span className="text-sm text-slate-500">{total ? `waiting · about ${mins} min` : "nothing waiting"}</span>
+            </div>
+          </div>
+          <button type="button" disabled={!items.length} onClick={() => { setOnly(null); setOpen(true); }} className="btn-primary" data-tip={items.length ? "Approve or reject one by one with your keyboard" : undefined}>
+            {items.length ? "Start reviewing" : "All clear"}
+            {items.length > 0 && <kbd className="rounded border border-white/25 px-1 font-mono text-[11px] leading-4 opacity-80">R</kbd>}
+          </button>
         </div>
-        <div className="text-sm font-medium text-slate-500">Your review queue</div>
-        <div className="num mt-1 text-6xl font-medium tracking-tight">{total}</div>
-        <p className="mt-1 text-sm text-slate-500">{total ? `About ${mins} minute${mins === 1 ? "" : "s"} if you do them now.` : "Nothing is waiting on you. Your clients are moving."}</p>
-        <div className="mt-4 mb-5 flex flex-wrap gap-2 text-xs font-medium">
-          <span className="rounded-full bg-slate-100 px-2.5 py-1 text-slate-600">{counts.keyword} keyword{counts.keyword === 1 ? "" : "s"}</span>
-          <span className="rounded-full bg-slate-100 px-2.5 py-1 text-slate-600">{counts.topic} topic{counts.topic === 1 ? "" : "s"}</span>
-          <span className="rounded-full bg-slate-100 px-2.5 py-1 text-slate-600">{counts.article} article{counts.article === 1 ? "" : "s"}</span>
-          {counts.review > 0 && <span className="rounded-full bg-amber-50 px-2.5 py-1 text-amber-700">{counts.review} review repl{counts.review === 1 ? "y" : "ies"}</span>}
-          {counts.post > 0 && <span className="rounded-full bg-amber-50 px-2.5 py-1 text-amber-700">{counts.post} Google post{counts.post === 1 ? "" : "s"}</span>}
-          {streak > 0 && <span className="rounded-full bg-amber-50 px-2.5 py-1 text-amber-700">🔥 {streak}-day streak</span>}
+        <ul className="grid auto-rows-min border-t border-slate-100 sm:grid-cols-2">
+          {(Object.keys(KIND_LABEL) as QueueKind[]).map((k, i) => {
+            const n = counts[k];
+            const has = items.some((it) => it.kind === k);
+            return (
+              <li key={k} className={`border-slate-100 ${i % 2 === 0 ? "sm:border-r" : ""} border-b`}>
+                <button
+                  type="button"
+                  disabled={!has}
+                  onClick={() => { setOnly(k); setOpen(true); }}
+                  className="group flex w-full cursor-pointer items-center gap-3 px-5 py-3 text-left text-sm transition-colors hover:bg-slate-50 disabled:cursor-default disabled:hover:bg-transparent"
+                >
+                  <span className={`grid h-7 w-7 place-items-center rounded-md ${n ? "bg-slate-100 text-slate-700" : "bg-slate-50 text-slate-300"}`}><Icon name={KIND_ICON[k]} className="h-3.5 w-3.5" /></span>
+                  <span className={`flex-1 ${n ? "text-slate-800" : "text-slate-400"}`}>{KIND_PLURAL[k]}</span>
+                  <span className={`num font-medium ${n ? "text-slate-900" : "text-slate-300"}`}>{n}</span>
+                  <Icon name="arrow" className={`h-3.5 w-3.5 transition ${has ? "text-slate-300 group-hover:translate-x-0.5 group-hover:text-slate-700" : "opacity-0"}`} />
+                </button>
+              </li>
+            );
+          })}
+          <li className="flex items-center gap-3 border-b border-slate-100 px-5 py-3 text-sm text-slate-500">
+            <span className="grid h-7 w-7 place-items-center rounded-md bg-slate-50 text-slate-400"><Icon name="flag" className="h-3.5 w-3.5" /></span>
+            <span className="flex-1">Review streak</span>
+            <span className="num font-medium text-slate-900">{streak} day{streak === 1 ? "" : "s"}</span>
+          </li>
+        </ul>
+        <div className="mt-auto flex flex-wrap items-center gap-x-4 gap-y-1 px-5 py-3 text-xs text-slate-500">
+          <span>Shortcuts in the queue:</span>
+          <span><span className="kbd">A</span> approve</span>
+          <span><span className="kbd">X</span> reject</span>
+          <span><span className="kbd">S</span> skip</span>
+          <span><span className="kbd">Esc</span> close</span>
         </div>
-        <button type="button" disabled={!items.length} onClick={() => setOpen(true)} className="btn-primary px-5 py-2.5">
-          {items.length ? "Start reviewing" : "All clear"}
-          {items.length > 0 && <kbd className="rounded-md border border-white/30 px-1.5 font-mono text-[11px]">R</kbd>}
-        </button>
       </div>
-      {open && createPortal(<ReviewOverlay items={items} onClose={() => setOpen(false)} />, document.body)}
+      {open && createPortal(<ReviewOverlay items={shown} onClose={() => setOpen(false)} />, document.body)}
     </>
   );
 }
@@ -194,7 +221,7 @@ function ReviewOverlay({ items, onClose }: { items: QueueItem[]; onClose: () => 
                 <circle ref={ringRef} cx="46" cy="46" r="40" fill="none" stroke="var(--color-emerald-500)" strokeWidth="8" strokeLinecap="round" strokeDasharray="251" strokeDashoffset="251" transform="rotate(-90 46 46)" style={{ transition: "stroke-dashoffset .9s var(--ease-out-soft)" }} />
                 <path d="M30 47l11 10 21-22" fill="none" stroke="var(--color-emerald-500)" strokeWidth="6" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
-              <h3 className="font-display text-2xl font-bold">Queue cleared</h3>
+              <h3 className="font-display text-2xl font-semibold">Queue cleared</h3>
               <p className="mt-1 mb-5 text-sm text-slate-500">{approved} approved. n8n picks up approved keywords and topics on its next run, and approved Google replies and posts wait on the Google profile tab.</p>
               <button type="button" className="btn-primary" onClick={close}>Back to Today</button>
             </div>
@@ -228,13 +255,13 @@ function QueueCard({ item, className, front }: { item: QueueItem; className: str
   return (
     <div className={`card rf-card absolute inset-0 flex flex-col gap-3 p-7 ${className}`} aria-hidden={!front}>
       <div className="flex flex-wrap items-center gap-2 text-xs font-medium">
-        <span className="rounded-full bg-indigo-50 px-2.5 py-1 text-indigo-700">{KIND_LABEL[item.kind]}</span>
+        <span className="rounded-md bg-indigo-50 px-2.5 py-1 text-indigo-700">{KIND_LABEL[item.kind]}</span>
         <span className="text-slate-500">{item.clientName}</span>
         <Link href={item.href} target="_blank" className="ml-auto flex items-center gap-1 text-slate-400 hover:text-indigo-600" tabIndex={front ? 0 : -1}>
           Open <Icon name="external" className="h-3.5 w-3.5" />
         </Link>
       </div>
-      <h3 className={`font-display leading-tight font-bold text-balance ${item.body ? "text-lg" : "text-2xl"}`}>{item.title}</h3>
+      <h3 className={`font-display leading-tight font-semibold text-balance ${item.body ? "text-lg" : "text-2xl"}`}>{item.title}</h3>
       {item.quote && <p className="line-clamp-3 border-l-2 border-slate-200 pl-3 text-sm text-slate-500 italic">{item.quote}</p>}
       {item.body && <p className="line-clamp-6 rounded-xl bg-indigo-50 px-3.5 py-3 text-sm leading-relaxed text-slate-800">{item.body}</p>}
       {item.note && <p className="line-clamp-3 text-sm text-slate-500">{item.note}</p>}

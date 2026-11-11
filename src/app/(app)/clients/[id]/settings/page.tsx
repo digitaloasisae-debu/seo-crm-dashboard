@@ -53,8 +53,8 @@ export default async function ClientSettings({ params }: { params: Promise<{ id:
           </div>
           <ul className="stagger flex flex-wrap gap-2 text-sm">
             {assignments.map((a) => (
-              <li key={a.id} className="group flex items-center gap-2 rounded-full border border-slate-200 bg-white py-1 pr-1 pl-1 shadow-xs transition hover:border-indigo-200 hover:shadow-md">
-                <span className="flex h-7 w-7 items-center justify-center rounded-full bg-gradient-to-br from-indigo-400 to-violet-500 text-[11px] font-semibold text-white">{a.user.name.split(/\s+/).map((w) => w[0]).slice(0, 2).join("").toUpperCase()}</span>
+              <li key={a.id} className="group flex items-center gap-2 rounded-md border border-slate-200 bg-white py-1 pr-1 pl-1 shadow-xs transition hover:border-indigo-200 hover:shadow-md">
+                <span className="flex h-7 w-7 items-center justify-center rounded-full bg-slate-200 text-[11px] font-semibold text-slate-700">{a.user.name.split(/\s+/).map((w) => w[0]).slice(0, 2).join("").toUpperCase()}</span>
                 <span className="font-medium">{a.user.name}</span>
                 <StatusBadge status={a.access} />
                 {a.expiresAt && <span className="text-xs text-slate-400">until {fmtDate(a.expiresAt)}</span>}
@@ -65,11 +65,11 @@ export default async function ClientSettings({ params }: { params: Promise<{ id:
             ))}
             {assignments.length === 0 && <li className="text-slate-500">No one assigned yet.</li>}
           </ul>
-          <form action={setAssignmentAction.bind(null, id)} className="space-y-3 rounded-2xl bg-slate-50/80 p-4">
+          <form action={setAssignmentAction.bind(null, id)} className="space-y-3 rounded-xl bg-slate-50/80 p-4">
             <div className="label">Add or change members</div>
             <div className="flex flex-wrap gap-2">
               {team.map((u) => (
-                <label key={u.id} className="flex cursor-pointer items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-sm transition select-none hover:border-indigo-300 has-[:checked]:border-indigo-500 has-[:checked]:bg-indigo-50 has-[:checked]:text-indigo-700">
+                <label key={u.id} className="flex cursor-pointer items-center gap-2 rounded-md border border-slate-200 bg-white px-3 py-1.5 text-sm transition select-none hover:border-indigo-300 has-[:checked]:border-indigo-500 has-[:checked]:bg-indigo-50 has-[:checked]:text-indigo-700">
                   <input type="checkbox" name="userId" value={u.id} className="accent-indigo-600" />
                   {u.name} <span className="text-xs text-slate-400">{u.role.toLowerCase()}</span>
                 </label>

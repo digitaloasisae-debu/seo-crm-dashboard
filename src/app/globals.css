@@ -4,20 +4,20 @@
 
 @theme {
   --font-sans: var(--font-geist), ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
-  --font-display: var(--font-bricolage), var(--font-geist), ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--font-geist), ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo, monospace;
 
-  /* Ink neutrals with a slight blue bias (replaces Tailwind slate) */
-  --color-slate-50: #f6f7fb; --color-slate-100: #eef0f6; --color-slate-200: #e2e5ef; --color-slate-300: #c9cede;
-  --color-slate-400: #9aa0b8; --color-slate-500: #646a85; --color-slate-600: #4c5170; --color-slate-700: #363a57;
-  --color-slate-800: #23263f; --color-slate-900: #14162b; --color-slate-950: #0b0c1a;
-  /* Rankflow indigo */
-  --color-indigo-50: #f1f0fe; --color-indigo-100: #e4e3fd; --color-indigo-200: #cbc9fb; --color-indigo-300: #a9a5f7;
-  --color-indigo-400: #8580f0; --color-indigo-500: #615be8; --color-indigo-600: #4b45e0; --color-indigo-700: #3d37c4;
-  --color-indigo-800: #322d9c; --color-indigo-900: #2b287a; --color-indigo-950: #1a1848;
+  /* Calm neutrals (replaces Tailwind slate): near-grey with a hint of warmth, so the UI reads like paper, not neon */
+  --color-slate-50: #f8f8f7; --color-slate-100: #f0f0ee; --color-slate-200: #e5e5e2; --color-slate-300: #d1d1cc;
+  --color-slate-400: #a3a39d; --color-slate-500: #73736d; --color-slate-600: #55554f; --color-slate-700: #3d3d39;
+  --color-slate-800: #28282b; --color-slate-900: #18181b; --color-slate-950: #0d0d0f;
+  /* Rankflow accent: a deeper, quieter indigo, used for links, focus and the active state only */
+  --color-indigo-50: #f2f2fd; --color-indigo-100: #e6e6fb; --color-indigo-200: #cdcdf6; --color-indigo-300: #a9a8ee;
+  --color-indigo-400: #8482e3; --color-indigo-500: #6461d6; --color-indigo-600: #4f4cc4; --color-indigo-700: #413ea6;
+  --color-indigo-800: #353385; --color-indigo-900: #2c2b69; --color-indigo-950: #1b1a40;
 
-  --shadow-card: 0 1px 2px rgb(20 22 43 / 0.05), 0 8px 24px -12px rgb(20 22 43 / 0.14);
-  --shadow-pop: 0 24px 60px -20px rgb(20 22 43 / 0.35);
+  --shadow-card: 0 1px 2px rgb(24 24 27 / 0.04);
+  --shadow-pop: 0 12px 32px -12px rgb(24 24 27 / 0.22), 0 2px 6px -2px rgb(24 24 27 / 0.08);
   --ease-out-soft: cubic-bezier(0.2, 0.8, 0.2, 1);
   --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
   --animate-fade-up: fade-up 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
@@ -52,15 +52,15 @@
 /* Dark theme: the same utilities, remapped. "white" is the card surface. */
 :root[data-theme="dark"] {
   color-scheme: dark;
-  --color-white: #151729;
-  --color-slate-50: #0d0e19; --color-slate-100: #1b1d33; --color-slate-200: #262944; --color-slate-300: #343858;
-  --color-slate-400: #686e8f; --color-slate-500: #9ba1c0; --color-slate-600: #b4b9d4; --color-slate-700: #ccd0e6;
-  --color-slate-800: #dfe2f2; --color-slate-900: #eceefb; --color-slate-950: #f6f7fd;
-  --color-indigo-50: #1e1d3d; --color-indigo-100: #25244a; --color-indigo-200: #34336a; --color-indigo-300: #6f6bd0;
-  --color-indigo-400: #8b86ff; --color-indigo-500: #7570f5; --color-indigo-600: #6c66f0; --color-indigo-700: #a5a1ff;
-  --color-indigo-800: #c3c0ff; --color-indigo-900: #dcdaff; --color-indigo-950: #eeedff;
-  --shadow-card: 0 1px 2px rgb(0 0 0 / 0.3), 0 8px 24px -12px rgb(0 0 0 / 0.6);
-  --shadow-pop: 0 24px 60px -20px rgb(0 0 0 / 0.8);
+  --color-white: #18181b;
+  --color-slate-50: #0f0f11; --color-slate-100: #222225; --color-slate-200: #2c2c30; --color-slate-300: #3c3c41;
+  --color-slate-400: #6e6e75; --color-slate-500: #9b9ba2; --color-slate-600: #b6b6bc; --color-slate-700: #cfcfd4;
+  --color-slate-800: #e2e2e6; --color-slate-900: #f0f0f2; --color-slate-950: #f8f8f9;
+  --color-indigo-50: #1d1d33; --color-indigo-100: #25253f; --color-indigo-200: #34345a; --color-indigo-300: #6b69c4;
+  --color-indigo-400: #8a88ea; --color-indigo-500: #7b79e3; --color-indigo-600: #8d8bec; --color-indigo-700: #aeacf5;
+  --color-indigo-800: #c8c7fa; --color-indigo-900: #e0dffc; --color-indigo-950: #efeffe;
+  --shadow-card: 0 1px 2px rgb(0 0 0 / 0.4);
+  --shadow-pop: 0 16px 40px -12px rgb(0 0 0 / 0.7), 0 0 0 1px rgb(255 255 255 / 0.04);
   --color-red-50:oklch(24% 0.052 25.331); --color-red-100:oklch(28% 0.071 25.331); --color-red-200:oklch(36% 0.095 25.331); --color-red-300:oklch(70.4% 0.191 22.216); --color-red-400:oklch(70.4% 0.191 22.216); --color-red-500:oklch(63.7% 0.237 25.331); --color-red-600:oklch(70.4% 0.191 22.216); --color-red-700:oklch(80.8% 0.114 19.571); --color-red-800:oklch(88.5% 0.062 18.334); --color-red-900:oklch(93.6% 0.032 17.717); --color-red-950:oklch(97.1% 0.013 17.38);
   --color-emerald-50:oklch(24% 0.037 162.48); --color-emerald-100:oklch(28% 0.051 162.48); --color-emerald-200:oklch(36% 0.068 162.48); --color-emerald-300:oklch(76.5% 0.177 163.223); --color-emerald-400:oklch(76.5% 0.177 163.223); --color-emerald-500:oklch(69.6% 0.17 162.48); --color-emerald-600:oklch(76.5% 0.177 163.223); --color-emerald-700:oklch(84.5% 0.143 164.978); --color-emerald-800:oklch(90.5% 0.093 164.15); --color-emerald-900:oklch(95% 0.052 163.051); --color-emerald-950:oklch(97.9% 0.021 166.113);
   --color-amber-50:oklch(24% 0.041 70.08); --color-amber-100:oklch(28% 0.056 70.08); --color-amber-200:oklch(36% 0.075 70.08); --color-amber-300:oklch(82.8% 0.189 84.429); --color-amber-400:oklch(82.8% 0.189 84.429); --color-amber-500:oklch(76.9% 0.188 70.08); --color-amber-600:oklch(82.8% 0.189 84.429); --color-amber-700:oklch(87.9% 0.169 91.605); --color-amber-800:oklch(92.4% 0.12 95.746); --color-amber-900:oklch(96.2% 0.059 95.617); --color-amber-950:oklch(98.7% 0.022 95.277);
@@ -82,57 +82,75 @@
 
 :root { color-scheme: light; }
 body { @apply bg-slate-50 font-sans text-slate-900 antialiased; }
-h1, h2, .font-display { font-family: var(--font-display); letter-spacing: -0.015em; }
-.num { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+h1, h2, .font-display { font-family: var(--font-display); letter-spacing: -0.022em; }
+.num { font-variant-numeric: tabular-nums; }
 ::view-transition-old(root), ::view-transition-new(root) { animation-duration: 0.25s; }
-::selection { @apply bg-indigo-200 text-indigo-950; }
+::selection { @apply bg-indigo-100 text-indigo-950; }
+:focus-visible { outline-color: var(--color-indigo-500); }
 
+@utility btn-base {
+  @apply inline-flex cursor-pointer items-center justify-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium whitespace-nowrap
+    transition duration-150 ease-out select-none active:translate-y-px disabled:pointer-events-none disabled:opacity-50
+    focus-visible:ring-3 focus-visible:outline-none;
+}
+
+/* Components live in a layer so utility classes (text-xs, px-2, p-0…) can still adjust them. */
+@layer components {
 /* Forms */
 .input {
-  @apply w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm shadow-xs transition duration-150
-    placeholder:text-slate-400 hover:border-slate-300 focus:border-indigo-500 focus:bg-white focus:ring-4 focus:ring-indigo-500/15 focus:outline-none;
+  @apply w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm transition duration-150
+    placeholder:text-slate-400 hover:border-slate-300 focus:border-indigo-500 focus:bg-white focus:ring-3 focus:ring-indigo-500/15 focus:outline-none;
 }
 select.input { @apply cursor-pointer; }
-.label { @apply mb-1.5 block text-xs font-semibold tracking-wide text-slate-600; }
+.label { @apply mb-1.5 block text-[13px] font-medium text-slate-700; }
 
 /* Buttons */
-@utility btn-base {
-  @apply inline-flex cursor-pointer items-center justify-center gap-1.5 rounded-lg px-3.5 py-2 text-sm font-medium whitespace-nowrap
-    transition duration-150 ease-out select-none active:scale-[0.97] disabled:pointer-events-none disabled:opacity-60
-    focus-visible:ring-4 focus-visible:outline-none;
-}
+/* Primary is ink (near-black), not a bright brand colour: one strong action per screen, easy on the eye. */
 .btn-primary {
-  @apply btn-base bg-indigo-600 text-white shadow-sm shadow-indigo-600/20
-    hover:-translate-y-px hover:bg-indigo-700 hover:shadow-md hover:shadow-indigo-600/25 focus-visible:ring-indigo-500/30;
+  @apply btn-base text-white focus-visible:ring-slate-500/30;
+  background-color: #18181b;
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.12), 0 1px 2px rgb(0 0 0 / 0.15);
 }
-:root[data-theme="dark"] .btn-primary:hover { background-color: var(--color-indigo-500); }
+.btn-primary:hover { background-color: #2e2e33; }
+:root[data-theme="dark"] .btn-primary { background-color: #f4f4f5; color: #18181b; box-shadow: none; }
+:root[data-theme="dark"] .btn-primary:hover { background-color: #ffffff; }
 .btn-secondary {
-  @apply btn-base border border-slate-200 bg-white text-slate-700 shadow-xs
-    hover:-translate-y-px hover:border-slate-300 hover:bg-slate-50 hover:shadow-sm focus-visible:ring-slate-400/20;
+  @apply btn-base border border-slate-200 bg-white text-slate-800
+    hover:border-slate-300 hover:bg-slate-50 focus-visible:ring-slate-400/20;
+  box-shadow: 0 1px 2px rgb(24 24 27 / 0.04);
 }
 .btn-danger {
-  @apply btn-base border border-red-200 bg-white text-red-600 shadow-xs
-    hover:-translate-y-px hover:border-red-300 hover:bg-red-50 hover:shadow-sm focus-visible:ring-red-500/20;
+  @apply btn-base border border-slate-200 bg-white text-red-600
+    hover:border-red-300 hover:bg-red-50 focus-visible:ring-red-500/20;
+}
+.btn-ghost {
+  @apply btn-base text-slate-600 hover:bg-slate-100 hover:text-slate-900 focus-visible:ring-slate-400/20;
 }
 button[disabled].btn-primary, button[disabled].btn-secondary { @apply cursor-wait; }
 
 /* Surfaces */
 .card {
-  @apply rounded-2xl border border-slate-200 bg-white p-5 transition duration-200;
+  @apply rounded-xl border border-slate-200 bg-white p-5 transition duration-150;
   box-shadow: var(--shadow-card);
 }
-a > .card, .card-hover { @apply hover:-translate-y-0.5 hover:border-indigo-200; }
+/* Cards that go somewhere: border darkens and a soft shadow appears, no jumping around. */
+a > .card, .card-hover { @apply cursor-pointer hover:border-slate-300; }
 a > .card:hover, .card-hover:hover { box-shadow: var(--shadow-pop); }
+a:focus-visible > .card { @apply ring-3 ring-indigo-500/25; }
 
 /* Tables */
 .table { @apply w-full text-left text-sm; }
-.table th { @apply border-b border-slate-200 bg-slate-50 px-4 py-2.5 text-[11px] font-semibold tracking-wider text-slate-500 uppercase first:rounded-tl-2xl last:rounded-tr-2xl; }
-.table td { @apply border-b border-slate-100 px-4 py-3 align-top; }
-.table tbody tr { @apply transition-colors duration-150 hover:bg-slate-50; }
+.table th { @apply border-b border-slate-200 bg-slate-50 px-4 py-2 text-xs font-medium text-slate-500 first:rounded-tl-xl last:rounded-tr-xl; }
+.table td { @apply border-b border-slate-100 px-4 py-2.5 align-top; }
+.table tbody tr { @apply transition-colors duration-100 hover:bg-slate-50; }
+.table tbody tr[data-href] { @apply cursor-pointer; }
+.table tbody tr[data-href]:hover td:first-child { box-shadow: inset 2px 0 0 var(--color-indigo-500); }
 .table tbody tr:last-child td { @apply border-b-0; }
 
+}
+
 /* Links inside content */
-main a.text-indigo-600 { @apply font-medium transition-colors hover:text-violet-600; }
+main a.text-indigo-600 { @apply font-medium underline-offset-4 transition-colors hover:text-indigo-800 hover:underline; }
 
 /* Collapsible details */
 details > summary { @apply cursor-pointer list-none transition-colors; }
@@ -141,18 +159,9 @@ details[open] > summary { @apply text-indigo-700; }
 details[open] > *:not(summary) { @apply animate-fade-in; }
 
 /* Staggered entrance for page content */
-.page-enter > * { @apply animate-fade-up; }
-.page-enter > *:nth-child(2) { animation-delay: 60ms; }
-.page-enter > *:nth-child(3) { animation-delay: 120ms; }
-.page-enter > *:nth-child(4) { animation-delay: 180ms; }
-.page-enter > *:nth-child(5) { animation-delay: 240ms; }
-.page-enter > *:nth-child(n + 6) { animation-delay: 300ms; }
-.stagger > * { @apply animate-pop; }
-.stagger > *:nth-child(2) { animation-delay: 50ms; }
-.stagger > *:nth-child(3) { animation-delay: 100ms; }
-.stagger > *:nth-child(4) { animation-delay: 150ms; }
-.stagger > *:nth-child(5) { animation-delay: 200ms; }
-.stagger > *:nth-child(n + 6) { animation-delay: 250ms; }
+/* A quick, quiet fade on page change (no bouncing cards). */
+.page-enter { animation: rf-fade 0.18s ease-out both; }
+@keyframes rf-fade { from { opacity: 0; } }
 
 /* Loading skeleton */
 .skeleton {
@@ -186,20 +195,20 @@ details[open] > *:not(summary) { @apply animate-fade-in; }
 @keyframes logo-line { from { transform: scaleX(0); } }
 
 /* Fun bits */
-.wave { animation: wave 2.2s ease-in-out 0.4s 2; transform-origin: 70% 70%; }
+.wave { display: none; }
 @keyframes wave { 0%, 60%, 100% { transform: rotate(0); } 10%, 30% { transform: rotate(14deg); } 20% { transform: rotate(-8deg); } 40% { transform: rotate(-4deg); } 50% { transform: rotate(10deg); } }
 .cheer-toast {
   position: fixed; z-index: 10000; transform: translate(-50%, -100%); pointer-events: none;
-  padding: 6px 12px; border-radius: 999px; font-size: 13px; font-weight: 700; color: #fff; white-space: nowrap;
-  background: #4b45e0; box-shadow: 0 10px 25px -5px rgb(75 69 224 / 0.5);
-  animation: cheer 1.4s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  padding: 4px 10px; border-radius: 6px; font-size: 12px; font-weight: 600; color: #fff; white-space: nowrap;
+  background: #18181b; box-shadow: 0 8px 20px -6px rgb(0 0 0 / 0.35);
+  animation: cheer 1.2s cubic-bezier(0.22, 1, 0.36, 1) forwards;
 }
-@keyframes cheer { 0% { opacity: 0; transform: translate(-50%, -60%) scale(0.6); } 15% { opacity: 1; transform: translate(-50%, -140%) scale(1.05); } 75% { opacity: 1; transform: translate(-50%, -190%) scale(1); } 100% { opacity: 0; transform: translate(-50%, -230%) scale(0.95); } }
-.bob { animation: bob 3s ease-in-out infinite; }
+@keyframes cheer { 0% { opacity: 0; transform: translate(-50%, -100%); } 15% { opacity: 1; transform: translate(-50%, -150%); } 80% { opacity: 1; transform: translate(-50%, -160%); } 100% { opacity: 0; transform: translate(-50%, -170%); } }
+.bob { animation: none; }
 @keyframes bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
-.flicker { display: inline-block; animation: flicker 1.6s ease-in-out infinite; transform-origin: bottom center; }
+.flicker { display: inline-block; }
 @keyframes flicker { 0%, 100% { transform: scale(1) rotate(-2deg); } 50% { transform: scale(1.12) rotate(3deg); } }
-.twinkle { animation: twinkle 2s ease-in-out infinite; }
+.twinkle { animation: none; }
 @keyframes twinkle { 0%, 100% { opacity: 0.2; transform: scale(0.7); } 50% { opacity: 1; transform: scale(1.1); } }
 .grow-x { transform-origin: left; animation: grow-x 1s cubic-bezier(0.22, 1, 0.36, 1) both; }
 @keyframes grow-x { from { transform: scaleX(0); } }
@@ -221,10 +230,41 @@ details[open] > *:not(summary) { @apply animate-fade-in; }
 .rf-drawer { animation: rf-drawer 0.4s var(--ease-out-soft) both; }
 @keyframes rf-drawer { from { opacity: 0; transform: translateX(40px); } }
 .rf-lift { transition: transform 0.3s var(--ease-out-soft), box-shadow 0.3s; }
-.rf-lift:hover { transform: translateY(-3px); box-shadow: var(--shadow-pop); }
+.rf-lift:hover { box-shadow: var(--shadow-pop); }
 .caret { display: inline-block; width: 7px; height: 14px; background: var(--color-indigo-600); vertical-align: -2px; animation: blink 1s steps(2) infinite; }
 @keyframes blink { 50% { opacity: 0; } }
 
 /* Small popovers (table filters, column picker) */
 .rf-pop { animation: rf-pop-in 0.14s var(--ease-out-soft, ease-out); transform-origin: top; }
 @keyframes rf-pop-in { from { opacity: 0; transform: translateY(-4px) scale(0.98); } }
+
+/* Tooltips: add data-tip="..." to anything; shows on hover and keyboard focus. */
+[data-tip] { position: relative; }
+[data-tip]::after {
+  content: attr(data-tip); position: absolute; left: 50%; bottom: calc(100% + 6px); z-index: 60;
+  transform: translate(-50%, 2px); opacity: 0; pointer-events: none; white-space: nowrap; max-width: 260px;
+  padding: 4px 8px; border-radius: 6px; font-size: 12px; font-weight: 500; line-height: 1.3; letter-spacing: 0; text-transform: none;
+  background: #18181b; color: #fafafa; box-shadow: 0 6px 16px -6px rgb(0 0 0 / 0.35);
+  transition: opacity 0.12s ease-out 0.25s, transform 0.12s ease-out 0.25s;
+}
+[data-tip]:hover::after, [data-tip]:focus-visible::after { opacity: 1; transform: translate(-50%, 0); }
+[data-tip-pos="bottom"]::after { bottom: auto; top: calc(100% + 6px); }
+[data-tip-pos="left"]::after { left: auto; right: 0; transform: none; }
+:root[data-theme="dark"] [data-tip]::after { background: #f4f4f5; color: #18181b; }
+
+/* Keyboard hint chips */
+.kbd { @apply inline-flex h-5 min-w-5 items-center justify-center rounded border border-slate-200 bg-slate-50 px-1 font-mono text-[11px] text-slate-500; }
+
+/* Section heading used inside cards */
+.eyebrow { @apply text-xs font-medium text-slate-500; }
+
+/* Clickable chip: filters, quick links */
+.chip { @apply inline-flex cursor-pointer items-center gap-1.5 rounded-md border border-slate-200 bg-white px-2 py-1 text-xs font-medium text-slate-600 transition hover:border-slate-300 hover:bg-slate-50 hover:text-slate-900; }
+
+/* Solid "ink" fill that flips in dark mode (badges, avatars, active chips). */
+.ink { background-color: #18181b; color: #fff; border-color: #18181b; }
+:root[data-theme="dark"] .ink { background-color: #e4e4e7; color: #18181b; border-color: #e4e4e7; }
+
+/* Articles carry their own <style> from WordPress or n8n (dark text on white). Keep them readable in dark mode. */
+:root[data-theme="dark"] .prose-preview :is(h1, h2, h3, h4, h5, h6, p, li, span, strong, em, b, td, th, div, blockquote, figcaption) { color: var(--color-slate-800) !important; background-color: transparent !important; }
+:root[data-theme="dark"] .prose-preview a { color: var(--color-indigo-700) !important; }

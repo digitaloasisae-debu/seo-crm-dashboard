@@ -1,3 +1,4 @@
+import { Icon } from "@/components/icons";
 import { db } from "@/lib/db";
 import { canEdit } from "@/lib/access";
 import { requireUser } from "@/lib/session";
@@ -38,7 +39,7 @@ export default async function KeywordsPage({ params, searchParams }: { params: P
 
       {editable && (
         <div className="card flex flex-wrap items-center gap-3 text-sm">
-          <span className="text-lg">📊</span>
+          <span className="flex h-8 w-8 items-center justify-center rounded-md border border-slate-200 bg-slate-50 text-slate-600"><Icon name="gauge" className="h-4 w-4" /></span>
           <div className="min-w-48 flex-1">
             <div className="font-semibold">Keyword check</div>
             <div className="text-xs text-slate-500">
@@ -86,13 +87,13 @@ export default async function KeywordsPage({ params, searchParams }: { params: P
               },
               cells: {
                 keyword: <span className="font-medium"><KeywordLink keyword={k.keyword} /></span>,
-                volume: <span className="num whitespace-nowrap">{k.searchVolume != null ? k.searchVolume.toLocaleString() : <span className="text-slate-300">—</span>}{flags.includes("low") && <span className="ml-1.5 rounded-full bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700" title={`Fewer than ${LOW_VOLUME} searches a month`}>low</span>}</span>,
+                volume: <span className="num whitespace-nowrap">{k.searchVolume != null ? k.searchVolume.toLocaleString() : <span className="text-slate-300">—</span>}{flags.includes("low") && <span className="ml-1.5 rounded-md bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700" title={`Fewer than ${LOW_VOLUME} searches a month`}>low</span>}</span>,
                 kd: k.difficulty != null ? <KdChip kd={k.difficulty} /> : <span className="text-slate-300">—</span>,
                 intent: <span className="text-xs text-slate-500">{k.intent ?? ""}</span>,
                 position: r ? <span className="num whitespace-nowrap">{r.position.toFixed(1)} <RankChange position={r.position} prev={r.prevPosition} /></span> : <span className="text-slate-300">—</span>,
                 status: <StatusBadge status={k.status} />,
                 used: k.used ? <span className="whitespace-nowrap text-xs">{fmtDate(k.usedAt) || "yes"}</span> : <span className="text-xs text-slate-400">no</span>,
-                flag: !k.metricsCheckedAt ? <span className="text-xs text-slate-400">not checked</span> : flags.length ? <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-700">weak</span> : <span className="text-xs text-emerald-600">ok</span>,
+                flag: !k.metricsCheckedAt ? <span className="text-xs text-slate-400">not checked</span> : flags.length ? <span className="rounded-md bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-700">weak</span> : <span className="text-xs text-emerald-600">ok</span>,
                 added: <span className="whitespace-nowrap">{fmtDate(k.addedAt)}</span>,
                 source: <span className="text-xs">{k.source.toLowerCase()}{k.submittedBy ? ` · ${k.submittedBy}` : ""}</span>,
               },
@@ -105,7 +106,7 @@ export default async function KeywordsPage({ params, searchParams }: { params: P
             { label: "Pending", filters: { status: ["PENDING"] } },
             { label: "Used", filters: { used: ["Used"] } },
             { label: "Rejected", filters: { status: ["REJECTED"] } },
-            { label: "⚠ Weak", filters: { flag: ["Weak"], used: ["Not used"] } },
+            { label: "Weak", filters: { flag: ["Weak"], used: ["Not used"] } },
           ]}
           searchPlaceholder="Search keywords"
           empty="No keywords yet. Add some above or send them through the Tally form."
@@ -125,5 +126,5 @@ export default async function KeywordsPage({ params, searchParams }: { params: P
 function KdChip({ kd }: { kd: number }) {
   const c = kd >= HARD_KD ? "bg-red-50 text-red-700 ring-red-200" : kd >= 30 ? "bg-amber-50 text-amber-700 ring-amber-200" : "bg-emerald-50 text-emerald-700 ring-emerald-200";
   const t = kd >= HARD_KD ? "hard" : kd >= 30 ? "medium" : "easy";
-  return <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold ring-1 ring-inset ${c}`} title={t}>{kd}<span className="font-normal opacity-70">{t}</span></span>;
+  return <span className={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-xs font-semibold ring-1 ring-inset ${c}`} title={t}>{kd}<span className="font-normal opacity-70">{t}</span></span>;
 }

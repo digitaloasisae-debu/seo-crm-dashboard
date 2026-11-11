@@ -78,14 +78,14 @@ export default async function SocialReviewPage({ searchParams }: { searchParams:
                   <label key={p.id} className="flex items-center gap-1.5"><input type="checkbox" name="project" value={p.id} defaultChecked /> {p.client.name} <span className="text-xs text-slate-400">({p.postsPerMonth})</span></label>
                 ))}
               </fieldset>
-              <SubmitButton className="btn-primary" disabled={!geminiConfigured()}>✦ Generate the whole month</SubmitButton>
+              <SubmitButton className="btn-primary" disabled={!geminiConfigured()}>Generate the whole month</SubmitButton>
             </form>
             <p className="text-xs text-slate-500">Plans every post for the month at once, from each project&apos;s targeted services only. Months that already have posts are only topped up. Planning takes about a minute; then captions and images are made one by one.</p>
           </section>
 
           <div className="flex flex-wrap items-center gap-2 text-sm">
             <span className="text-xs text-slate-500">Showing:</span>
-            {monthOptions.map((m) => <Link key={m} href={q({ month: m })} className={`rounded-full px-3 py-1 text-xs ${m === month ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-600"}`}>{monthLabel(m)}</Link>)}
+            {monthOptions.map((m) => <Link key={m} href={q({ month: m })} className={`rounded-md px-3 py-1 text-xs ${m === month ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-600"}`}>{monthLabel(m)}</Link>)}
           </div>
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
             {projects.map((p) => (

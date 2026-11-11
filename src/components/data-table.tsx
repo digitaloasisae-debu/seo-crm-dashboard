@@ -8,6 +8,7 @@
  */
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
+import { useRouter } from "next/navigation";
 import { Icon } from "./icons";
 
 export type ColType = "text" | "number" | "enum" | "date";
@@ -31,6 +32,8 @@ export type Row = {
   /** Can be ticked for bulk actions (default true when the table has bulk actions). */
   selectable?: boolean;
   className?: string;
+  /** Clicking anywhere on the row (outside links, buttons and inputs) opens this page. */
+  href?: string;
 };
 type Filter = string | string[];
 export type Preset = { label: string; filters: Record<string, Filter>; tone?: string };
@@ -120,6 +123,14 @@ export function DataTable({
   defaultSort?: { key: string; dir: "asc" | "desc" };
   searchPlaceholder?: string;
 }) {
+  const router = useRouter();
+  // Whole-row click: ignore clicks on things that already do something, and text being selected.
+  const openRow = (e: React.MouseEvent, href: string) => {
+    if ((e.target as HTMLElement).closest("a,button,input,select,textarea,label,summary,form [type=submit]")) return;
+    if (window.getSelection()?.toString()) return;
+    if (e.metaKey || e.ctrlKey) window.open(href, "_blank");
+    else router.push(href);
+  };
   const [q, setQ] = useState("");
   const [filters, setFilters] = useState<Record<string, Filter>>({});
   const [sort, setSort] = useState<{ key: string; dir: "asc" | "desc" } | null>(defaultSort ?? null);
@@ -218,17 +229,17 @@ export function DataTable({
       <div className="flex flex-wrap items-center gap-2 border-b border-slate-200 p-3">
         <label className="relative flex min-w-48 flex-1 items-center sm:max-w-xs">
           <Icon name="search" className="pointer-events-none absolute left-3 h-4 w-4 text-slate-400" />
-          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder={searchPlaceholder} className="input !py-2 !pl-9 text-sm" aria-label="Search this table" />
+          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder={searchPlaceholder} className="input !py-1.5 !pl-9 text-sm" aria-label="Search this table" />
           {q && <button type="button" onClick={() => setQ("")} className="absolute right-2 rounded p-1 text-slate-400 hover:text-slate-700" aria-label="Clear search"><Icon name="x" className="h-3.5 w-3.5" /></button>}
         </label>
         {presets?.map((p) => (
-          <button key={p.label} type="button" onClick={() => (presetOn(p) ? clearAll() : (setQ(""), setFilters(p.filters)))} className={`rounded-full px-3 py-1.5 text-xs font-medium transition ${presetOn(p) ? "bg-indigo-600 text-white shadow-sm" : `bg-slate-100 text-slate-600 hover:bg-slate-200 ${p.tone ?? ""}`}`}>
+          <button key={p.label} type="button" onClick={() => (presetOn(p) ? clearAll() : (setQ(""), setFilters(p.filters)))} className={`rounded-md border px-2.5 py-1 text-xs font-medium transition ${presetOn(p) ? "ink" : `border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:text-slate-900 ${p.tone ?? ""}`}`}>
             {p.label}
           </button>
         ))}
         <span className="flex-1" />
         <button type="button" onClick={() => setShowFilters((s) => !s)} className={`btn-secondary gap-1.5 px-2.5 py-1.5 text-xs ${showFilters ? "border-indigo-200 text-indigo-700" : ""}`} title="Show or hide the filter under each column">
-          <Icon name="filter" className="h-3.5 w-3.5" /> Filters{activeCount > 0 && <span className="num rounded-full bg-indigo-600 px-1.5 text-[10px] text-white">{activeCount}</span>}
+          <Icon name="filter" className="h-3.5 w-3.5" /> Filters{activeCount > 0 && <span className="num rounded ink px-1.5 text-[10px]">{activeCount}</span>}
         </button>
         <ColumnsMenu columns={columns} hidden={hidden} setHidden={setHidden} />
         <button type="button" onClick={exportCsv} className="btn-secondary gap-1.5 px-2.5 py-1.5 text-xs" title="Download what you see as a CSV file">
@@ -274,7 +285,7 @@ export function DataTable({
                 return (
                   <th key={c.key} title={c.title} className={`!rounded-none whitespace-nowrap ${c.align === "right" ? "text-right" : c.align === "center" ? "text-center" : ""}`}>
                     {c.sortable === false ? c.label : (
-                      <button type="button" onClick={() => toggleSort(c.key)} className={`group inline-flex cursor-pointer items-center gap-1 uppercase transition-colors hover:text-slate-900 ${on ? "text-indigo-700" : ""}`}>
+                      <button type="button" onClick={() => toggleSort(c.key)} data-tip-pos="bottom" className={`group inline-flex cursor-pointer items-center gap-1 transition-colors hover:text-slate-900 ${on ? "text-slate-900" : ""}`}>
                         {c.label}
                         <Icon name="chevron" className={`h-3 w-3 transition ${on ? (sort!.dir === "asc" ? "rotate-180 opacity-100" : "opacity-100") : "opacity-0 group-hover:opacity-50"}`} />
                       </button>
@@ -296,7 +307,12 @@ export function DataTable({
           </thead>
           <tbody>
             {shown.map((r) => (
-              <tr key={r.id} className={`${r.className ?? ""} ${picked.has(r.id) ? "!bg-indigo-50/60" : ""}`}>
+              <tr
+                key={r.id}
+                data-href={r.href}
+                onClick={r.href ? (e) => openRow(e, r.href!) : undefined}
+                className={`${r.className ?? ""} ${picked.has(r.id) ? "!bg-indigo-50/60" : ""}`}
+              >
                 {bulk && (
                   <td className="w-10">
                     {r.selectable !== false && (

@@ -79,7 +79,7 @@ export function AuditBoard({ score, pages, date, issues, cats, details, checks, 
           </svg>
           <div className="absolute inset-0 grid place-items-center text-center">
             <div>
-              <b className="font-display block text-6xl leading-none font-bold tracking-tight">{shown}</b>
+              <b className="font-display block text-6xl leading-none font-semibold tracking-tight">{shown}</b>
               <span className="text-xs text-slate-500">{gain ? "after these fixes" : "Site health"}</span>
             </div>
           </div>
@@ -108,13 +108,13 @@ export function AuditBoard({ score, pages, date, issues, cats, details, checks, 
           <h2 className="font-sans text-base font-semibold tracking-normal">Fix these next</h2>
           <span className="text-xs text-slate-500">{issues.length} issues · biggest score lift first</span>
         </div>
-        {issues.length === 0 && <p className="px-4 py-8 text-center text-sm text-emerald-700">No issues found. 🎉</p>}
+        {issues.length === 0 && <p className="px-4 py-8 text-center text-sm text-emerald-700">No issues found. </p>}
         {GROUPS.map((g) => {
           const list = issues.filter((i) => i.severity === g.sev).sort((a, b) => (gains[b.code] ?? 0) - (gains[a.code] ?? 0));
           if (!list.length) return null;
           return (
             <div key={g.sev}>
-              <div className="px-4 pt-4 pb-1 text-[11px] font-semibold tracking-widest text-slate-400 uppercase">{g.label}</div>
+              <div className="px-4 pt-4 pb-1 text-[11px] font-medium text-slate-400">{g.label}</div>
               {list.map((i) => {
                 const on = sim.has(i.code);
                 const g1 = Math.round((gains[i.code] ?? 0) * 10) / 10;
@@ -133,10 +133,10 @@ export function AuditBoard({ score, pages, date, issues, cats, details, checks, 
                       <span className="flex flex-wrap items-center gap-x-2 text-xs text-slate-500">
                         <span>{i.count.toLocaleString()} page{i.count === 1 ? "" : "s"}</span>
                         {i.isNew && <span className="font-medium text-red-600">New</span>}
-                        {i.aiReady && <span className="font-medium text-violet-600">✨ AI fix ready</span>}
+                        {i.aiReady && <span className="font-medium text-indigo-600">AI fix ready</span>}
                       </span>
                     </span>
-                    <span className="num hidden rounded-full bg-emerald-50 px-2 py-0.5 text-xs whitespace-nowrap text-emerald-700 sm:inline">{g1 >= 0.5 ? `+${Math.round(g1)}` : "<1"} pts</span>
+                    <span className="num hidden rounded-md bg-emerald-50 px-2 py-0.5 text-xs whitespace-nowrap text-emerald-700 sm:inline">{g1 >= 0.5 ? `+${Math.round(g1)}` : "<1"} pts</span>
                     <button
                       type="button"
                       aria-pressed={on}
@@ -175,12 +175,12 @@ function Drawer({ issue, gain, onClose, children }: { issue: BoardIssue; gain: n
       <div className="fixed inset-0 z-[55] animate-fade-in bg-slate-950/25 dark:bg-black/50" onClick={onClose} />
       <aside ref={ref} tabIndex={-1} role="dialog" aria-label={issue.title} className="rf-drawer fixed top-0 right-0 bottom-0 z-[56] w-full max-w-[520px] overflow-y-auto bg-white p-6 outline-none md:p-7" style={{ boxShadow: "var(--shadow-pop)" }}>
         <div className="flex items-center justify-between gap-3">
-          <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${g.chip}`}>{g.label}</span>
+          <span className={`rounded-md px-2.5 py-1 text-xs font-medium ${g.chip}`}>{g.label}</span>
           <button type="button" onClick={onClose} aria-label="Close" className="grid h-9 w-9 cursor-pointer place-items-center rounded-xl border border-slate-200 text-slate-500 hover:text-slate-900">
             <Icon name="x" className="h-4 w-4" />
           </button>
         </div>
-        <h3 className="font-display mt-4 text-2xl leading-tight font-bold text-balance">{issue.title}</h3>
+        <h3 className="font-display mt-4 text-2xl leading-tight font-semibold text-balance">{issue.title}</h3>
         <p className="mt-1 text-sm text-slate-500">
           {issue.count.toLocaleString()} page{issue.count === 1 ? "" : "s"} · fixing it lifts site health by about <b className="num text-emerald-600">+{Math.max(1, Math.round(gain))}</b>
         </p>

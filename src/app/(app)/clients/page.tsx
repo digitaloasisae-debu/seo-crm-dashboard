@@ -47,6 +47,7 @@ export default async function ClientsPage({ searchParams }: { searchParams: Prom
           ]}
           rows={clients.map((c) => ({
             id: c.id,
+            href: `/clients/${c.id}`,
             values: { name: c.name, owner: c.assignments.map((a) => a.user.name).join(", ") || "Unassigned", status: c.status, posts: c.postsPerMonth, keywords: c._count.keywords, topics: c._count.topics, articles: c._count.articles, site: c.siteUrl.replace(/^https?:\/\//, "") },
             cells: {
               name: (

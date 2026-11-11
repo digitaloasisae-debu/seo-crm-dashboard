@@ -16,9 +16,9 @@ const clsTone = (v: number | null | undefined) => (v == null ? "" : v <= 0.1 ? "
 function PageList({ title, items, fmt, empty, hint }: { title: string; items: DeepPage[]; fmt: (v: number) => string; empty: string; hint?: string }) {
   return (
     <details className="rounded-xl border border-slate-100 p-3">
-      <summary className="flex items-center gap-2 text-sm font-medium"><span className="flex-1">{title}</span><span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs">{items.length}</span></summary>
+      <summary className="flex items-center gap-2 text-sm font-medium"><span className="flex-1">{title}</span><span className="rounded-md bg-slate-100 px-2 py-0.5 text-xs">{items.length}</span></summary>
       <div className="mt-2 text-xs">
-        {hint && <p className="mb-2 text-slate-500">💡 {hint}</p>}
+        {hint && <p className="mb-2 text-slate-500">{hint}</p>}
         {items.length === 0 ? <p className="text-slate-500">{empty}</p> : (
           <ul className="space-y-0.5">{items.map((p) => <li key={p.url} className="flex gap-3"><a href={p.url} target="_blank" rel="noreferrer" className="min-w-0 flex-1 truncate text-indigo-600 hover:underline">{path(p.url)}</a><span className="shrink-0 tabular-nums text-slate-500">{fmt(p.value)}</span></li>)}</ul>
         )}
@@ -51,11 +51,11 @@ export function DeepAudit({ d }: { d: CrawlDeep }) {
 
       {d.ai && (
         <section className="card space-y-4">
-          <h2 className="font-semibold">✨ Executive summary</h2>
+          <h2 className="font-semibold">Executive summary</h2>
           <p className="text-sm leading-relaxed text-slate-700">{d.ai.summary}</p>
           <div className="grid gap-4 md:grid-cols-2">
             {d.ai.strengths.length > 0 && <div className="rounded-xl bg-emerald-50/60 p-3 text-sm"><div className="mb-1 font-semibold text-emerald-800">What&apos;s working</div><ul className="list-disc space-y-0.5 pl-5">{d.ai.strengths.map((s, i) => <li key={i}>{s}</li>)}</ul></div>}
-            {d.ai.quickWins.length > 0 && <div className="rounded-xl bg-indigo-50/60 p-3 text-sm"><div className="mb-1 font-semibold text-indigo-800">⚡ Quick wins (under 30 min)</div><ul className="list-disc space-y-0.5 pl-5">{d.ai.quickWins.map((s, i) => <li key={i}>{s}</li>)}</ul></div>}
+            {d.ai.quickWins.length > 0 && <div className="rounded-xl bg-indigo-50/60 p-3 text-sm"><div className="mb-1 font-semibold text-indigo-800">Quick wins (under 30 min)</div><ul className="list-disc space-y-0.5 pl-5">{d.ai.quickWins.map((s, i) => <li key={i}>{s}</li>)}</ul></div>}
           </div>
           {d.ai.actions.length > 0 && (
             <div>
@@ -63,13 +63,13 @@ export function DeepAudit({ d }: { d: CrawlDeep }) {
               <ol className="space-y-2">
                 {d.ai.actions.map((a, i) => (
                   <li key={i} className="flex gap-3 rounded-xl border border-slate-100 p-3 text-sm">
-                    <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-indigo-600 text-xs font-bold text-white">{i + 1}</span>
+                    <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-indigo-600 text-xs font-semibold text-white">{i + 1}</span>
                     <div className="min-w-0 flex-1">
                       <div className="font-medium">{a.title}</div>
                       <div className="text-xs text-slate-500">{a.why}</div>
                     </div>
                     <div className="flex shrink-0 flex-col items-end gap-1 text-[11px]">
-                      <span className={`rounded-full px-2 py-0.5 font-semibold ring-1 ring-inset ${IMPACT[a.impact]}`}>{a.impact} impact</span>
+                      <span className={`rounded-md px-2 py-0.5 font-semibold ring-1 ring-inset ${IMPACT[a.impact]}`}>{a.impact} impact</span>
                       <span className="text-slate-500">⏱ {a.effort}</span>
                     </div>
                   </li>
@@ -82,7 +82,7 @@ export function DeepAudit({ d }: { d: CrawlDeep }) {
 
       {d.speed.length > 0 && (
         <section className="card p-0">
-          <div className="p-4 pb-2"><h2 className="font-semibold">⚡ Speed and Core Web Vitals</h2><p className="text-xs text-slate-500">Google PageSpeed (lab test) plus real Chrome users where Google has enough data. Good: LCP ≤ 2.5s, INP ≤ 200ms, CLS ≤ 0.1.</p></div>
+          <div className="p-4 pb-2"><h2 className="font-semibold">Speed and Core Web Vitals</h2><p className="text-xs text-slate-500">Google PageSpeed (lab test) plus real Chrome users where Google has enough data. Good: LCP ≤ 2.5s, INP ≤ 200ms, CLS ≤ 0.1.</p></div>
           <div className="overflow-x-auto">
             <table className="table">
               <thead><tr><th>Page</th><th>Mobile</th><th>Desktop</th><th>LCP (lab)</th><th>CLS</th><th>Real users: LCP</th><th>INP</th><th>CLS</th></tr></thead>
@@ -92,8 +92,8 @@ export function DeepAudit({ d }: { d: CrawlDeep }) {
                   return (
                     <tr key={s.url}>
                       <td className="max-w-[14rem] truncate text-xs"><a href={s.url} target="_blank" rel="noreferrer" className="text-indigo-600 hover:underline">{path(s.url)}</a>{s.mobile.error && <div className="text-red-600">{s.mobile.error}</div>}</td>
-                      <td className={`font-bold ${toneText(s.mobile.performance)}`}>{s.mobile.performance ?? "—"}</td>
-                      <td className={`font-bold ${toneText(s.desktop.performance)}`}>{s.desktop.performance ?? "—"}</td>
+                      <td className={`font-semibold ${toneText(s.mobile.performance)}`}>{s.mobile.performance ?? "—"}</td>
+                      <td className={`font-semibold ${toneText(s.desktop.performance)}`}>{s.desktop.performance ?? "—"}</td>
                       <td className={lcpTone(s.mobile.lcpMs)}>{sec(s.mobile.lcpMs)}</td>
                       <td className={clsTone(s.mobile.cls)}>{s.mobile.cls?.toFixed(2) ?? "—"}</td>
                       <td className={lcpTone(f?.lcpMs)}>{sec(f?.lcpMs)}{f?.origin && <span className="ml-1 text-[10px] text-slate-400">(site)</span>}</td>
@@ -117,7 +117,7 @@ export function DeepAudit({ d }: { d: CrawlDeep }) {
 
       <section className="grid gap-6 lg:grid-cols-2">
         <div className="card space-y-3">
-          <h2 className="font-semibold">🔗 Internal linking</h2>
+          <h2 className="font-semibold">Internal linking</h2>
           <div>
             <div className="mb-1 text-xs text-slate-500">Pages by clicks from the home page (keep important pages within 3)</div>
             <div className="flex h-24 items-end gap-2">
@@ -134,10 +134,10 @@ export function DeepAudit({ d }: { d: CrawlDeep }) {
           <PageList title="Buried pages (more than 3 clicks deep)" items={d.deepPages} fmt={(v) => `${v} clicks`} empty="No buried pages." hint="Link to them from the menu, footer, category pages or the home page." />
         </div>
         <div className="card space-y-3">
-          <h2 className="font-semibold">🔎 Visibility in Google</h2>
+          <h2 className="font-semibold">Visibility in Google</h2>
           {d.indexing ? (
             <>
-              <div className="flex items-baseline gap-2"><span className="text-3xl font-bold tabular-nums">{d.indexing.withImpressions}</span><span className="text-sm text-slate-500">of {d.indexing.crawledOk} live pages showed up in Google in the last 28 days</span></div>
+              <div className="flex items-baseline gap-2"><span className="text-3xl font-semibold tabular-nums">{d.indexing.withImpressions}</span><span className="text-sm text-slate-500">of {d.indexing.crawledOk} live pages showed up in Google in the last 28 days</span></div>
               <PageList title="Pages Google isn't showing" items={d.indexing.noImpressions} fmt={(v) => `${v} link${v === 1 ? "" : "s"} in`} empty="Every page got impressions." hint="Check they're indexed (Search Console → URL Inspection), improve them, link to them, or noindex/merge ones with no value." />
               <PageList title="Pages getting impressions that the crawl didn't find" items={d.indexing.notCrawled} fmt={(v) => `${v.toLocaleString()} impr.`} empty="None." hint="Usually old URLs or orphan pages. Redirect old ones (301) or link to the live ones." />
             </>
@@ -150,8 +150,8 @@ export function DeepAudit({ d }: { d: CrawlDeep }) {
           )}
           {d.cannibal.length > 0 && (
             <details className="rounded-xl border border-slate-100 p-3">
-              <summary className="flex items-center gap-2 text-sm font-medium"><span className="flex-1">Keyword cannibalisation (pages competing for the same search)</span><span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs text-amber-800">{d.cannibal.length}</span></summary>
-              <p className="my-2 text-xs text-slate-500">💡 Pick one page per search, merge or differentiate the others, and point internal links to the winner.</p>
+              <summary className="flex items-center gap-2 text-sm font-medium"><span className="flex-1">Keyword cannibalisation (pages competing for the same search)</span><span className="rounded-md bg-amber-100 px-2 py-0.5 text-xs text-amber-800">{d.cannibal.length}</span></summary>
+              <p className="my-2 text-xs text-slate-500">Pick one page per search, merge or differentiate the others, and point internal links to the winner.</p>
               <div className="space-y-2 text-xs">
                 {d.cannibal.map((c) => (
                   <div key={c.query}><div className="font-medium">&ldquo;{c.query}&rdquo; <span className="text-slate-400">· {c.impressions.toLocaleString()} impr.</span></div>
@@ -166,7 +166,7 @@ export function DeepAudit({ d }: { d: CrawlDeep }) {
 
       <section className="grid gap-6 lg:grid-cols-2">
         <div className="card space-y-3">
-          <h2 className="font-semibold">📄 Content and page weight</h2>
+          <h2 className="font-semibold">Content and page weight</h2>
           <PageList title="Thin pages (under 300 words)" items={d.thinPages} fmt={(v) => `${v} words`} empty="No thin pages." hint="Expand with useful sections, merge into a stronger page, or noindex." />
           <PageList title="Heavy pages (over 500 KB)" items={d.heavyPages} fmt={kb} empty="No heavy pages." />
           <PageList title="Large images (over 200 KB)" items={d.bigImages} fmt={kb} empty="No large images." hint="Compress and convert to WebP (e.g. ShortPixel, Imagify or LiteSpeed Image Optimization)." />
@@ -174,14 +174,14 @@ export function DeepAudit({ d }: { d: CrawlDeep }) {
           <PageList title="Lowest on-page scores" items={d.lowScorePages} fmt={(v) => `${v}/100`} empty="—" />
         </div>
         <div className="card space-y-3">
-          <h2 className="font-semibold">🔒 Security</h2>
+          <h2 className="font-semibold">Security</h2>
           {d.security ? (
             <>
               <div className="flex flex-wrap gap-1.5">
-                <span className={`rounded-full px-2.5 py-1 text-xs ring-1 ring-inset ${d.security.https ? "bg-emerald-50 text-emerald-800 ring-emerald-200" : "bg-red-50 text-red-700 ring-red-200"}`}>{d.security.https ? "✓" : "✕"} HTTPS</span>
-                {Object.entries(d.security.headers).map(([k, v]) => <span key={k} className={`rounded-full px-2.5 py-1 text-xs ring-1 ring-inset ${v ? "bg-emerald-50 text-emerald-800 ring-emerald-200" : "bg-amber-50 text-amber-800 ring-amber-200"}`}>{v ? "✓" : "✕"} {SECURITY_LABELS[k] ?? k}</span>)}
+                <span className={`rounded-md px-2.5 py-1 text-xs ring-1 ring-inset ${d.security.https ? "bg-emerald-50 text-emerald-800 ring-emerald-200" : "bg-red-50 text-red-700 ring-red-200"}`}>{d.security.https ? "✓" : "✕"} HTTPS</span>
+                {Object.entries(d.security.headers).map(([k, v]) => <span key={k} className={`rounded-md px-2.5 py-1 text-xs ring-1 ring-inset ${v ? "bg-emerald-50 text-emerald-800 ring-emerald-200" : "bg-amber-50 text-amber-800 ring-amber-200"}`}>{v ? "✓" : "✕"} {SECURITY_LABELS[k] ?? k}</span>)}
               </div>
-              <p className="text-xs text-slate-500">💡 Missing headers can be added in one go with a plugin such as &ldquo;Headers Security Advanced &amp; HSTS WP&rdquo;, or by your host (LiteSpeed/Cloudflare).</p>
+              <p className="text-xs text-slate-500">Missing headers can be added in one go with a plugin such as &ldquo;Headers Security Advanced &amp; HSTS WP&rdquo;, or by your host (LiteSpeed/Cloudflare).</p>
               {d.security.mixedContent.length > 0 && <div className="text-xs"><div className="font-medium text-red-700">Files loaded over insecure http:// on the home page</div><ul className="mt-1 space-y-0.5">{d.security.mixedContent.map((u) => <li key={u} className="truncate text-slate-600">{u}</li>)}</ul></div>}
             </>
           ) : <p className="text-sm text-slate-500">Couldn&apos;t load the home page to check.</p>}
@@ -194,7 +194,7 @@ export function DeepAudit({ d }: { d: CrawlDeep }) {
       {(d.files || (d.schema?.length ?? 0) > 0) && (
         <section className="grid gap-6 lg:grid-cols-2">
           <div className="card space-y-3">
-            <h2 className="font-semibold">🗺️ Sitemap and robots.txt</h2>
+            <h2 className="font-semibold">Sitemap and robots.txt</h2>
             {d.files ? (
               <>
                 <div className="flex flex-wrap gap-1.5 text-xs">
@@ -210,7 +210,7 @@ export function DeepAudit({ d }: { d: CrawlDeep }) {
             ) : <p className="text-sm text-slate-500">Couldn&apos;t load robots.txt or a sitemap.</p>}
           </div>
           <div className="card space-y-3">
-            <h2 className="font-semibold">🤖 Structured data and AI search</h2>
+            <h2 className="font-semibold">Structured data and AI search</h2>
             {d.files && (
               <div className="flex flex-wrap gap-1.5 text-xs">
                 <Pill ok={d.files.aiBotsBlocked.length === 0}>{d.files.aiBotsBlocked.length ? `Blocks ${d.files.aiBotsBlocked.join(", ")}` : "AI crawlers allowed (ChatGPT, Claude, Perplexity, Gemini)"}</Pill>
@@ -234,7 +234,7 @@ export function DeepAudit({ d }: { d: CrawlDeep }) {
             )}
             {d.market?.aiVisibility && (
               <div className="rounded-xl border border-slate-100 p-3 text-xs">
-                <div className="mb-1 font-semibold">✨ Visibility in AI answers</div>
+                <div className="mb-1 font-semibold">Visibility in AI answers</div>
                 <table className="w-full"><thead><tr className="text-left text-slate-500"><th className="font-medium">AI engine</th><th className="font-medium">Brand mentions</th><th className="font-medium">Site cited</th></tr></thead>
                   <tbody>{d.market.aiVisibility.platforms.map((p) => <tr key={p.key}><td>{p.label}</td><td className="tabular-nums">{p.mentions.toLocaleString()}</td><td className={`tabular-nums ${p.cited ? "text-emerald-700" : "text-red-600"}`}>{p.cited.toLocaleString()}</td></tr>)}</tbody>
                 </table>
@@ -243,7 +243,7 @@ export function DeepAudit({ d }: { d: CrawlDeep }) {
             )}
             {d.hreflang && (
               <div className="rounded-xl border border-slate-100 p-3 text-xs">
-                <div className="mb-1 font-semibold">🌐 Languages (hreflang)</div>
+                <div className="mb-1 font-semibold">Languages (hreflang)</div>
                 {d.hreflang.multiLangNoTags ? (
                   <p className="text-amber-800">Pages are in different languages ({d.hreflang.langs.join(", ")}) but have no hreflang tags, so Google may show the wrong language version. Add them with WPML, Polylang or TranslatePress.</p>
                 ) : (
@@ -256,7 +256,7 @@ export function DeepAudit({ d }: { d: CrawlDeep }) {
                 )}
               </div>
             )}
-            <p className="text-xs text-slate-500">💡 Business schema (LocalBusiness or Organization) on the home page, Article/FAQ/Service schema on content, and open access for AI crawlers help Google AI Overviews, ChatGPT and Perplexity understand and cite the business. Rank Math and Yoast add most of this.</p>
+            <p className="text-xs text-slate-500">Business schema (LocalBusiness or Organization) on the home page, Article/FAQ/Service schema on content, and open access for AI crawlers help Google AI Overviews, ChatGPT and Perplexity understand and cite the business. Rank Math and Yoast add most of this.</p>
           </div>
         </section>
       )}
@@ -267,5 +267,5 @@ export function DeepAudit({ d }: { d: CrawlDeep }) {
 }
 
 function Pill({ ok, warn, children }: { ok: boolean; warn?: boolean; children: React.ReactNode }) {
-  return <span className={`rounded-full px-2.5 py-1 ring-1 ring-inset ${ok ? "bg-emerald-50 text-emerald-800 ring-emerald-200" : warn ? "bg-amber-50 text-amber-800 ring-amber-200" : "bg-red-50 text-red-700 ring-red-200"}`}>{ok ? "✓" : "✕"} {children}</span>;
+  return <span className={`rounded-md px-2.5 py-1 ring-1 ring-inset ${ok ? "bg-emerald-50 text-emerald-800 ring-emerald-200" : warn ? "bg-amber-50 text-amber-800 ring-amber-200" : "bg-red-50 text-red-700 ring-red-200"}`}>{ok ? "✓" : "✕"} {children}</span>;
 }

@@ -71,25 +71,25 @@ export default async function ArticleReview({ params, searchParams }: { params: 
     <>
       <div className="mb-4 text-sm"><Link className="text-indigo-600 hover:underline" href={`/clients/${article.clientId}/articles`}>← {article.client.name}</Link></div>
       <div className="mb-3 flex flex-wrap items-center gap-3">
-        <h1 className="font-display text-slate-900 text-2xl font-bold tracking-tight ">{article.metaTitle}</h1>
+        <h1 className="font-display text-slate-900 text-2xl font-semibold tracking-tight ">{article.metaTitle}</h1>
         <StatusBadge status={article.status} />
       </div>
       <div className="mb-6 flex flex-wrap items-center gap-2 text-xs">
-        <span className="inline-flex items-center gap-1 rounded-full bg-indigo-50 py-0.5 pr-1 pl-2.5 font-medium text-indigo-800 ring-1 ring-indigo-100">
+        <span className="inline-flex items-center gap-1 rounded-md bg-indigo-50 py-0.5 pr-1 pl-2.5 font-medium text-indigo-800 ring-1 ring-indigo-100">
           <Icon name="tag" className="h-3.5 w-3.5" /> Focus keyword <CopyChip text={article.focusKeyword} label="focus keyword" className="font-semibold" />
         </span>
-        <span className="num rounded-full bg-slate-100 px-2.5 py-1 text-slate-600">{words.toLocaleString()} words · {Math.max(1, Math.round(words / 220))} min read</span>
-        <span className={`rounded-full px-2.5 py-1 ${kwHits ? "bg-slate-100 text-slate-600" : "bg-amber-50 text-amber-700"}`} title="How many times the exact focus keyword appears in the text">keyword used <b className="num">{kwHits}×</b></span>
-        {article.qualityScore != null && <a href="#sop" className={`num rounded-full px-2.5 py-1 font-medium hover:underline ${article.qualityScore >= 85 ? "bg-emerald-50 text-emerald-700" : article.qualityScore >= 65 ? "bg-amber-50 text-amber-700" : "bg-red-50 text-red-700"}`}>SOP {article.qualityScore}</a>}
-        {article.contentScore != null && <a href="#top10" className={`num rounded-full px-2.5 py-1 font-medium hover:underline ${article.contentScore >= 75 ? "bg-emerald-50 text-emerald-700" : article.contentScore >= 55 ? "bg-amber-50 text-amber-700" : "bg-red-50 text-red-700"}`}>Top 10 score {article.contentScore}</a>}
-        {rankNow != null && <span className="num rounded-full bg-emerald-50 px-2.5 py-1 font-medium text-emerald-700">Google #{rankNow.toFixed(1)}</span>}
+        <span className="num rounded-md bg-slate-100 px-2.5 py-1 text-slate-600">{words.toLocaleString()} words · {Math.max(1, Math.round(words / 220))} min read</span>
+        <span className={`rounded-md px-2.5 py-1 ${kwHits ? "bg-slate-100 text-slate-600" : "bg-amber-50 text-amber-700"}`} title="How many times the exact focus keyword appears in the text">keyword used <b className="num">{kwHits}×</b></span>
+        {article.qualityScore != null && <a href="#sop" className={`num rounded-md px-2.5 py-1 font-medium hover:underline ${article.qualityScore >= 85 ? "bg-emerald-50 text-emerald-700" : article.qualityScore >= 65 ? "bg-amber-50 text-amber-700" : "bg-red-50 text-red-700"}`}>SOP {article.qualityScore}</a>}
+        {article.contentScore != null && <a href="#top10" className={`num rounded-md px-2.5 py-1 font-medium hover:underline ${article.contentScore >= 75 ? "bg-emerald-50 text-emerald-700" : article.contentScore >= 55 ? "bg-amber-50 text-amber-700" : "bg-red-50 text-red-700"}`}>Top 10 score {article.contentScore}</a>}
+        {rankNow != null && <span className="num rounded-md bg-emerald-50 px-2.5 py-1 font-medium text-emerald-700">Google #{rankNow.toFixed(1)}</span>}
       </div>
 
       {revising && (
-        <div className="mb-6 flex items-center gap-3 rounded-2xl border border-violet-200 bg-gradient-to-r from-indigo-50 to-violet-50 p-4 text-sm text-violet-900">
+        <div className="mb-6 flex items-center gap-3 rounded-lg border border-indigo-200 bg-indigo-50 p-3.5 text-sm text-indigo-900">
           <RefreshWhile />
-          <Spinner className="h-5 w-5 text-violet-600" />
-          <div><span className="font-semibold">✨ AI is working on this article…</span> SOP check and fixes or your rewrite take 1 to 3 minutes. The page updates by itself, so you can keep working elsewhere.</div>
+          <Spinner className="h-4 w-4 text-indigo-600" />
+          <div><span className="font-semibold">AI is working on this article…</span> SOP check and fixes or your rewrite take 1 to 3 minutes. The page updates by itself, so you can keep working elsewhere.</div>
         </div>
       )}
 
@@ -134,12 +134,12 @@ export default async function ArticleReview({ params, searchParams }: { params: 
 
           {article.status === "PUSHED_DRAFT" && (article.client.gscProperty || gaData) && (
             <section className="card space-y-3">
-              <h2 className="font-semibold">📈 Google ranking</h2>
+              <h2 className="font-semibold">Google ranking</h2>
               {gaData && (
                 <div className="grid grid-cols-3 gap-2 text-center">
-                  <div className="rounded-xl bg-emerald-50/70 p-2"><div className="text-[11px] text-slate-500">Google visits (28d)</div><div className="text-xl font-bold tabular-nums">{traffic?.sessions ?? 0}</div></div>
-                  <div className="rounded-xl bg-emerald-50/70 p-2"><div className="text-[11px] text-slate-500">Visitors</div><div className="text-xl font-bold tabular-nums">{traffic?.users ?? 0}</div></div>
-                  <div className="rounded-xl bg-emerald-50/70 p-2"><div className="text-[11px] text-slate-500">Conversions</div><div className="text-xl font-bold tabular-nums">{traffic?.keyEvents ?? 0}</div></div>
+                  <div className="rounded-xl bg-emerald-50/70 p-2"><div className="text-[11px] text-slate-500">Google visits (28d)</div><div className="text-xl font-semibold tabular-nums">{traffic?.sessions ?? 0}</div></div>
+                  <div className="rounded-xl bg-emerald-50/70 p-2"><div className="text-[11px] text-slate-500">Visitors</div><div className="text-xl font-semibold tabular-nums">{traffic?.users ?? 0}</div></div>
+                  <div className="rounded-xl bg-emerald-50/70 p-2"><div className="text-[11px] text-slate-500">Conversions</div><div className="text-xl font-semibold tabular-nums">{traffic?.keyEvents ?? 0}</div></div>
                 </div>
               )}
               {!article.client.gscProperty ? null : history.length === 0 ? (
@@ -147,9 +147,9 @@ export default async function ArticleReview({ params, searchParams }: { params: 
               ) : (
                 <>
                   <div className="grid grid-cols-3 gap-2 text-center">
-                    <div className="rounded-xl bg-indigo-50/60 p-2"><div className="text-[11px] text-slate-500">Position (4w)</div><div className="text-xl font-bold tabular-nums">{rankNow != null ? rankNow.toFixed(1) : "—"}</div>{rankNow != null && <RankChange position={rankNow} prev={rankPrev} />}</div>
-                    <div className="rounded-xl bg-indigo-50/60 p-2"><div className="text-[11px] text-slate-500">Clicks (4w)</div><div className="text-xl font-bold tabular-nums">{last4.reduce((s, p) => s + p.clicks, 0)}</div></div>
-                    <div className="rounded-xl bg-indigo-50/60 p-2"><div className="text-[11px] text-slate-500">Best week</div><div className="text-xl font-bold tabular-nums">{best?.toFixed(1)}</div></div>
+                    <div className="rounded-xl bg-indigo-50/60 p-2"><div className="text-[11px] text-slate-500">Position (4w)</div><div className="text-xl font-semibold tabular-nums">{rankNow != null ? rankNow.toFixed(1) : "—"}</div>{rankNow != null && <RankChange position={rankNow} prev={rankPrev} />}</div>
+                    <div className="rounded-xl bg-indigo-50/60 p-2"><div className="text-[11px] text-slate-500">Clicks (4w)</div><div className="text-xl font-semibold tabular-nums">{last4.reduce((s, p) => s + p.clicks, 0)}</div></div>
+                    <div className="rounded-xl bg-indigo-50/60 p-2"><div className="text-[11px] text-slate-500">Best week</div><div className="text-xl font-semibold tabular-nums">{best?.toFixed(1)}</div></div>
                   </div>
                   <div>
                     <RankSparkline points={history} width={320} height={56} />
@@ -191,8 +191,8 @@ export default async function ArticleReview({ params, searchParams }: { params: 
                       <span className="font-semibold text-slate-700">{n.author?.name ?? "Someone"}</span>
                       <span>· {n.kind.toLowerCase()}</span>
                       <span>· {fmtDate(n.createdAt)}</span>
-                      {n.appliedAt && <span className="ml-auto rounded-full bg-emerald-50 px-2 py-0.5 text-emerald-700" title="An AI rewrite has applied this note">✓ applied</span>}
-                      {n.learnedAt ? <span className={`${n.appliedAt ? "" : "ml-auto "} rounded-full bg-violet-50 px-2 py-0.5 text-violet-700`} title="The client's brain has learned from this note">🧠 learned</span> : <span className={`${n.appliedAt ? "" : "ml-auto "}text-slate-400`}>learning…</span>}
+                      {n.appliedAt && <span className="ml-auto rounded-md bg-emerald-50 px-2 py-0.5 text-emerald-700" title="An AI rewrite has applied this note">✓ applied</span>}
+                      {n.learnedAt ? <span className={`${n.appliedAt ? "" : "ml-auto "} rounded-md bg-indigo-50 px-2 py-0.5 text-indigo-700`} title="The client's brain has learned from this note">learned</span> : <span className={`${n.appliedAt ? "" : "ml-auto "}text-slate-400`}>learning…</span>}
                       {(n.authorId === user.id || user.role !== "MEMBER") && (
                         <form action={deleteNoteAction.bind(null, n.id)}><button className="cursor-pointer text-slate-300 opacity-0 transition group-hover:opacity-100 hover:text-red-600" title="Delete note">✕</button></form>
                       )}
@@ -207,11 +207,11 @@ export default async function ArticleReview({ params, searchParams }: { params: 
           {editable && !locked && geminiConfigured() && (
             <section className="card space-y-4">
               <div>
-                <h2 className="font-semibold">✨ Rewrite with AI</h2>
+                <h2 className="font-semibold">Rewrite with AI</h2>
                 <p className="mt-0.5 text-xs text-slate-500">Uses this client&apos;s brain, the SOP and the notes above. The current version is saved, so you can undo.</p>
               </div>
               {revising ? (
-                <p className="flex items-center gap-2 text-sm text-violet-700"><Spinner /> Rewriting now…</p>
+                <p className="flex items-center gap-2 text-sm text-indigo-700"><Spinner /> Rewriting now…</p>
               ) : (
                 <RewriteForm action={rewriteArticleAction.bind(null, id)} pendingNotes={pendingNotes} />
               )}
@@ -227,7 +227,7 @@ export default async function ArticleReview({ params, searchParams }: { params: 
               </div>
               {article.revisions.length > 0 && (
                 <details className="text-sm">
-                  <summary className="text-slate-600">🕘 Earlier versions ({article.revisions.length})</summary>
+                  <summary className="text-slate-600">Earlier versions ({article.revisions.length})</summary>
                   <ul className="mt-2 space-y-2">
                     {article.revisions.map((r) => (
                       <li key={r.id} className="flex items-start justify-between gap-3 rounded-lg border border-slate-100 p-2">

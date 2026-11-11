@@ -2,11 +2,9 @@
 
 import { useEffect } from "react";
 
-const COLORS = ["#6366F1", "#8B5CF6", "#D946EF", "#F59E0B", "#10B981", "#38BDF8", "#F472B6"];
-const CHEERS: Record<string, string[]> = {
-  approved: ["Nice! ✨", "Approved! 🎉", "On a roll! 🚀", "Great call 👌", "Boom! 💥"],
-  pushed: ["Shipped to WordPress! 🚀", "Draft is live! 🎉", "Another one out the door ✨"],
-};
+const COLORS = ["#4f4cc4", "#8482e3", "#f5b83d", "#10b981", "#18181b"];
+// Short, plain confirmations. Confetti is saved for the big moment (sending to WordPress).
+const CHEERS: Record<string, string> = { approved: "Approved", pushed: "Sent to WordPress" };
 
 /** Fires a confetti burst from the button. Exported so other client components can celebrate too. */
 export function burst(x: number, y: number, count = 70) {
@@ -61,9 +59,8 @@ export function Celebrate() {
       if (boxes.length && ![...boxes].some((b) => b.checked)) return;
       const r = btn.getBoundingClientRect();
       const x = r.left + r.width / 2, y = r.top + r.height / 2;
-      burst(x, y, kind === "pushed" ? 120 : 70);
-      const list = CHEERS[kind] ?? CHEERS.approved;
-      toast(list[(Math.random() * list.length) | 0], x, r.top);
+      if (kind === "pushed") burst(x, y, 60);
+      toast(CHEERS[kind] ?? CHEERS.approved, x, r.top);
     };
     document.addEventListener("submit", onSubmit, true);
     return () => document.removeEventListener("submit", onSubmit, true);
@@ -76,7 +73,7 @@ export function ConfettiOnce() {
   useEffect(() => {
     const key = `cheer-${new Date().toDateString()}`;
     try { if (sessionStorage.getItem(key)) return; sessionStorage.setItem(key, "1"); } catch {}
-    const id = setTimeout(() => burst(innerWidth / 2, innerHeight * 0.45, 110), 500);
+    const id = setTimeout(() => burst(innerWidth / 2, innerHeight * 0.45, 60), 500);
     return () => clearTimeout(id);
   }, []);
   return null;

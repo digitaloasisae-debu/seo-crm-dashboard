@@ -16,9 +16,9 @@ export function ContentScoreCard({ report, checkedAt, runAction, refreshAction, 
   if (!report) {
     return (
       <section className="card space-y-3">
-        <h2 className="font-semibold">🏁 Content score vs Google top 10</h2>
+        <h2 className="font-semibold">Content score vs Google top 10</h2>
         <p className="text-sm text-slate-500">Compares this draft with the 10 pages ranking for its focus keyword: length, headings and the terms they all use.</p>
-        {!ready ? <p className="text-xs text-slate-500">Needs the DataForSEO login in Vercel.</p> : canRun && <ContentScoreRun action={runAction} label="🏁 Compare with top 10" />}
+        {!ready ? <p className="text-xs text-slate-500">Needs the DataForSEO login in Vercel.</p> : canRun && <ContentScoreRun action={runAction} label="Compare with top 10" />}
       </section>
     );
   }
@@ -29,20 +29,20 @@ export function ContentScoreCard({ report, checkedAt, runAction, refreshAction, 
       <div className="flex items-center gap-4">
         <ScoreRing score={report.score} size={88} />
         <div className="min-w-0 flex-1">
-          <h2 className="font-semibold">🏁 Content score vs top 10</h2>
+          <h2 className="font-semibold">Content score vs top 10</h2>
           <p className="text-xs text-slate-500">Google {report.location} · {read.length} pages read · {fmtDate(checkedAt)}</p>
         </div>
       </div>
       <div className="grid grid-cols-3 gap-2 text-center text-xs">
-        <div className={`rounded-xl p-2 ${report.words >= report.targetWords[0] ? "bg-emerald-50" : "bg-amber-50"}`}><div className="text-slate-500">Words</div><div className="text-lg font-bold tabular-nums">{report.words.toLocaleString()}</div><div className="text-slate-500">target {report.targetWords[0].toLocaleString()}–{report.targetWords[1].toLocaleString()}</div></div>
-        <div className={`rounded-xl p-2 ${report.h2 >= report.targetH2 ? "bg-emerald-50" : "bg-amber-50"}`}><div className="text-slate-500">H2 sections</div><div className="text-lg font-bold tabular-nums">{report.h2}</div><div className="text-slate-500">target {report.targetH2}+</div></div>
-        <div className={`rounded-xl p-2 ${used / Math.max(1, report.terms.length) >= 0.7 ? "bg-emerald-50" : "bg-amber-50"}`}><div className="text-slate-500">Key terms</div><div className="text-lg font-bold tabular-nums">{used}/{report.terms.length}</div><div className="text-slate-500">used</div></div>
+        <div className={`rounded-xl p-2 ${report.words >= report.targetWords[0] ? "bg-emerald-50" : "bg-amber-50"}`}><div className="text-slate-500">Words</div><div className="text-lg font-semibold tabular-nums">{report.words.toLocaleString()}</div><div className="text-slate-500">target {report.targetWords[0].toLocaleString()}–{report.targetWords[1].toLocaleString()}</div></div>
+        <div className={`rounded-xl p-2 ${report.h2 >= report.targetH2 ? "bg-emerald-50" : "bg-amber-50"}`}><div className="text-slate-500">H2 sections</div><div className="text-lg font-semibold tabular-nums">{report.h2}</div><div className="text-slate-500">target {report.targetH2}+</div></div>
+        <div className={`rounded-xl p-2 ${used / Math.max(1, report.terms.length) >= 0.7 ? "bg-emerald-50" : "bg-amber-50"}`}><div className="text-slate-500">Key terms</div><div className="text-lg font-semibold tabular-nums">{used}/{report.terms.length}</div><div className="text-slate-500">used</div></div>
       </div>
       <div>
         <div className="label">Terms the top pages use</div>
         <div className="flex flex-wrap gap-1.5">
           {report.terms.map((t) => (
-            <span key={t.term} title={`Used by ${t.pages} of the top pages, about ${t.avg}× each. This draft: ${t.used}×`} className={`rounded-full px-2 py-0.5 text-xs ${t.used > 0 ? "bg-emerald-50 text-emerald-800" : "bg-red-50 text-red-700 ring-1 ring-red-200 ring-inset"}`}>
+            <span key={t.term} title={`Used by ${t.pages} of the top pages, about ${t.avg}× each. This draft: ${t.used}×`} className={`rounded-md px-2 py-0.5 text-xs ${t.used > 0 ? "bg-emerald-50 text-emerald-800" : "bg-red-50 text-red-700 ring-1 ring-red-200 ring-inset"}`}>
               {t.term} <span className="opacity-60">{t.used}/{t.avg}</span>
             </span>
           ))}
@@ -67,7 +67,7 @@ export function ContentScoreCard({ report, checkedAt, runAction, refreshAction, 
           ))}
         </ol>
       </details>
-      {canRun && ready && <ContentScoreRun action={refreshAction} label="🔄 Fetch fresh top 10" className="btn-secondary w-full text-xs" />}
+      {canRun && ready && <ContentScoreRun action={refreshAction} label="Fetch fresh top 10" className="btn-secondary w-full text-xs" />}
       <p className="text-[11px] text-slate-400">The SOP auto-fix uses these gaps too.</p>
     </section>
   );

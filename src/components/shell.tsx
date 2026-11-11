@@ -29,7 +29,7 @@ export function Toaster() {
   return (
     <div aria-live="polite" className="pointer-events-none fixed bottom-5 left-1/2 z-[80] grid -translate-x-1/2 gap-2" style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)" }}>
       {items.map((t) => (
-        <div key={t.id} className="rf-toast pointer-events-auto flex max-w-[90vw] items-center gap-4 rounded-2xl bg-slate-900 py-2.5 pr-3 pl-4 text-sm text-slate-50" style={{ boxShadow: "var(--shadow-pop)" }}>
+        <div key={t.id} className="rf-toast pointer-events-auto flex max-w-[90vw] items-center gap-4 rounded-xl bg-slate-900 py-2.5 pr-3 pl-4 text-sm text-slate-50" style={{ boxShadow: "var(--shadow-pop)" }}>
           {t.tone === "err" ? <Icon name="alert" className="h-4 w-4 shrink-0 text-red-300" /> : <Icon name="check" className="h-4 w-4 shrink-0 text-emerald-300" />}
           <span className="min-w-0 truncate">{t.text}</span>
           {t.undo && (
@@ -88,9 +88,9 @@ export function ThemeToggle() {
         setMode(m);
         applyTheme(m);
       }}
-      className="relative grid h-10 w-10 shrink-0 cursor-pointer place-items-center rounded-xl border border-slate-200 bg-white text-slate-500 transition hover:text-slate-900"
+      className="relative grid h-8 w-8 shrink-0 cursor-pointer place-items-center rounded-md text-slate-500 transition-colors hover:bg-slate-200/60 hover:text-slate-900"
     >
-      <Icon name={icon[mode]} className="h-[18px] w-[18px]" />
+      <Icon name={icon[mode]} className="h-4 w-4" />
       {mode === "system" && <span className="absolute right-1.5 bottom-1.5 h-1.5 w-1.5 rounded-full bg-indigo-500" />}
     </button>
   );
@@ -181,7 +181,7 @@ export function CommandMenu({ clients, links }: { clients: PaletteClient[]; link
   if (!open) return null;
   return (
     <div className="fixed inset-0 z-[70] grid animate-fade-in items-start justify-items-center bg-slate-950/30 px-4 pt-[12vh] dark:bg-black/50" onMouseDown={(e) => e.target === e.currentTarget && close()}>
-      <div role="dialog" aria-label="Command menu" className="rf-pal w-full max-w-xl overflow-hidden rounded-2xl border border-slate-200 bg-white" style={{ boxShadow: "var(--shadow-pop)" }}>
+      <div role="dialog" aria-label="Command menu" className="rf-pal w-full max-w-xl overflow-hidden rounded-xl border border-slate-200 bg-white" style={{ boxShadow: "var(--shadow-pop)" }}>
         <div className="flex items-center gap-3 border-b border-slate-200 px-4">
           <Icon name="search" className="h-4 w-4 shrink-0 text-slate-400" />
           <input
@@ -239,7 +239,7 @@ export function SearchButton() {
     <button
       type="button"
       onClick={() => window.dispatchEvent(new Event("rf-palette"))}
-      className="flex min-w-0 flex-1 cursor-pointer items-center gap-3 rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-left text-sm text-slate-400 transition hover:border-indigo-300 hover:ring-4 hover:ring-indigo-500/10 md:max-w-lg"
+      className="flex min-w-0 flex-1 cursor-pointer items-center gap-2.5 rounded-md border border-slate-200 bg-white px-3 py-1.5 text-left text-sm text-slate-400 transition-colors hover:border-slate-300 hover:text-slate-600 md:max-w-md"
     >
       <Icon name="search" className="h-4 w-4 shrink-0" />
       <span className="min-w-0 flex-1 truncate">Jump to a client, run an audit, approve…</span>

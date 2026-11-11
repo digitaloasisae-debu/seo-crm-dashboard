@@ -9,8 +9,8 @@ export async function InternalLinks({ articleId, editable, ai, hasCred, note }: 
   return (
     <section id="links" className="card scroll-mt-20 space-y-3">
       <div className="flex items-center justify-between gap-2">
-        <h3 className="font-sans text-sm font-semibold tracking-normal">🔗 Internal links to this article</h3>
-        {editable && ai && <form action={suggestLinksAction.bind(null, articleId)}><SubmitButton className="text-xs text-indigo-600 hover:underline">{links.length ? "↻ Suggest again" : "✨ Suggest links"}</SubmitButton></form>}
+        <h3 className="font-sans text-sm font-semibold tracking-normal">Internal links to this article</h3>
+        {editable && ai && <form action={suggestLinksAction.bind(null, articleId)}><SubmitButton className="text-xs text-indigo-600 hover:underline">{links.length ? "Suggest again" : "Suggest links"}</SubmitButton></form>}
       </div>
       {note && <p className={`rounded-lg p-2 text-xs ${note.startsWith("err:") ? "bg-red-50 text-red-700" : "bg-indigo-50 text-indigo-800"}`}>{note.startsWith("err:") ? note.slice(4) : note}</p>}
       {links.length === 0 ? (

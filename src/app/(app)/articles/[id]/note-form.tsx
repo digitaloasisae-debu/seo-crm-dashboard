@@ -4,10 +4,10 @@ import { useActionState, useRef, useEffect, useState } from "react";
 import { Spinner } from "@/components/spinner";
 
 const KINDS = [
-  { v: "GENERAL", l: "💬 General" },
-  { v: "CONTENT", l: "✍️ Content" },
-  { v: "TITLE", l: "🏷️ Title" },
-  { v: "IMAGE", l: "🖼️ Image" },
+  { v: "GENERAL", l: "General" },
+  { v: "CONTENT", l: "Content" },
+  { v: "TITLE", l: "Title" },
+  { v: "IMAGE", l: "Image" },
 ];
 
 export function NoteForm({ action }: { action: (prev: string | null, fd: FormData) => Promise<string | null> }) {
@@ -23,7 +23,7 @@ export function NoteForm({ action }: { action: (prev: string | null, fd: FormDat
     <form ref={form} action={run} className="space-y-3">
       <div className="flex flex-wrap gap-1.5">
         {KINDS.map((k) => (
-          <label key={k.v} className={`cursor-pointer rounded-full border px-3 py-1 text-xs font-medium transition select-none ${kind === k.v ? "border-indigo-500 bg-indigo-50 text-indigo-700" : "border-slate-200 bg-white text-slate-600 hover:border-indigo-300"}`}>
+          <label key={k.v} className={`cursor-pointer rounded-md border px-3 py-1 text-xs font-medium transition select-none ${kind === k.v ? "border-indigo-500 bg-indigo-50 text-indigo-700" : "border-slate-200 bg-white text-slate-600 hover:border-indigo-300"}`}>
             <input type="radio" name="kind" value={k.v} checked={kind === k.v} onChange={() => setKind(k.v)} className="sr-only" />
             {k.l}
           </label>
@@ -39,7 +39,7 @@ export function NoteForm({ action }: { action: (prev: string | null, fd: FormDat
       />
       {error && <p className="text-sm text-red-600">{error}</p>}
       <div className="flex items-center justify-between gap-3">
-        <p className="text-xs text-slate-500">🧠 Every note teaches this client&apos;s brain, so the next blogs get it right.</p>
+        <p className="text-xs text-slate-500">Every note teaches this client&apos;s brain, so the next blogs get it right.</p>
         <button className="btn-primary shrink-0" disabled={pending}>{pending ? <><Spinner /> Saving…</> : "Add note"}</button>
       </div>
     </form>

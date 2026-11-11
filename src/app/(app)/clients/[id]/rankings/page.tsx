@@ -70,12 +70,12 @@ export default async function RankingsPage({ params, searchParams }: { params: P
       {(up.length > 0 || down.length > 0) && (
         <section className="grid gap-3 md:grid-cols-2">
           <div className="card p-4">
-            <div className="mb-2 text-xs font-semibold tracking-widest text-emerald-600 uppercase">Climbing</div>
+            <div className="mb-2 text-xs font-medium text-emerald-600">Climbing</div>
             {up.length ? up.map(({ k, d }) => <div key={k.id} className="flex justify-between gap-3 py-1 text-sm"><span className="truncate">{k.keyword}</span><span className="num shrink-0 text-emerald-600">▲ {d} → {k.position ?? "30+"}</span></div>) : <p className="text-sm text-slate-400">Nothing yet.</p>}
           </div>
           <div className="card p-4">
-            <div className="mb-2 text-xs font-semibold tracking-widest text-red-600 uppercase">Dropping</div>
-            {down.length ? down.map(({ k, d }) => <div key={k.id} className="flex justify-between gap-3 py-1 text-sm"><span className="truncate">{k.keyword}</span><span className="num shrink-0 text-red-600">▼ {-d} → {k.position ?? "30+"}</span></div>) : <p className="text-sm text-slate-400">Nothing dropping. 🎉</p>}
+            <div className="mb-2 text-xs font-medium text-red-600">Dropping</div>
+            {down.length ? down.map(({ k, d }) => <div key={k.id} className="flex justify-between gap-3 py-1 text-sm"><span className="truncate">{k.keyword}</span><span className="num shrink-0 text-red-600">▼ {-d} → {k.position ?? "30+"}</span></div>) : <p className="text-sm text-slate-400">Nothing dropping. </p>}
           </div>
         </section>
       )}
@@ -83,10 +83,10 @@ export default async function RankingsPage({ params, searchParams }: { params: P
       <section className="space-y-3">
         <div className="flex flex-wrap items-center gap-3">
           <div className="min-w-0 flex-1">
-            <h2 className="text-lg font-bold">Google rankings</h2>
+            <h2 className="text-lg font-semibold">Google rankings</h2>
             <p className="text-sm text-slate-500">Checked every day, top 30 results, searched from: <b className="font-medium text-slate-700">{loc.label}</b>{pending && <span className="ml-2 text-indigo-600">· checking…</span>}</p>
           </div>
-          {editable && ready && kws.length > 0 && <form action={checkRanksNowAction.bind(null, id)}><SubmitButton className="btn-secondary">↻ Check now</SubmitButton></form>}
+          {editable && ready && kws.length > 0 && <form action={checkRanksNowAction.bind(null, id)}><SubmitButton className="btn-secondary">Check now</SubmitButton></form>}
         </div>
         <DataTable
           id="rankings"
@@ -140,7 +140,7 @@ export default async function RankingsPage({ params, searchParams }: { params: P
                 <div className="mb-1.5 text-xs text-slate-500">Suggestions from approved keywords and published articles:</div>
                 <div className="flex flex-wrap gap-1.5">
                   {suggestions.map((s) => (
-                    <label key={s} className="flex cursor-pointer items-center gap-1.5 rounded-full border border-slate-200 px-2.5 py-1 text-xs has-[:checked]:border-indigo-300 has-[:checked]:bg-indigo-50 has-[:checked]:text-indigo-700">
+                    <label key={s} className="flex cursor-pointer items-center gap-1.5 rounded-md border border-slate-200 px-2.5 py-1 text-xs has-[:checked]:border-indigo-300 has-[:checked]:bg-indigo-50 has-[:checked]:text-indigo-700">
                       <input type="checkbox" name="pick" value={s} className="sr-only" />
                       {s}
                     </label>

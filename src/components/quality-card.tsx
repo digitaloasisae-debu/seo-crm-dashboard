@@ -1,3 +1,4 @@
+import { Icon } from "./icons";
 import type { QualityReport } from "@/lib/quality";
 import type { CheckItem } from "@/lib/sop-check";
 import { ScoreRing } from "./ui";
@@ -14,14 +15,14 @@ function Group({ name, items }: { name: string; items: CheckItem[] }) {
     <details open={fails > 0} className="rounded-xl border border-slate-100 bg-white/60">
       <summary className="flex items-center gap-2 px-3 py-2 text-sm font-medium hover:bg-slate-50">
         <span className="flex-1">{name}</span>
-        {fails > 0 && <span className="rounded-full bg-red-50 px-2 text-xs text-red-700">{fails} to fix</span>}
-        {warns > 0 && <span className="rounded-full bg-amber-50 px-2 text-xs text-amber-700">{warns} to check</span>}
+        {fails > 0 && <span className="rounded-md bg-red-50 px-2 text-xs text-red-700">{fails} to fix</span>}
+        {warns > 0 && <span className="rounded-md bg-amber-50 px-2 text-xs text-amber-700">{warns} to check</span>}
         {fails + warns === 0 && <span className="text-xs text-emerald-600">all good ✓</span>}
       </summary>
       <ul className="space-y-1.5 px-3 pb-3">
         {items.map((i) => (
           <li key={i.id} className="flex gap-2 text-sm">
-            <span className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[11px] font-bold ${tone[i.status]}`}>{icon[i.status]}</span>
+            <span className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[11px] font-semibold ${tone[i.status]}`}>{icon[i.status]}</span>
             <span className="min-w-0">
               <span className="block text-slate-800">{i.label}</span>
               <span className="block text-xs text-slate-500">{i.detail}</span>
@@ -62,8 +63,8 @@ export function QualityCard({ score, report, checkedAt, aiAction, fixAction, fix
         </div>
       </div>
       {fix?.at && fix.from != null && (
-        <div className="flex items-center gap-3 rounded-xl border border-emerald-100 bg-gradient-to-r from-emerald-50 to-teal-50 p-3 text-sm">
-          <span className="text-xl">🛠️</span>
+        <div className="flex items-center gap-3 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm">
+          <Icon name="check" className="h-4 w-4 shrink-0 text-emerald-600" />
           <div className="min-w-0 flex-1">
             <div className="font-semibold text-emerald-900">
               SOP auto-fix: {fix.from} {score != null && score !== fix.from ? <>→ <span className="text-emerald-700">{score}</span></> : ""}
@@ -72,7 +73,7 @@ export function QualityCard({ score, report, checkedAt, aiAction, fixAction, fix
           </div>
         </div>
       )}
-      {report.ai?.summary && <p className="rounded-xl bg-indigo-50/70 p-3 text-sm text-indigo-900">🤖 {report.ai.summary}</p>}
+      {report.ai?.summary && <p className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700"><span className="mb-0.5 block text-xs font-medium text-slate-500">AI review</span>{report.ai.summary}</p>}
       {report.ai?.topFixes && report.ai.topFixes.length > 0 && (
         <div>
           <div className="label">Top fixes</div>
@@ -83,13 +84,13 @@ export function QualityCard({ score, report, checkedAt, aiAction, fixAction, fix
       <div className="space-y-2">{groups.map((g) => <Group key={g} name={g} items={all.filter((i) => i.group === g)} />)}</div>
       {canRun && fixAction && aiReady && (counts.fail > 0 || counts.warn > 0) && (
         <form action={fixAction}>
-          <SubmitButton className="btn-primary w-full" disabled={busy}>{busy ? "AI is working on it…" : "🛠️ Fix SOP issues with AI"}</SubmitButton>
+          <SubmitButton className="btn-primary w-full" disabled={busy}>{busy ? "AI is working on it…" : "Fix SOP issues with AI"}</SubmitButton>
           <p className="mt-1 text-xs text-slate-500">Checks, fixes what&apos;s missing, then checks again. The current version is saved first.</p>
         </form>
       )}
       {canRun && aiAction && (
         <form action={aiAction}>
-          <SubmitButton className="btn-secondary w-full" disabled={!aiReady}>{report.ai ? "🤖 Re-run AI review" : "🤖 Run AI review"}</SubmitButton>
+          <SubmitButton className="btn-secondary w-full" disabled={!aiReady}>{report.ai ? "Re-run AI review" : "Run AI review"}</SubmitButton>
           {!aiReady && <p className="mt-1 text-xs text-slate-500">Add GEMINI_API_KEY in Vercel to turn on the AI review.</p>}
         </form>
       )}

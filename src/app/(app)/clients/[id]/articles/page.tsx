@@ -30,7 +30,7 @@ export default async function ArticlesPage({ params, searchParams }: { params: P
   const [ranks, client] = await Promise.all([articleRanks(id), db.client.findUniqueOrThrow({ where: { id }, select: { gscProperty: true, gscSyncedAt: true } })]);
   const hasRanks = !!client.gscProperty;
   const rankOf = (a: (typeof articles)[number]) => { const m = matchArticleSlug(a, ranks.keys()); return m ? ranks.get(m) : undefined; };
-  const score = (v: number | null, good: number, ok: number) => v == null ? <span className="text-slate-300">—</span> : <span className={`num inline-flex min-w-9 justify-center rounded-full px-2 py-0.5 text-xs font-bold ${v >= good ? "bg-emerald-50 text-emerald-700" : v >= ok ? "bg-amber-50 text-amber-700" : "bg-red-50 text-red-700"}`}>{v}</span>;
+  const score = (v: number | null, good: number, ok: number) => v == null ? <span className="text-slate-300">—</span> : <span className={`num inline-flex min-w-9 justify-center rounded-md px-2 py-0.5 text-xs font-semibold ${v >= good ? "bg-emerald-50 text-emerald-700" : v >= ok ? "bg-amber-50 text-amber-700" : "bg-red-50 text-red-700"}`}>{v}</span>;
   const columns: Col[] = [
     { key: "title", label: "Title", className: "min-w-56" },
     { key: "keyword", label: "Focus keyword", className: "min-w-44" },
@@ -49,6 +49,7 @@ export default async function ArticlesPage({ params, searchParams }: { params: P
     const live = a.importedAt && a.status === "PUSHED_DRAFT";
     return {
       id: a.id,
+      href: `/articles/${a.id}`,
       values: {
         title: a.metaTitle,
         keyword: a.focusKeyword,
@@ -64,8 +65,8 @@ export default async function ArticlesPage({ params, searchParams }: { params: P
       },
       cells: {
         title: <Link className="font-medium text-indigo-600 hover:underline" href={`/articles/${a.id}`}>{a.metaTitle}</Link>,
-        status: live ? <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700">live</span> : <StatusBadge status={a.status} />,
-        source: <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${a.importedAt ? "bg-slate-100 text-slate-600" : "bg-violet-50 text-violet-700"}`}>{a.importedAt ? (a.wpType === "page" ? "WP page" : "WP post") + (a.wpBuilder ? " · builder" : "") : "Rankflow"}</span>,
+        status: live ? <span className="rounded-md bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700">live</span> : <StatusBadge status={a.status} />,
+        source: <span className={`rounded-md px-2 py-0.5 text-[11px] font-medium ${a.importedAt ? "bg-slate-100 text-slate-600" : "bg-indigo-50 text-indigo-700"}`}>{a.importedAt ? (a.wpType === "page" ? "WP page" : "WP post") + (a.wpBuilder ? " · builder" : "") : "Rankflow"}</span>,
         sop: score(a.qualityScore, 85, 65),
         top10: score(a.contentScore, 75, 55),
         google: r ? <span className="num whitespace-nowrap">#{r.position.toFixed(1)} <RankChange position={r.position} prev={r.prevPosition} /></span> : <span className="text-slate-300" title="Not found in Google results for the last 4 weeks">—</span>,
@@ -79,11 +80,11 @@ export default async function ArticlesPage({ params, searchParams }: { params: P
     <div className="space-y-3">
       {(editable || nImported > 0) && (
         <div className="card flex flex-wrap items-center gap-3 p-4">
-          <div className="min-w-0 flex-1 text-sm text-slate-500"><b className="font-medium text-slate-800">{nOwn}</b> written in Rankflow · <b className="font-medium text-slate-800">{nImported}</b> imported from WordPress</div>
+          <div className="min-w-56 flex-1 text-sm text-slate-500"><b className="font-medium text-slate-800">{nOwn}</b> written in Rankflow · <b className="font-medium text-slate-800">{nImported}</b> imported from WordPress</div>
           {editable && (hasWp ? (
             <form action={importWordPressAction.bind(null, id)} className="flex flex-wrap items-center gap-3">
               <label className="flex items-center gap-1.5 text-xs text-slate-600"><input type="checkbox" name="pages" defaultChecked className="accent-indigo-600" /> Include pages</label>
-              <SubmitButton className="btn-secondary text-sm">↓ {nImported ? "Sync from WordPress" : "Import from WordPress"}</SubmitButton>
+              <SubmitButton className="btn-secondary text-sm">{nImported ? "Sync from WordPress" : "Import from WordPress"}</SubmitButton>
             </form>
           ) : <span className="text-xs text-slate-500">Save the WordPress login on the <Link href={`/clients/${id}/settings`} className="text-indigo-600 hover:underline">Settings tab</Link> to import older posts.</span>)}
         </div>

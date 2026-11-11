@@ -34,10 +34,10 @@ export default async function ClientLayout({ children, params }: { children: Rea
   return (
     <>
       <div className="mb-5 flex flex-wrap items-center gap-4">
-        <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl font-display bg-indigo-600 text-base font-bold text-white">{initials}</span>
+        <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl font-display bg-indigo-600 text-base font-semibold text-white">{initials}</span>
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
-            <h1 className="font-display text-slate-900 text-2xl font-bold tracking-tight  md:text-3xl">{client.name}</h1>
+            <h1 className="font-display text-slate-900 text-2xl font-semibold tracking-tight  md:text-3xl">{client.name}</h1>
             <StatusBadge status={client.status} />
             {level === "VIEW" && <Badge>view only</Badge>}
           </div>

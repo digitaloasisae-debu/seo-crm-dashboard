@@ -47,28 +47,28 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   return (
     <div className="min-h-screen md:flex">
       <aside className="relative z-10 border-b border-slate-200 bg-slate-50 md:sticky md:top-0 md:flex md:h-screen md:w-60 md:shrink-0 md:flex-col md:border-r md:border-b-0">
-        <div className="flex items-center justify-between px-5 py-4 md:py-5">
+        <div className="flex items-center justify-between px-5 py-4">
           <Link href="/" className="transition-opacity hover:opacity-80">
-            <Logo size={30} animated />
+            <Logo size={26} />
           </Link>
           <div className="md:hidden"><ThemeToggle /></div>
         </div>
         <div className="md:flex-1 md:overflow-y-auto">
           <SideNav items={nav} />
         </div>
-        <div className="m-3 hidden rounded-2xl border border-slate-200 bg-white p-3 md:block" style={{ boxShadow: "var(--shadow-card)" }}>
-          <Link href="/profile" className="group flex items-center gap-3">
-            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-indigo-600 text-xs font-semibold text-white transition group-hover:scale-105">
+        <div className="hidden items-center gap-1 border-t border-slate-200 p-3 md:flex">
+          <Link href="/profile" data-tip="Your profile and password" className="group flex min-w-0 flex-1 items-center gap-2.5 rounded-md p-1.5 transition-colors hover:bg-slate-200/60">
+            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full ink text-[11px] font-semibold">
               {initials}
             </span>
             <span className="min-w-0 flex-1">
-              <span className="block truncate text-sm font-medium">{user.name}</span>
-              <span className="block text-[11px] text-slate-400 capitalize">{user.role.replace("_", " ").toLowerCase()}</span>
+              <span className="block truncate text-[13px] leading-tight font-medium">{user.name}</span>
+              <span className="block text-[11px] leading-tight text-slate-500 capitalize">{user.role.replace("_", " ").toLowerCase()}</span>
             </span>
           </Link>
-          <form action={logoutAction} className="mt-2.5">
-            <button className="flex w-full cursor-pointer items-center justify-center gap-1.5 rounded-lg border border-slate-200 px-2 py-1.5 text-xs text-slate-500 transition hover:border-red-200 hover:bg-red-50 hover:text-red-600">
-              <Icon name="logout" className="h-3.5 w-3.5" /> Sign out
+          <form action={logoutAction}>
+            <button aria-label="Sign out" data-tip="Sign out" className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-md text-slate-400 transition-colors hover:bg-red-50 hover:text-red-600">
+              <Icon name="logout" className="h-4 w-4" />
             </button>
           </form>
         </div>
@@ -77,14 +77,14 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       <Toaster />
       <CommandMenu clients={clients.map((c) => ({ id: c.id, name: c.name, site: c.siteUrl }))} links={nav.map((n) => ({ href: n.href, label: n.label, icon: n.icon }))} />
       <div className="min-w-0 flex-1">
-        <div className="sticky top-0 z-20 hidden items-center gap-3 border-b border-transparent bg-slate-50/80 px-8 py-3 backdrop-blur-md md:flex">
+        <div className="sticky top-0 z-20 hidden items-center gap-3 border-b border-slate-200/70 bg-slate-50/85 px-8 py-2.5 backdrop-blur-md md:flex">
           <SearchButton />
           <div className="ml-auto flex items-center gap-2">
             <ThemeToggle />
           </div>
         </div>
         <div className="px-4 pt-3 md:hidden"><SearchButton /></div>
-        <main className="page-enter mx-auto w-full max-w-6xl p-4 md:px-8 md:pt-4 md:pb-10">{children}</main>
+        <main className="page-enter mx-auto w-full max-w-6xl p-4 md:px-8 md:pt-6 md:pb-12">{children}</main>
       </div>
     </div>
   );

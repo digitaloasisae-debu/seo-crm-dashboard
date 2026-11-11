@@ -79,7 +79,7 @@ export function PostCard({ p }: { p: CardPost }) {
         )}
         {!locked && (
           <button type="button" onClick={() => setPanel(panel === "image" ? "" : "image")} className="btn-secondary w-full text-xs">
-            ↻ New image
+            New image
           </button>
         )}
         {panel === "image" && (
@@ -94,8 +94,8 @@ export function PostCard({ p }: { p: CardPost }) {
       <div className="min-w-0 space-y-3">
         <div className="flex flex-wrap items-center gap-2 text-xs">
           <b className="text-sm text-slate-900">{p.project}</b>
-          <span className="rounded-full bg-slate-100 px-2 py-0.5 text-slate-700">{p.service}</span>
-          <span className="rounded-full bg-violet-50 px-2 py-0.5 text-violet-700">{p.angle}</span>
+          <span className="rounded-md bg-slate-100 px-2 py-0.5 text-slate-700">{p.service}</span>
+          <span className="rounded-md bg-indigo-50 px-2 py-0.5 text-indigo-700">{p.angle}</span>
           <span className="text-slate-400">score {p.score}/10</span>
           <span className="ml-auto font-medium text-slate-600">{p.whenLabel}</span>
         </div>
@@ -141,7 +141,7 @@ export function PostCard({ p }: { p: CardPost }) {
               <div className="label">Image headline (small / big / small)</div>
               <div className="grid gap-2 sm:grid-cols-3">
                 <input name="headlineTop" defaultValue={p.headlineTop} className="input text-sm" disabled={locked} />
-                <input name="headlineMain" defaultValue={p.headlineMain} className="input text-sm font-bold" disabled={locked} />
+                <input name="headlineMain" defaultValue={p.headlineMain} className="input text-sm font-semibold" disabled={locked} />
                 <input name="headlineBottom" defaultValue={p.headlineBottom} className="input text-sm" disabled={locked} />
               </div>
             </div>
@@ -175,12 +175,12 @@ export function PostCard({ p }: { p: CardPost }) {
                   </>
                 ) : p.status === "REJECTED" ? null : (
                   <>
-                    <SubmitButton formAction={approvePostAction.bind(null, p.id)} className="btn-primary" disabled={!p.hasImage || busy}>✓ Approve</SubmitButton>
+                    <SubmitButton formAction={approvePostAction.bind(null, p.id)} className="btn-primary" disabled={!p.hasImage || busy}>Approve</SubmitButton>
                     <SubmitButton formAction={savePostAction.bind(null, p.id)} className="btn-secondary text-xs">Save</SubmitButton>
                   </>
                 )}
                 <button type="button" onClick={() => setPanel(panel === "text" ? "" : "text")} className="btn-secondary text-xs">↻ New captions</button>
-                {p.status !== "REJECTED" && <button type="button" onClick={() => setPanel(panel === "reject" ? "" : "reject")} className="btn-danger text-xs">✕ Reject</button>}
+                {p.status !== "REJECTED" && <button type="button" onClick={() => setPanel(panel === "reject" ? "" : "reject")} className="btn-danger text-xs">Reject</button>}
                 {p.status === "REJECTED" && <SubmitButton formAction={deletePostAction.bind(null, p.id)} className="ml-auto text-xs text-slate-400 hover:text-red-600">Delete</SubmitButton>}
               </div>
             )}

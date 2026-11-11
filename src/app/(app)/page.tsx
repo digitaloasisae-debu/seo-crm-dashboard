@@ -18,24 +18,24 @@ const ago = (d: Date) => {
 };
 
 const FEED: Record<string, { text: (n: number) => string; tone: string; icon: string }> = {
-  "keyword.approved": { text: (n) => `approved ${n} keyword${n === 1 ? "" : "s"}`, tone: "bg-indigo-50 text-indigo-600", icon: "✓" },
-  "keyword.add": { text: (n) => `added ${n > 1 ? `${n} ` : ""}keywords`, tone: "bg-slate-100 text-slate-500", icon: "+" },
-  "topic.approved": { text: (n) => `approved ${n} topic${n === 1 ? "" : "s"}`, tone: "bg-indigo-50 text-indigo-600", icon: "✓" },
-  "topic.generate": { text: () => "generated new topics", tone: "bg-violet-50 text-violet-600", icon: "✦" },
-  "article.ready": { text: () => "delivered an article for review", tone: "bg-violet-50 text-violet-600", icon: "✦" },
-  "article.approved": { text: () => "approved an article", tone: "bg-indigo-50 text-indigo-600", icon: "✓" },
-  "article.push": { text: () => "pushed an article to WordPress", tone: "bg-amber-50 text-amber-600", icon: "★" },
-  "article.push_failed": { text: () => "couldn't push an article to WordPress", tone: "bg-red-50 text-red-600", icon: "!" },
-  "audit.done": { text: () => "finished a site audit", tone: "bg-emerald-50 text-emerald-600", icon: "↗" },
-  "audit.email": { text: () => "emailed an audit report", tone: "bg-emerald-50 text-emerald-600", icon: "✉" },
-  "backlinks.refresh": { text: () => "refreshed backlinks", tone: "bg-slate-100 text-slate-500", icon: "↻" },
-  "rank.up": { text: () => "climbed in Google", tone: "bg-emerald-50 text-emerald-600", icon: "▲" },
-  "rank.down": { text: () => "dropped in Google", tone: "bg-red-50 text-red-600", icon: "▼" },
-  "link.add": { text: () => "added an internal link in WordPress", tone: "bg-indigo-50 text-indigo-600", icon: "⇄" },
-  "brand.update": { text: () => "updated a brand profile", tone: "bg-violet-50 text-violet-600", icon: "◆" },
-  "gbp.reply_posted": { text: () => "replied to a Google review", tone: "bg-amber-50 text-amber-600", icon: "★" },
-  "gbp.post_posted": { text: () => "posted on a Google profile", tone: "bg-amber-50 text-amber-600", icon: "★" },
-  "client.create": { text: () => "added a new client", tone: "bg-emerald-50 text-emerald-600", icon: "+" },
+  "keyword.approved": { text: (n) => `approved ${n} keyword${n === 1 ? "" : "s"}`, tone: "bg-slate-100 text-slate-600", icon: "check" },
+  "keyword.add": { text: (n) => `added ${n > 1 ? `${n} ` : ""}keywords`, tone: "bg-slate-100 text-slate-600", icon: "plus" },
+  "topic.approved": { text: (n) => `approved ${n} topic${n === 1 ? "" : "s"}`, tone: "bg-slate-100 text-slate-600", icon: "check" },
+  "topic.generate": { text: () => "generated new topics", tone: "bg-slate-100 text-slate-600", icon: "lightbulb" },
+  "article.ready": { text: () => "delivered an article for review", tone: "bg-slate-100 text-slate-600", icon: "file" },
+  "article.approved": { text: () => "approved an article", tone: "bg-slate-100 text-slate-600", icon: "check" },
+  "article.push": { text: () => "pushed an article to WordPress", tone: "bg-emerald-50 text-emerald-600", icon: "send" },
+  "article.push_failed": { text: () => "couldn't push an article to WordPress", tone: "bg-red-50 text-red-600", icon: "alert" },
+  "audit.done": { text: () => "finished a site audit", tone: "bg-slate-100 text-slate-600", icon: "stethoscope" },
+  "audit.email": { text: () => "emailed an audit report", tone: "bg-slate-100 text-slate-600", icon: "mail" },
+  "backlinks.refresh": { text: () => "refreshed backlinks", tone: "bg-slate-100 text-slate-600", icon: "refresh" },
+  "rank.up": { text: () => "climbed in Google", tone: "bg-emerald-50 text-emerald-600", icon: "trending" },
+  "rank.down": { text: () => "dropped in Google", tone: "bg-red-50 text-red-600", icon: "chart" },
+  "link.add": { text: () => "added an internal link in WordPress", tone: "bg-slate-100 text-slate-600", icon: "link" },
+  "brand.update": { text: () => "updated a brand profile", tone: "bg-slate-100 text-slate-600", icon: "palette" },
+  "gbp.reply_posted": { text: () => "replied to a Google review", tone: "bg-slate-100 text-slate-600", icon: "message" },
+  "gbp.post_posted": { text: () => "posted on a Google profile", tone: "bg-slate-100 text-slate-600", icon: "pin" },
+  "client.create": { text: () => "added a new client", tone: "bg-slate-100 text-slate-600", icon: "plus" },
 };
 
 export default async function Home() {
@@ -170,7 +170,6 @@ export default async function Home() {
     okReplies + okPosts > 0 && { href: `/clients/${firstGoogle?.clientId ?? ""}/gbp`, text: `${okReplies + okPosts} approved Google repl${okReplies + okPosts === 1 ? "y or post" : "ies and posts"} to publish`, tone: "bg-indigo-50 text-indigo-700 border-indigo-200" },
     failedIntake > 0 && { href: "/intake", text: `${failedIntake} Tally submission${failedIntake === 1 ? "" : "s"} need a look`, tone: "bg-amber-50 text-amber-700 border-amber-200" },
   ].filter(Boolean) as { href: string; text: string; tone: string }[];
-  const medals = ["🥇", "🥈", "🥉"];
   const goal = 25;
 
   return (
@@ -180,8 +179,8 @@ export default async function Home() {
       {alerts.length > 0 && (
         <div className="mb-5 flex flex-wrap gap-2">
           {alerts.map((a) => (
-            <Link key={a.href} href={a.href} className={`flex items-center gap-2 rounded-xl border px-3 py-2 text-sm font-medium transition hover:-translate-y-px ${a.tone}`}>
-              <Icon name="alert" className="h-4 w-4" /> {a.text} <Icon name="arrow" className="h-3.5 w-3.5" />
+            <Link key={a.href} href={a.href} className={`group flex items-center gap-2 rounded-lg border px-3 py-1.5 text-sm font-medium transition hover:brightness-[0.97] ${a.tone}`}>
+              <Icon name="alert" className="h-4 w-4" /> {a.text} <Icon name="arrow" className="h-3.5 w-3.5 transition group-hover:translate-x-0.5" />
             </Link>
           ))}
         </div>
@@ -194,14 +193,14 @@ export default async function Home() {
           {feed.length === 0 ? (
             <p className="mt-3 text-sm text-slate-500">Approvals, new articles and audits will show up here.</p>
           ) : (
-            <ol className="stagger mt-3.5 grid gap-3.5">
+            <ol className="mt-3.5 grid gap-3.5">
               {feed.map((f) => {
                 const m = FEED[f.action];
                 const n = Number((f.after as { count?: number } | null)?.count ?? 1);
                 const who = f.actor?.name.split(" ")[0] ?? (f.actorTag === "n8n" ? "n8n" : f.actorTag === "tally" ? "Tally" : "Rankflow");
                 return (
                   <li key={f.id} className="grid grid-cols-[auto_1fr_auto] items-start gap-2.5 text-[13px] leading-snug">
-                    <span className={`grid h-6 w-6 place-items-center rounded-lg text-xs font-semibold ${m.tone}`}>{m.icon}</span>
+                    <span className={`grid h-6 w-6 place-items-center rounded-md ${m.tone}`}><Icon name={m.icon} className="h-3.5 w-3.5" /></span>
                     <span className="min-w-0">
                       <b className="font-semibold">{who}</b> {m.text(n)}
                       {f.clientId && names.get(f.clientId) && <> for <Link href={`/clients/${f.clientId}`} className="font-semibold hover:text-indigo-600">{names.get(f.clientId)}</Link></>}
@@ -217,7 +216,7 @@ export default async function Home() {
 
       {toPush.length > 0 && (
         <section className="mb-8">
-          <h2 className="mb-3 text-lg font-bold">Approved, ready to push</h2>
+          <h2 className="mb-3 text-lg font-semibold">Approved, ready to push</h2>
           <div className="card divide-y divide-slate-100 p-0">
             {toPush.map((a) => (
               <Link key={a.id} href={`/articles/${a.id}`} className="flex items-center gap-3 px-5 py-3 text-sm transition-colors hover:bg-slate-50">
@@ -232,7 +231,7 @@ export default async function Home() {
 
       <div className="mb-3 flex items-end justify-between gap-3">
         <div>
-          <h2 className="text-lg font-bold">Clients</h2>
+          <h2 className="text-lg font-semibold">Clients</h2>
           <p className="text-sm text-slate-500">Google clicks per week over the last 12 weeks. Clients that need you come first.</p>
         </div>
         <Link href="/clients" className="btn-secondary shrink-0">See all</Link>
@@ -251,10 +250,10 @@ export default async function Home() {
             <span className="grow-x block h-full rounded-full bg-indigo-600" style={{ width: `${Math.min(100, (wins.total / goal) * 100)}%` }} />
           </div>
           <div className="mt-3 flex flex-wrap gap-2 text-xs font-medium text-slate-600">
-            <span className="rounded-full bg-slate-100 px-2.5 py-1">{wins.by.keywords} keywords</span>
-            <span className="rounded-full bg-slate-100 px-2.5 py-1">{wins.by.topics} topics</span>
-            <span className="rounded-full bg-slate-100 px-2.5 py-1">{wins.by.approved} articles</span>
-            <span className="rounded-full bg-slate-100 px-2.5 py-1">{wins.by.pushed} pushed</span>
+            <span className="rounded-md bg-slate-100 px-2.5 py-1">{wins.by.keywords} keywords</span>
+            <span className="rounded-md bg-slate-100 px-2.5 py-1">{wins.by.topics} topics</span>
+            <span className="rounded-md bg-slate-100 px-2.5 py-1">{wins.by.approved} articles</span>
+            <span className="rounded-md bg-slate-100 px-2.5 py-1">{wins.by.pushed} pushed</span>
           </div>
         </div>
         <div className="card">
@@ -265,7 +264,7 @@ export default async function Home() {
             <ol className="mt-3 space-y-2">
               {wins.leaders.map((l, i) => (
                 <li key={l.id} className="flex items-center gap-3 text-sm">
-                  <span className="w-5 text-center">{medals[i] ?? <span className="text-xs text-slate-400">{i + 1}</span>}</span>
+                  <span className={`num grid h-5 w-5 place-items-center rounded text-[11px] font-medium ${i < 3 ? "ink" : "text-slate-400"}`}>{i + 1}</span>
                   <span className="min-w-0 flex-1 truncate">{l.name}{l.id === user.id && <span className="ml-1 text-xs text-indigo-600">(you)</span>}</span>
                   <span className="num font-medium">{l.score}</span>
                 </li>

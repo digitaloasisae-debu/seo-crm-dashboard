@@ -40,10 +40,7 @@ export function Greeting({ name, sub }: { name: string; sub?: string }) {
   }, []);
   return (
     <div className="mb-6">
-      <h1 className="font-display text-3xl font-bold tracking-tight md:text-4xl">
-        <span className="text-slate-900">Good {part}, {name}</span>{" "}
-        <span className="wave inline-block">👋</span>
-      </h1>
+      <h1 className="font-display text-2xl font-semibold tracking-tight text-slate-900 md:text-[28px]">Good {part}, {name}</h1>
       <p className="mt-1.5 min-h-5 text-sm text-slate-500">{sub ?? (line && <span className="animate-fade-in">{line}</span>)}</p>
     </div>
   );

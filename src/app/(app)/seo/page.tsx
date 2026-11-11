@@ -41,6 +41,7 @@ export default async function SeoOverview({ searchParams }: { searchParams: Prom
               const mobile = (a?.psiMobile as unknown as PsiSummary | null)?.performance ?? null;
               return {
                 id: c.id,
+                href: `/clients/${c.id}/seo`,
                 values: { client: c.name, health: a?.score ?? null, change: delta, mobile, errors: a ? errors : null, last: a?.finishedAt?.toISOString() ?? null },
                 cells: {
                   client: <Link className="text-indigo-600 hover:underline" href={`/clients/${c.id}/seo`}>{c.name}</Link>,
@@ -59,7 +60,7 @@ export default async function SeoOverview({ searchParams }: { searchParams: Prom
       )}
       {agency && (
         <section id="branding" className="card mt-6 scroll-mt-4">
-          <h2 className="font-semibold">🎨 Report branding</h2>
+          <h2 className="font-semibold">Report branding</h2>
           <p className="text-sm text-slate-500">Your agency&apos;s name and logo on every audit PDF and report email. The client&apos;s own logo and colour stay on the cover too.</p>
           {err && <p className="mt-2 rounded-lg bg-red-50 p-2 text-sm text-red-700">{err}</p>}
           {saved && <p className="mt-2 rounded-lg bg-emerald-50 p-2 text-sm text-emerald-800">Saved. New PDFs use it straight away.</p>}

@@ -18,12 +18,12 @@ export function RewriteForm({ action, pendingNotes }: { action: (prev: string | 
       />
       {pendingNotes > 0 && (
         <p className="rounded-lg bg-indigo-50 px-3 py-2 text-xs text-indigo-800">
-          📝 {pendingNotes} note{pendingNotes === 1 ? "" : "s"} on this article will be applied too.
+          {pendingNotes} note{pendingNotes === 1 ? "" : "s"} on this article will be applied too.
         </p>
       )}
       {error && <p className="text-sm text-red-600">{error}</p>}
       <button className="btn-primary w-full" disabled={pending}>
-        {pending ? <><Spinner /> Starting…</> : "✨ Rewrite article"}
+        {pending ? <><Spinner /> Starting…</> : "Rewrite article"}
       </button>
     </form>
   );
@@ -54,7 +54,7 @@ export function TitleOptions({
     <div className="space-y-3">
       <form action={run} className="flex gap-2">
         <input className="input" name="hint" placeholder="Optional: e.g. shorter, mention 2026, more local" />
-        <button className="btn-secondary shrink-0" disabled={pending}>{pending ? <><Spinner /> Thinking…</> : state?.options ? "🔄 New options" : "🏷️ 3 title options"}</button>
+        <button className="btn-secondary shrink-0" disabled={pending}>{pending ? <><Spinner /> Thinking…</> : state?.options ? "New options" : "3 title options"}</button>
       </form>
       {state?.error && <p className="text-sm text-red-600">{state.error}</p>}
       {state?.options && (
@@ -64,7 +64,7 @@ export function TitleOptions({
               <div className="font-semibold text-slate-900">{o.title} <span className="font-normal text-slate-400">· {o.title.length} chars</span></div>
               {o.description && <p className="mt-1 text-slate-600">{o.description}</p>}
               <div className="mt-2 flex items-center justify-between gap-2">
-                {o.why ? <span className="text-xs text-violet-700">💡 {o.why}</span> : <span />}
+                {o.why ? <span className="text-xs text-indigo-700">{o.why}</span> : <span />}
                 <button
                   type="button"
                   className="btn-secondary px-2.5 py-1 text-xs"
