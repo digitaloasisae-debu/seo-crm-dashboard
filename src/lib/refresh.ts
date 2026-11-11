@@ -8,10 +8,35 @@ import { db } from "./db";
 import { geminiJson } from "./gemini";
 import { brandContext } from "./brand-profile";
 import { reviseArticle } from "./revise";
+import { gscPageQuery } from "./google";
 
 const norm = (u: string) => u.replace(/^https?:\/\/(www\.)?/, "").replace(/[?#].*$/, "").replace(/\/+$/, "").toLowerCase();
 const MIN_BEFORE = 20;
 const DROP = 0.7;
+
+export type LostQuery = { query: string; before: number; now: number; posBefore: number | null; posNow: number | null };
+
+const DAY = 864e5;
+const plus = (d: Date, days: number) => new Date(d.getTime() + days * DAY);
+
+/** Which searches this page lost clicks on: its best 4 weeks vs the latest 4 weeks, per query. */
+export async function lostQueriesFor(clientId: string, page: string, bestFrom: Date, nowFrom: Date): Promise<LostQuery[]> {
+  const [before, now] = await Promise.all([
+    gscPageQuery(clientId, page, bestFrom, plus(bestFrom, 27)),
+    gscPageQuery(clientId, page, nowFrom, plus(nowFrom, 27)),
+  ]);
+  const map = new Map<string, LostQuery>();
+  for (const r of before) map.set(r.keys[0], { query: r.keys[0], before: r.clicks, now: 0, posBefore: r.position, posNow: null });
+  for (const r of now) {
+    const q = map.get(r.keys[0]) ?? { query: r.keys[0], before: 0, now: 0, posBefore: null, posNow: null };
+    q.now = r.clicks; q.posNow = r.position;
+    map.set(r.keys[0], q);
+  }
+  return [...map.values()]
+    .filter((q) => q.before - q.now > 0)
+    .sort((a, b) => b.before - b.now - (a.before - a.now))
+    .slice(0, 12);
+}
 
 export type RefreshBrief = {
   summary: string;
@@ -61,17 +86,64 @@ export async function findRefreshes(clientId: string) {
     const article = articles.find((a) => (a.wpPostUrl && norm(a.wpPostUrl) === norm(page)) || (slug && a.slug === slug));
     const existing = await db.contentRefresh.findUnique({ where: { clientId_page: { clientId, page } } });
     if (existing?.status === "DISMISSED") continue;
-    if (existing?.status === "DONE" && existing.updatedAt > new Date(Date.now() - 60 * 864e5)) continue;
-    await db.contentRefresh.upsert({
+    // An updated page gets 60 days to recover before it can be flagged again.
+    if (existing?.status === "DONE" && (existing.doneAt ?? existing.updatedAt) > new Date(Date.now() - 60 * DAY)) continue;
+    const bestFrom = new Date(`${earlier[bestStart]}T00:00:00Z`);
+    const nowFrom = new Date(`${usable.at(-4)}T00:00:00Z`);
+    const reopen = existing?.status === "DONE" ? { status: "OPEN" as const, brief: Prisma.DbNull, doneAt: null, baseClicks: null, basePos: null, afterClicks: null, afterPos: null, afterAt: null } : {};
+    const row = await db.contentRefresh.upsert({
       where: { clientId_page: { clientId, page } },
-      create: { clientId, page, clicksBefore: best, clicksNow: now, posBefore, posNow, articleId: article?.id ?? null },
-      update: { clicksBefore: best, clicksNow: now, posBefore, posNow, articleId: article?.id ?? null, ...(existing?.status === "DONE" ? { status: "OPEN" as const, brief: Prisma.DbNull } : {}) },
+      create: { clientId, page, clicksBefore: best, clicksNow: now, posBefore, posNow, bestFrom, nowFrom, articleId: article?.id ?? null },
+      update: { clicksBefore: best, clicksNow: now, posBefore, posNow, bestFrom, nowFrom, articleId: article?.id ?? null, ...reopen },
     });
+    // Which searches it lost: refreshed weekly (2 Search Console calls per page).
+    if (!row.queriesAt || row.queriesAt < new Date(Date.now() - 7 * DAY) || row.nowFrom?.getTime() !== existing?.nowFrom?.getTime()) {
+      try {
+        const lost = await lostQueriesFor(clientId, page, bestFrom, nowFrom);
+        await db.contentRefresh.update({ where: { id: row.id }, data: { lostQueries: lost as unknown as Prisma.InputJsonValue, queriesAt: new Date() } });
+      } catch (e) {
+        console.error("Lost queries failed for", page, e);
+      }
+    }
     flagged.push(page);
   }
+  await measureResults(clientId, usable, byPage);
   // Pages that recovered drop off the list.
   await db.contentRefresh.deleteMany({ where: { clientId, status: "OPEN", page: { notIn: flagged } } });
   return flagged.length;
+}
+
+/** When the update went live: the WordPress push of the rewritten article, or when it was marked as updated. */
+export async function liveSince(r: { doneAt: Date | null; articleId: string | null }) {
+  if (!r.doneAt) return null;
+  if (!r.articleId) return r.doneAt;
+  const a = await db.article.findUnique({ where: { id: r.articleId }, select: { pushedAt: true, status: true, wpBuilder: true } });
+  if (!a || a.wpBuilder) return r.doneAt;
+  // A Rankflow rewrite only counts once it has been pushed to WordPress after the refresh.
+  return a.status === "PUSHED_DRAFT" && a.pushedAt && a.pushedAt >= plus(r.doneAt, -1) ? a.pushedAt : null;
+}
+
+/** Before/after: 4 full weeks of clicks, starting one week after the update went live (Google needs time to recrawl). */
+async function measureResults(clientId: string, usable: string[], byPage: Map<string, { weekStart: Date; clicks: number; impressions: number; position: number }[]>) {
+  const done = await db.contentRefresh.findMany({ where: { clientId, status: "DONE", doneAt: { not: null }, afterAt: null } });
+  for (const r of done) {
+    const live = await liveSince(r);
+    if (!live) continue;
+    const startAt = plus(live, 7);
+    const weeks = usable.filter((w) => new Date(`${w}T00:00:00Z`) >= startAt).slice(0, 4);
+    if (weeks.length < 4) continue;
+    const rs = (byPage.get(r.page) ?? []).filter((x) => weeks.includes(x.weekStart.toISOString().slice(0, 10)));
+    const clicks = rs.reduce((a, x) => a + x.clicks, 0);
+    const imp = rs.reduce((a, x) => a + x.impressions, 0);
+    const pos = imp ? rs.reduce((a, x) => a + x.position * x.impressions, 0) / imp : null;
+    await db.contentRefresh.update({ where: { id: r.id }, data: { afterClicks: clicks, afterPos: pos, afterAt: new Date() } });
+  }
+}
+
+/** Mark a page as updated and remember its clicks at that moment, so the result can be compared 5 weeks later. */
+export async function markRefreshDone(refreshId: string) {
+  const r = await db.contentRefresh.findUniqueOrThrow({ where: { id: refreshId } });
+  await db.contentRefresh.update({ where: { id: refreshId }, data: { status: "DONE", doneAt: new Date(), baseClicks: r.clicksNow, basePos: r.posNow, afterClicks: null, afterPos: null, afterAt: null } });
 }
 
 const strip = (html: string) =>
@@ -91,6 +163,7 @@ export async function draftRefresh(refreshId: string) {
       text = strip(html.match(/<(article|main)[\s\S]*<\/\1>/i)?.[0] ?? html);
     }
     const brand = await brandContext(r.clientId);
+    const lost = (r.lostQueries as unknown as LostQuery[] | null) ?? [];
     const brief = await geminiJson<RefreshBrief>(
       `This page on ${r.client.name}'s website is losing Google traffic. Plan an update that wins it back.
 Today is ${new Date().toISOString().slice(0, 10)}.
@@ -99,7 +172,7 @@ PAGE: ${r.page}
 Title: ${title}
 ${article ? `Focus keyword: ${article.focusKeyword}\n` : ""}Google clicks: ${r.clicksBefore} in its best 4 weeks, ${r.clicksNow} in the last 4 weeks.
 Average position: ${r.posBefore?.toFixed(1) ?? "?"} then, ${r.posNow?.toFixed(1) ?? "?"} now.
-
+${lost.length ? `Searches it lost clicks on (clicks then -> now, position then -> now):\n${lost.map((q) => `- "${q.query}": ${q.before} -> ${q.now}, position ${q.posBefore?.toFixed(1) ?? "-"} -> ${q.posNow?.toFixed(1) ?? "not ranking"}`).join("\n")}\nMake sure the update targets these searches.\n` : ""}
 ${brand ? `${brand}\n\n` : ""}PAGE TEXT:
 ${text.slice(0, 12000)}
 
@@ -108,9 +181,9 @@ Never invent facts about the business.
 Return JSON: {"summary":"1-2 sentences: what's wrong and the plan","why":["likely reasons traffic dropped"],"title":"improved SEO title under 60 characters","metaDescription":"150-160 characters","add":["sections or points to add"],"update":["things to update or correct"],"remove":["things to cut"],"faqs":["questions to answer"],"instructions":"one paragraph of rewrite instructions for an AI writer"}`,
       { timeoutMs: 120_000, temperature: 0.4 },
     );
-    await db.contentRefresh.update({ where: { id: refreshId }, data: { brief, status: "DRAFTED", error: null } });
+    await db.contentRefresh.update({ where: { id: refreshId }, data: { brief, status: "DRAFTED", error: null, draftingAt: null } });
   } catch (e) {
-    await db.contentRefresh.update({ where: { id: refreshId }, data: { error: e instanceof Error ? e.message : String(e) } });
+    await db.contentRefresh.update({ where: { id: refreshId }, data: { error: e instanceof Error ? e.message : String(e), draftingAt: null } });
   }
 }
 
@@ -133,5 +206,5 @@ Answer these FAQs: ${b.faqs.join("; ")}`;
   const a = await db.article.findUniqueOrThrow({ where: { id: r.articleId }, select: { reviseError: true, status: true } });
   if (a.reviseError) throw new Error(a.reviseError);
   if (a.status === "PUSHED_DRAFT" || a.status === "PUSH_FAILED") await db.article.update({ where: { id: r.articleId }, data: { status: "READY_FOR_REVIEW", approvedAt: null, approvedById: null } });
-  await db.contentRefresh.update({ where: { id: refreshId }, data: { status: "DONE" } });
+  await markRefreshDone(refreshId);
 }

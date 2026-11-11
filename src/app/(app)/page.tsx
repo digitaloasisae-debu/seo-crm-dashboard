@@ -163,11 +163,21 @@ export default async function Home() {
   ];
   const [nKw, nTopic, nArt, nRev, nPost] = counts;
   const total = nKw + nTopic + nArt + nRev + nPost;
+  // Pages losing Google traffic (Refresh tab), and updated pages whose before/after result came in this week.
+  const [losing, results] = await Promise.all([
+    db.contentRefresh.groupBy({ by: ["clientId"], where: { ...scope, status: { in: ["OPEN", "DRAFTED"] } }, _count: true }),
+    db.contentRefresh.findMany({ where: { ...scope, status: "DONE", afterAt: { gte: new Date(Date.now() - 7 * 864e5) } }, select: { clientId: true, baseClicks: true, afterClicks: true } }),
+  ]);
+  const nLosing = losing.reduce((a, g) => a + g._count, 0);
+  const topLosing = [...losing].sort((a, b) => b._count - a._count)[0];
+  const nWon = results.filter((r) => (r.afterClicks ?? 0) > (r.baseClicks ?? 0)).length;
   const [firstGoogle, okReplies, okPosts] = toPostGoogle;
   const alerts = [
     failedPushes.length > 0 && { href: `/articles/${failedPushes[0].id}`, text: `${failedPushes.length} article${failedPushes.length === 1 ? "" : "s"} failed to push to WordPress`, tone: "bg-red-50 text-red-700 border-red-200" },
     openRequests > 0 && { href: "/access", text: `${openRequests} access request${openRequests === 1 ? "" : "s"} waiting`, tone: "bg-amber-50 text-amber-700 border-amber-200" },
     okReplies + okPosts > 0 && { href: `/clients/${firstGoogle?.clientId ?? ""}/gbp`, text: `${okReplies + okPosts} approved Google repl${okReplies + okPosts === 1 ? "y or post" : "ies and posts"} to publish`, tone: "bg-indigo-50 text-indigo-700 border-indigo-200" },
+    nLosing > 0 && { href: `/clients/${topLosing.clientId}/refresh`, text: `${nLosing} page${nLosing === 1 ? " is" : "s are"} losing Google traffic${losing.length > 1 ? ` across ${losing.length} clients` : ""}`, tone: "bg-amber-50 text-amber-700 border-amber-200" },
+    results.length > 0 && { href: `/clients/${results[0].clientId}/refresh#done`, text: `Update results are in: ${nWon} of ${results.length} page${results.length === 1 ? "" : "s"} won traffic back`, tone: "bg-emerald-50 text-emerald-700 border-emerald-200" },
     failedIntake > 0 && { href: "/intake", text: `${failedIntake} Tally submission${failedIntake === 1 ? "" : "s"} need a look`, tone: "bg-amber-50 text-amber-700 border-amber-200" },
   ].filter(Boolean) as { href: string; text: string; tone: string }[];
   const goal = 25;

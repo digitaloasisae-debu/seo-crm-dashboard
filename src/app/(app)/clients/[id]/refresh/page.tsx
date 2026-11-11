@@ -6,7 +6,9 @@ import { SubmitButton } from "@/components/submit-button";
 import { RefreshWhile } from "@/components/refresh-while";
 import { Spinner } from "@/components/spinner";
 import { geminiConfigured } from "@/lib/gemini";
-import type { RefreshBrief } from "@/lib/refresh";
+import { liveSince, type LostQuery, type RefreshBrief } from "@/lib/refresh";
+import { KeywordLink, Stat } from "@/components/ui";
+import { fmtDate } from "@/lib/utils";
 import { applyRefreshAction, draftRefreshAction, scanRefreshAction, setRefreshStatusAction } from "./actions";
 
 export const maxDuration = 300;
@@ -33,8 +35,13 @@ export default async function RefreshPage({ params, searchParams }: { params: Pr
   const articleIds = rows.map((r) => r.articleId).filter(Boolean) as string[];
   const arts = await db.article.findMany({ where: { id: { in: articleIds } }, select: { id: true, metaTitle: true, status: true, revisingAt: true, importedAt: true, wpBuilder: true } });
   const art = new Map(arts.map((a) => [a.id, a]));
-  const busy = rows.some((r) => (r.status === "OPEN" && !r.error && Date.now() - r.updatedAt.getTime() < 3 * 60_000 && r.brief == null && r.updatedAt > r.createdAt)) || arts.some((a) => a.revisingAt && Date.now() - a.revisingAt.getTime() < 6 * 60_000);
+  const busy = rows.some((r) => !!r.draftingAt && Date.now() - r.draftingAt.getTime() < 3 * 60_000) || arts.some((a) => a.revisingAt && Date.now() - a.revisingAt.getTime() < 6 * 60_000);
   const ai = geminiConfigured();
+  const live = new Map(await Promise.all(rows.filter((r) => r.status === "DONE").map(async (r) => [r.id, await liveSince(r)] as const)));
+  const open = rows.filter((r) => r.status !== "DONE");
+  const measuring = rows.filter((r) => r.status === "DONE" && r.afterClicks == null);
+  const measured = rows.filter((r) => r.status === "DONE" && r.afterClicks != null && r.baseClicks != null);
+  const won = measured.filter((r) => r.afterClicks! > r.baseClicks!);
   const linked = !!client.gscProperty && !!client.gscConnectionId;
 
   return (
@@ -50,24 +57,38 @@ export default async function RefreshPage({ params, searchParams }: { params: Pr
         {editable && linked && <form action={scanRefreshAction.bind(null, id)}><SubmitButton className="btn-secondary">Scan now</SubmitButton></form>}
       </section>
 
+      <div className="grid gap-3 sm:grid-cols-3">
+        <Stat label="Losing traffic" value={open.length} icon="trending" alert href="#open" />
+        <Stat label="Updated, measuring" value={measuring.length} icon="clock" href="#done" />
+        <Stat label="Recovered after update" value={won.length} icon="check" href="#done" />
+      </div>
+      {measured.length > 0 && (
+        <p className="-mt-3 text-sm text-slate-500">
+          {won.length} of {measured.length} updated page{measured.length === 1 ? "" : "s"} got more clicks afterwards
+          {" "}({measured.reduce((a, r) => a + r.baseClicks!, 0)} → {measured.reduce((a, r) => a + r.afterClicks!, 0)} clicks per 4 weeks in total).
+        </p>
+      )}
+
       {rows.length === 0 ? (
-        <p className="card text-sm text-slate-500">No pages are losing traffic right now. </p>
+        <p className="card text-sm text-slate-500">No pages are losing traffic right now.</p>
       ) : (
-        rows.map((r) => {
+        rows.map((r, idx) => {
+          const lost = (r.lostQueries as unknown as LostQuery[] | null) ?? [];
+          const firstDone = r.status === "DONE" && rows.findIndex((x) => x.status === "DONE") === idx;
           const b = r.brief as unknown as RefreshBrief | null;
           const a = r.articleId ? art.get(r.articleId) : null;
           const drop = Math.round((1 - r.clicksNow / Math.max(1, r.clicksBefore)) * 100);
-          const drafting = r.status === "OPEN" && !b && !r.error && r.updatedAt > r.createdAt && Date.now() - r.updatedAt.getTime() < 3 * 60_000;
+          const drafting = !!r.draftingAt && Date.now() - r.draftingAt.getTime() < 3 * 60_000;
           return (
-            <section key={r.id} className={`card space-y-4 ${r.status === "DONE" ? "opacity-70" : ""}`}>
+            <section key={r.id} id={idx === 0 ? "open" : firstDone ? "done" : undefined} className="card scroll-mt-20 space-y-4">
               <div className="flex flex-wrap items-start gap-3">
                 <div className="min-w-0 flex-1">
                   <a href={r.page} target="_blank" rel="noreferrer" className="block truncate font-medium text-indigo-600 hover:underline">{r.page.replace(/^https?:\/\/[^/]+/, "") || "/"}</a>
                   <div className="mt-1 flex flex-wrap gap-2 text-xs">
-                    <span className="num rounded-md bg-red-50 px-2.5 py-1 text-red-700">▼ {drop}% clicks · {r.clicksBefore} → {r.clicksNow} / 4 wks</span>
+                    <span className="num rounded-md bg-red-50 px-2.5 py-1 text-red-700" data-tip={r.bestFrom && r.nowFrom ? `Best 4 weeks from ${fmtDate(r.bestFrom)} vs. 4 weeks from ${fmtDate(r.nowFrom)}` : undefined}>−{drop}% clicks · {r.clicksBefore} → {r.clicksNow} per 4 weeks</span>
                     {r.posBefore != null && r.posNow != null && <span className="num rounded-md bg-slate-100 px-2.5 py-1 text-slate-600">position {r.posBefore.toFixed(1)} → {r.posNow.toFixed(1)}</span>}
                     {a ? <Link href={`/articles/${a.id}`} className="rounded-md bg-indigo-50 px-2.5 py-1 text-indigo-700">{a.importedAt ? "Imported from WordPress" : "Rankflow article"} · {a.status.replace(/_/g, " ").toLowerCase()}</Link> : <span className="rounded-md bg-slate-100 px-2.5 py-1 text-slate-500">Not written in Rankflow</span>}
-                    {r.status === "DONE" && <span className="rounded-md bg-emerald-50 px-2.5 py-1 text-emerald-700">Done</span>}
+                    {r.status === "DONE" && <span className="rounded-md bg-emerald-50 px-2.5 py-1 text-emerald-700">Updated {r.doneAt ? fmtDate(r.doneAt) : ""}</span>}
                   </div>
                 </div>
                 {editable && r.status !== "DONE" && (
@@ -77,6 +98,26 @@ export default async function RefreshPage({ params, searchParams }: { params: Pr
                   </div>
                 )}
               </div>
+              {r.status === "DONE" && <Result r={r} live={live.get(r.id) ?? null} />}
+              {lost.length > 0 && r.status !== "DONE" && (
+                <details className="rounded-lg border border-slate-200" open={!b}>
+                  <summary className="flex items-center justify-between px-3 py-2 text-sm font-medium">
+                    Searches it lost clicks on <span className="text-xs font-normal text-slate-500">{lost.length} quer{lost.length === 1 ? "y" : "ies"} · best weeks vs. last 4 weeks</span>
+                  </summary>
+                  <table className="table border-t border-slate-200 text-sm">
+                    <thead><tr><th className="!rounded-none">Search</th><th className="!rounded-none text-right">Clicks</th><th className="!rounded-none text-right">Position</th></tr></thead>
+                    <tbody>
+                      {lost.map((q) => (
+                        <tr key={q.query}>
+                          <td><KeywordLink keyword={q.query} /></td>
+                          <td className="num text-right whitespace-nowrap">{q.before} → <span className="text-red-600">{q.now}</span></td>
+                          <td className="num text-right whitespace-nowrap text-slate-500">{q.posBefore?.toFixed(1) ?? "–"} → {q.posNow == null ? <span className="text-red-600">gone</span> : <span className={q.posBefore != null && q.posNow > q.posBefore + 0.5 ? "text-red-600" : ""}>{q.posNow.toFixed(1)}</span>}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </details>
+              )}
               {drafting && <p className="flex items-center gap-2 text-sm text-indigo-700"><Spinner className="h-4 w-4" /> Reading the page and planning the update…</p>}
               {r.error && <p className="rounded-lg bg-red-50 p-2.5 text-sm text-red-700">{r.error}</p>}
               {b && (
@@ -121,4 +162,26 @@ export default async function RefreshPage({ params, searchParams }: { params: Pr
       )}
     </div>
   );
+}
+
+/** Before/after card for a page that was updated. */
+function Result({ r, live }: { r: { baseClicks: number | null; basePos: number | null; afterClicks: number | null; afterPos: number | null; clicksNow: number; posNow: number | null; articleId: string | null; doneAt: Date | null }; live: Date | null }) {
+  const base = r.baseClicks ?? r.clicksNow;
+  if (r.afterClicks != null) {
+    const up = r.afterClicks > base;
+    const pct = base ? Math.round(((r.afterClicks - base) / base) * 100) : null;
+    return (
+      <div className={`flex flex-wrap items-center gap-x-6 gap-y-2 rounded-lg border p-3 text-sm ${up ? "border-emerald-200 bg-emerald-50" : "border-slate-200 bg-slate-50"}`}>
+        <span className={`font-medium ${up ? "text-emerald-800" : "text-slate-700"}`}>{up ? "Traffic came back" : "No recovery yet"}</span>
+        <span className="num">Clicks per 4 weeks: {base} → <b>{r.afterClicks}</b>{pct != null && <span className={up ? "text-emerald-700" : "text-red-600"}> ({pct > 0 ? "+" : ""}{pct}%)</span>}</span>
+        {r.basePos != null && r.afterPos != null && <span className="num text-slate-600">Position {r.basePos.toFixed(1)} → {r.afterPos.toFixed(1)}</span>}
+        {!up && <span className="text-xs text-slate-500">Worth another look: check the searches above, or add internal links to it.</span>}
+      </div>
+    );
+  }
+  if (!live) {
+    return <p className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm text-slate-600">Waiting for the rewritten article to be approved and pushed to WordPress. The before/after count starts then.</p>;
+  }
+  const ready = new Date(live.getTime() + 36 * 864e5);
+  return <p className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm text-slate-600">Measuring. Live since {fmtDate(live)}, with {base} clicks per 4 weeks before the update. The before/after result shows here around <b>{fmtDate(ready)}</b> (Google needs a week to recrawl, then we count 4 weeks).</p>;
 }

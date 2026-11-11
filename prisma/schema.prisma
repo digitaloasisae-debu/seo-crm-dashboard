@@ -752,6 +752,21 @@ model ContentRefresh {
   status       RefreshStatus @default(OPEN)
   brief        Json?
   error        String?
+  /// The page's best 4-week window and the latest one (week starts), used for keyword comparisons.
+  bestFrom     DateTime?     @db.Date
+  nowFrom      DateTime?     @db.Date
+  /// Search queries that lost the most clicks on this page: [{query, before, now, posBefore, posNow}].
+  lostQueries  Json?
+  queriesAt    DateTime?
+  /// Set while the AI plan is being written.
+  draftingAt   DateTime?
+  /// Before/after: when the update went live, and the clicks (4 weeks) around it.
+  doneAt       DateTime?
+  baseClicks   Int?
+  basePos      Float?
+  afterClicks  Int?
+  afterPos     Float?
+  afterAt      DateTime?
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
 

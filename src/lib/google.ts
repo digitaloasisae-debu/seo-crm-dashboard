@@ -141,6 +141,17 @@ export async function gscQuery(clientId: string, dimensions: string[], days = 28
   return j.rows ?? [];
 }
 
+/** Search Analytics for one page between two dates (inclusive), split by `dimensions`. */
+export async function gscPageQuery(clientId: string, page: string, from: Date, to: Date, dimensions: string[] = ["query"], rowLimit = 200) {
+  const client = await db.client.findUniqueOrThrow({ where: { id: clientId }, select: { gscProperty: true, gscConnectionId: true } });
+  if (!client.gscProperty || !client.gscConnectionId) return [] as Row[];
+  const j = await gsc<{ rows?: Row[] }>(client.gscConnectionId, `/sites/${encodeURIComponent(client.gscProperty)}/searchAnalytics/query`, {
+    dataState: "all", startDate: day(from), endDate: day(to), dimensions, rowLimit,
+    dimensionFilterGroups: [{ filters: [{ dimension: "page", operator: "equals", expression: page }] }],
+  });
+  return j.rows ?? [];
+}
+
 /** Pull Search Console data for one client: 90 days of daily totals, weekly top queries, top pages (28 days). */
 export async function syncClient(clientId: string) {
   const client = await db.client.findUniqueOrThrow({ where: { id: clientId } });

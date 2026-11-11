@@ -5,7 +5,7 @@ import { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { requireClientAccess } from "@/lib/access";
 import { requireUser } from "@/lib/session";
-import { applyRefresh, draftRefresh, findRefreshes } from "@/lib/refresh";
+import { applyRefresh, draftRefresh, findRefreshes, markRefreshDone } from "@/lib/refresh";
 
 const back = (id: string, q = "") => redirect(`/clients/${id}/refresh${q ? `?${q}` : ""}`);
 
@@ -19,7 +19,7 @@ export async function scanRefreshAction(clientId: string) {
 export async function draftRefreshAction(clientId: string, refreshId: string) {
   const user = await requireUser();
   await requireClientAccess(user, clientId, "edit");
-  await db.contentRefresh.update({ where: { id: refreshId }, data: { error: null, status: "OPEN", brief: Prisma.DbNull, updatedAt: new Date() } });
+  await db.contentRefresh.update({ where: { id: refreshId }, data: { error: null, status: "OPEN", brief: Prisma.DbNull, draftingAt: new Date() } });
   after(() => draftRefresh(refreshId));
   back(clientId, `drafting=${refreshId}`);
 }
@@ -38,6 +38,7 @@ export async function applyRefreshAction(clientId: string, refreshId: string) {
 export async function setRefreshStatusAction(clientId: string, refreshId: string, status: "DONE" | "DISMISSED" | "OPEN") {
   const user = await requireUser();
   await requireClientAccess(user, clientId, "edit");
-  await db.contentRefresh.update({ where: { id: refreshId }, data: { status } });
+  if (status === "DONE") await markRefreshDone(refreshId);
+  else await db.contentRefresh.update({ where: { id: refreshId }, data: { status } });
   back(clientId);
 }
