@@ -113,6 +113,20 @@ function Why({ c, pct }: { c: Pulse; up: boolean; pct: number | null }) {
       <ul className="mt-3 space-y-0.5 border-t border-slate-100 pt-2 text-xs text-slate-500">
         {w.facts.map((f) => <li key={f}>{f}</li>)}
       </ul>
+      {w.advice.length > 0 && (
+        <div className="mt-3 border-t border-slate-100 pt-2.5">
+          <div className="text-xs font-semibold text-slate-800">Likely reasons and what to do</div>
+          <p className="text-[11px] text-slate-400">Each one comes from the number shown in bold</p>
+          <ol className="mt-2 space-y-2">
+            {w.advice.map((a, i) => (
+              <li key={i} className="text-xs leading-snug">
+                <b className="font-semibold text-slate-800">{a.evidence}.</b> <span className="text-slate-600">{a.reason}</span>
+                <Link href={a.href} className="mt-0.5 flex items-start gap-1 font-medium text-indigo-600 hover:underline">→ {a.fix}</Link>
+              </li>
+            ))}
+          </ol>
+        </div>
+      )}
     </div>
   );
 }

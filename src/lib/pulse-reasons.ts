@@ -20,7 +20,8 @@ export function pulseWindow(now = new Date()) {
 export type Mover = { label: string; before: number; now: number; posBefore: number | null; posNow: number | null };
 export type Metric = { label: string; before: string; now: string; better: boolean | null };
 /** Measured numbers only: no interpretation of causes. */
-export type PulseWhy = { pct: number | null; before: number; now: number; metrics: Metric[]; searches: Mover[]; movers: Mover[]; facts: string[] };
+export type Advice = { evidence: string; reason: string; fix: string; href: string };
+export type PulseWhy = { pct: number | null; before: number; now: number; metrics: Metric[]; searches: Mover[]; movers: Mover[]; facts: string[]; advice: Advice[] };
 
 type Row = { clientId: string; key: string; before: number; now: number; posBefore: number | null; posNow: number | null; impBefore: number; impNow: number; rn: number };
 
@@ -70,6 +71,7 @@ export async function pulseReasons(ids: string[], w = pulseWindow()): Promise<Ma
     db.article.groupBy({ by: ["clientId"], where: { clientId: { in: ids }, pushedAt: { gte: w.first } }, _count: true }),
     db.contentRefresh.groupBy({ by: ["clientId"], where: { clientId: { in: ids }, status: { in: ["OPEN", "DRAFTED"] } }, _count: true }),
   ]);
+  const audits = await db.siteAudit.findMany({ where: { clientId: { in: ids }, status: "DONE" }, select: { clientId: true, issues: true, psiMobile: true }, orderBy: { startedAt: "desc" }, distinct: ["clientId"] });
 
   const out = new Map<string, PulseWhy>();
   for (const t of totals) {
@@ -97,7 +99,23 @@ export async function pulseReasons(ids: string[], w = pulseWindow()): Promise<Ma
     const mv = pages.filter((r) => r.clientId === t.clientId).map((r) => ({ ...r, before: r.before * kb, now: r.now * kn }))
       .filter((r) => Math.abs(r.now - r.before) >= 0.5).sort((x, y) => Math.abs(y.now - y.before) - Math.abs(x.now - x.before)).slice(0, 3)
       .map((r) => ({ label: path(r.key), before: r.before, now: r.now, posBefore: r.posBefore == null ? null : Number(r.posBefore), posNow: r.posNow == null ? null : Number(r.posNow) }));
-    out.set(t.clientId, { pct, before, now, metrics, searches, movers: mv, facts });
+    // Likely reasons and fixes: each rule fires only on a measured number and names it.
+    const c = `/clients/${t.clientId}`;
+    const advice: Advice[] = [];
+    const posDrop = pb != null && pn != null ? pn - pb : 0;
+    const viewsPct = impB ? (impN / impB - 1) * 100 : 0;
+    const worstPage = mv.find((m) => m.now < m.before);
+    if (posDrop >= 1) advice.push({ evidence: `Average position ${pb!.toFixed(1)} → ${pn!.toFixed(1)}`, reason: "The site's pages rank lower than before, so fewer people see and click them.", fix: "Update the pages that slipped with fresher, deeper content and add internal links to them.", href: `${c}/refresh` });
+    if (viewsPct <= -15 && Math.abs(posDrop) < 1) advice.push({ evidence: `Views ${Math.round(viewsPct)}% while average position held`, reason: "Rankings held but Google showed the site less, which usually means fewer people searched these terms (often seasonal).", fix: "Cover more searches: add and approve new keywords and topics.", href: `${c}/keywords` });
+    if (ctrB != null && ctrN != null && ctrN < ctrB * 0.8 && Math.abs(posDrop) < 1) advice.push({ evidence: `Click rate ${ctrB.toFixed(1)}% → ${ctrN.toFixed(1)}% at a similar position`, reason: "People see the result but click it less. Usually the title or description is less appealing than competitors', or Google added ads or maps above it.", fix: "Rewrite the meta titles and descriptions of the pages below to be more specific and clickable.", href: `${c}/articles` });
+    if (worstPage && worstPage.before - worstPage.now >= 2) advice.push({ evidence: `${worstPage.label}: ${n(worstPage.before)} → ${n(worstPage.now)} clicks a week${worstPage.posBefore != null && worstPage.posNow != null ? `, position ${worstPage.posBefore.toFixed(0)} → ${worstPage.posNow.toFixed(0)}` : ""}`, reason: "This one page accounts for a large part of the change.", fix: "Plan an update for this page in Traffic recovery.", href: `${c}/refresh` });
+    if (!p && now < before) advice.push({ evidence: "0 blogs sent to WordPress in 12 weeks", reason: "No new pages were added to rank for new searches.", fix: "Approve topics so n8n writes and sends new blogs.", href: `${c}/topics` });
+    const a = audits.find((x) => x.clientId === t.clientId);
+    const errs = ((a?.issues as { severity?: string; count?: number }[] | null) ?? []).filter((i) => i.severity === "error");
+    if (errs.length && now < before) advice.push({ evidence: `${errs.length} error${errs.length === 1 ? "" : "s"} in the last SEO audit`, reason: "Technical errors can stop Google from showing or ranking pages.", fix: "Fix the errors listed in the SEO audit.", href: `${c}/seo` });
+    const perf = (a?.psiMobile as { performance?: number } | null)?.performance;
+    if (perf != null && perf < 50 && now < before) advice.push({ evidence: `Mobile speed score ${Math.round(perf)} of 100`, reason: "Slow pages on phones rank and convert worse.", fix: "Compress images and remove heavy scripts, then rerun the SEO audit.", href: `${c}/seo` });
+    out.set(t.clientId, { pct, before, now, metrics, searches, movers: mv, facts, advice: advice.slice(0, 3) });
   }
   return out;
 }
