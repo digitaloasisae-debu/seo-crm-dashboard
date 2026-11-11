@@ -1,3 +1,4 @@
+import { DataTable } from "@/components/data-table";
 import Link from "next/link";
 import { db } from "@/lib/db";
 import { movers, searchPerformance } from "@/lib/gsc-report";
@@ -109,45 +110,59 @@ export async function SearchPerformance({ clientId, editable }: { clientId: stri
         <section className="card p-0">
           <h2 className="p-4 pb-1 font-semibold">Top queries (last 4 weeks)</h2>
           <p className="px-4 pb-2 text-xs text-slate-500">Change compares with the 4 weeks before. A lower position number is better. &quot;pool&quot; means the keyword is in this client&apos;s keyword pool.</p>
-          <div className="overflow-x-auto">
-            <table className="table">
-              <thead><tr><th>Query</th><th>Clicks</th><th>Impressions</th><th>CTR</th><th>Position</th><th>Change</th></tr></thead>
-              <tbody>
-                {queries.slice(0, 50).map((q) => {
-                  const d = q.prevPosition != null ? q.prevPosition - q.position : null;
-                  return (
-                    <tr key={q.query}>
-                      <td>{q.query} {q.inPool && <Badge color="indigo">pool</Badge>}</td>
-                      <td>{q.clicks}</td>
-                      <td>{q.impressions}</td>
-                      <td>{(q.ctr * 100).toFixed(1)}%</td>
-                      <td>{q.position.toFixed(1)}</td>
-                      <td className={d == null ? "text-xs text-slate-400" : d > 0.5 ? "text-emerald-600" : d < -0.5 ? "text-red-600" : "text-slate-400"}>{d == null ? "new" : Math.abs(d) <= 0.5 ? "–" : `${d > 0 ? "▲" : "▼"} ${Math.abs(d).toFixed(1)}`}</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+          <DataTable
+            id="gsc-queries"
+            bare
+            pageSize={50}
+            columns={[
+              { key: "query", label: "Query", className: "min-w-44" },
+              { key: "pool", label: "In pool", type: "enum", hidden: true },
+              { key: "clicks", label: "Clicks", type: "number" },
+              { key: "impressions", label: "Impressions", type: "number" },
+              { key: "ctr", label: "CTR %", type: "number" },
+              { key: "position", label: "Position", type: "number" },
+              { key: "change", label: "Change", type: "number", title: "Places gained vs the 4 weeks before" },
+            ]}
+            rows={queries.map((q) => {
+              const d = q.prevPosition != null ? q.prevPosition - q.position : null;
+              return {
+                id: q.query,
+                values: { query: q.query, pool: q.inPool ? "In pool" : "Not in pool", clicks: q.clicks, impressions: q.impressions, ctr: Number((q.ctr * 100).toFixed(1)), position: Number(q.position.toFixed(1)), change: d == null ? null : Number(d.toFixed(1)) },
+                cells: {
+                  query: <>{q.query} {q.inPool && <Badge color="indigo">pool</Badge>}</>,
+                  ctr: <span className="num">{(q.ctr * 100).toFixed(1)}%</span>,
+                  position: <span className="num">{q.position.toFixed(1)}</span>,
+                  change: <span className={d == null ? "text-xs text-slate-400" : d > 0.5 ? "text-emerald-600" : d < -0.5 ? "text-red-600" : "text-slate-400"}>{d == null ? "new" : Math.abs(d) <= 0.5 ? "–" : `${d > 0 ? "▲" : "▼"} ${Math.abs(d).toFixed(1)}`}</span>,
+                },
+              };
+            })}
+            presets={[
+              { label: "Page 1", filters: { position: "<=10" } },
+              { label: "Almost page 1 (11-20)", filters: { position: "11-20" } },
+              { label: "Low CTR", filters: { ctr: "<2", impressions: ">=100" } },
+              { label: "Not in pool", filters: { pool: ["Not in pool"] } },
+              { label: "Dropping", filters: { change: "<0" } },
+            ]}
+            searchPlaceholder="Search queries"
+          />
         </section>
       )}
 
       {pages.length > 0 && (
         <section className="card p-0">
           <h2 className="p-4 pb-2 font-semibold">Top pages (28 days)</h2>
-          <div className="overflow-x-auto">
-            <table className="table">
-              <thead><tr><th>Page</th><th>Clicks</th><th>Impressions</th><th>Position</th></tr></thead>
-              <tbody>
-                {pages.map((p) => (
-                  <tr key={p.page}>
-                    <td className="max-w-md truncate"><a className="text-indigo-600 hover:underline" href={p.page} target="_blank" rel="noreferrer">{p.page.replace(/^https?:\/\/[^/]+/, "") || "/"}</a></td>
-                    <td>{p.clicks}</td><td>{p.impressions}</td><td>{p.position.toFixed(1)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <DataTable
+            id="gsc-pages"
+            bare
+            pageSize={50}
+            columns={[{ key: "page", label: "Page" }, { key: "clicks", label: "Clicks", type: "number" }, { key: "impressions", label: "Impressions", type: "number" }, { key: "position", label: "Position", type: "number" }]}
+            rows={pages.map((p) => ({
+              id: p.page,
+              values: { page: p.page.replace(/^https?:\/\/[^/]+/, "") || "/", clicks: p.clicks, impressions: p.impressions, position: Number(p.position.toFixed(1)) },
+              cells: { page: <div className="max-w-md truncate"><a className="text-indigo-600 hover:underline" href={p.page} target="_blank" rel="noreferrer">{p.page.replace(/^https?:\/\/[^/]+/, "") || "/"}</a></div> },
+            }))}
+            searchPlaceholder="Search pages"
+          />
         </section>
       )}
     </div>

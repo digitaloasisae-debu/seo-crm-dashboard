@@ -1,3 +1,4 @@
+import { DataTable } from "@/components/data-table";
 import Link from "next/link";
 import { db } from "@/lib/db";
 import { canEdit } from "@/lib/access";
@@ -165,19 +166,23 @@ export default async function AnalyticsPage({ params }: { params: Promise<{ id: 
                 <p className="text-xs text-slate-500">Organic search visits and conversions in the last 28 days for posts pushed from Rankflow. {withVisits.length} of {posts.length} posts got visits from Google.</p>
               </div>
               {withVisits.length > 0 && (
-                <table className="table">
-                  <thead><tr><th>Post</th><th>Visits</th><th>Visitors</th><th>Conversions</th></tr></thead>
-                  <tbody>
-                    {withVisits.map(({ a, sessions, users, keyEvents }) => (
-                      <tr key={a.id}>
-                        <td className="max-w-md"><Link href={`/articles/${a.id}`} className="block truncate text-indigo-600 hover:underline">{a.metaTitle}</Link></td>
-                        <td className="font-semibold">{fmt(sessions)}</td>
-                        <td>{fmt(users)}</td>
-                        <td className={keyEvents ? "font-semibold text-emerald-700" : "text-slate-400"}>{fmt(keyEvents)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                <DataTable
+                  id="ga-posts"
+                  bare
+                  columns={[{ key: "post", label: "Post" }, { key: "visits", label: "Visits", type: "number" }, { key: "visitors", label: "Visitors", type: "number" }, { key: "conv", label: "Conversions", type: "number" }]}
+                  rows={withVisits.map(({ a, sessions, users, keyEvents }) => ({
+                    id: a.id,
+                    values: { post: a.metaTitle, visits: sessions, visitors: users, conv: keyEvents },
+                    cells: {
+                      post: <div className="max-w-md"><Link href={`/articles/${a.id}`} className="block truncate text-indigo-600 hover:underline">{a.metaTitle}</Link></div>,
+                      visits: <span className="num font-semibold">{fmt(sessions)}</span>,
+                      conv: <span className={`num ${keyEvents ? "font-semibold text-emerald-700" : "text-slate-400"}`}>{fmt(keyEvents)}</span>,
+                    },
+                  }))}
+                  presets={[{ label: "With conversions", filters: { conv: ">0" } }]}
+                  defaultSort={{ key: "visits", dir: "desc" }}
+                  searchPlaceholder="Search posts"
+                />
               )}
               {noVisits.length > 0 && (
                 <details className="border-t border-slate-100">
@@ -194,25 +199,25 @@ export default async function AnalyticsPage({ params }: { params: Promise<{ id: 
           <section className="card p-0">
             <h2 className="p-4 pb-2 font-semibold">Top landing pages (all channels)</h2>
             {d.pages.length === 0 ? <p className="p-4 pt-0 text-sm text-slate-500">No data.</p> : (
-              <table className="table">
-                <thead><tr><th>Page</th><th>Visits</th><th>Visitors</th><th>Conversions</th><th>Engaged</th></tr></thead>
-                <tbody>
-                  {d.pages.slice(0, 25).map((p) => {
-                    const art = articleBySlug.get(slugOf(p.name));
-                    return (
-                      <tr key={p.name}>
-                        <td className="max-w-md truncate text-sm">
-                          <code className="text-xs">{p.name === "(not set)" ? "(not set)" : p.name || "/"}</code>
-                          {art && <Link href={`/articles/${art.id}`} className="ml-2 rounded-full bg-indigo-50 px-1.5 py-0.5 text-[10px] font-semibold text-indigo-700 ring-1 ring-indigo-200 ring-inset">our post</Link>}
-                        </td>
-                        <td>{fmt(p.sessions)}</td><td>{fmt(p.users)}</td>
-                        <td className={p.keyEvents ? "font-semibold text-emerald-700" : "text-slate-400"}>{fmt(p.keyEvents)}</td>
-                        <td className="text-xs">{p.engagementRate != null ? pct(p.engagementRate) : "—"}</td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+              <DataTable
+                id="ga-pages"
+                bare
+                columns={[{ key: "page", label: "Page" }, { key: "ours", label: "Our post", type: "enum", hidden: true }, { key: "visits", label: "Visits", type: "number" }, { key: "visitors", label: "Visitors", type: "number" }, { key: "conv", label: "Conversions", type: "number" }, { key: "engaged", label: "Engaged %", type: "number" }]}
+                rows={d.pages.map((p) => {
+                  const art = articleBySlug.get(slugOf(p.name));
+                  return {
+                    id: p.name || "/",
+                    values: { page: p.name || "/", ours: art ? "Our post" : "Other page", visits: p.sessions, visitors: p.users, conv: p.keyEvents, engaged: p.engagementRate != null ? Math.round(p.engagementRate * 100) : null },
+                    cells: {
+                      page: <div className="max-w-md truncate text-sm"><code className="text-xs">{p.name === "(not set)" ? "(not set)" : p.name || "/"}</code>{art && <Link href={`/articles/${art.id}`} className="ml-2 rounded-full bg-indigo-50 px-1.5 py-0.5 text-[10px] font-semibold text-indigo-700 ring-1 ring-indigo-200 ring-inset">our post</Link>}</div>,
+                      conv: <span className={`num ${p.keyEvents ? "font-semibold text-emerald-700" : "text-slate-400"}`}>{fmt(p.keyEvents)}</span>,
+                      engaged: <span className="text-xs">{p.engagementRate != null ? pct(p.engagementRate) : "—"}</span>,
+                    },
+                  };
+                })}
+                presets={[{ label: "Our posts", filters: { ours: ["Our post"] } }, { label: "With conversions", filters: { conv: ">0" } }]}
+                searchPlaceholder="Search pages"
+              />
             )}
           </section>
         </>

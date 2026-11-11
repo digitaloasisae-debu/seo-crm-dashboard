@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { clientScope } from "@/lib/access";
 import { requireUser } from "@/lib/session";
 import { Empty, PageHeader, StatusBadge } from "@/components/ui";
+import { DataTable } from "@/components/data-table";
 
 export default async function ClientsPage({ searchParams }: { searchParams: Promise<{ q?: string }> }) {
   const user = await requireUser();
@@ -29,35 +30,46 @@ export default async function ClientsPage({ searchParams }: { searchParams: Prom
         subtitle={`${clients.length} ${user.role === "SUPER_ADMIN" ? "in total" : "you can see"}`}
         actions={user.role === "SUPER_ADMIN" && <Link className="btn-primary" href="/clients/new">Add client</Link>}
       />
-      <form className="mb-4">
-        <input className="input max-w-xs" name="q" defaultValue={q} placeholder="Search clients" />
-      </form>
       {clients.length === 0 ? (
         <Empty>No clients yet. They appear here when the onboarding Tally form is submitted.</Empty>
       ) : (
-        <div className="card overflow-x-auto p-0">
-          <table className="table">
-            <thead>
-              <tr><th>Client</th><th>Owner</th><th>Status</th><th>Posts / mo</th><th>Unused keywords</th><th>Topics to review</th><th>Articles waiting</th></tr>
-            </thead>
-            <tbody>
-              {clients.map((c) => (
-                <tr key={c.id}>
-                  <td>
-                    <Link className="font-medium text-indigo-600 hover:underline" href={`/clients/${c.id}`}>{c.name}</Link>
-                    <div className="text-xs text-slate-400">{c.siteUrl.replace(/^https?:\/\//, "")}</div>
-                  </td>
-                  <td>{c.assignments.map((a) => a.user.name).join(", ") || <span className="text-slate-400">Unassigned</span>}</td>
-                  <td><StatusBadge status={c.status} /></td>
-                  <td>{c.postsPerMonth}</td>
-                  <td>{c._count.keywords}</td>
-                  <td>{c._count.topics}</td>
-                  <td>{c._count.articles}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <DataTable
+          id="clients"
+          columns={[
+            { key: "name", label: "Client" },
+            { key: "owner", label: "Owner", type: "enum" },
+            { key: "status", label: "Status", type: "enum" },
+            { key: "posts", label: "Posts / mo", type: "number" },
+            { key: "keywords", label: "Unused keywords", type: "number" },
+            { key: "topics", label: "Topics to review", type: "number" },
+            { key: "articles", label: "Articles waiting", type: "number" },
+            { key: "site", label: "Website", hidden: true },
+          ]}
+          rows={clients.map((c) => ({
+            id: c.id,
+            values: { name: c.name, owner: c.assignments.map((a) => a.user.name).join(", ") || "Unassigned", status: c.status, posts: c.postsPerMonth, keywords: c._count.keywords, topics: c._count.topics, articles: c._count.articles, site: c.siteUrl.replace(/^https?:\/\//, "") },
+            cells: {
+              name: (
+                <div>
+                  <Link className="font-medium text-indigo-600 hover:underline" href={`/clients/${c.id}`}>{c.name}</Link>
+                  <div className="text-xs text-slate-400">{c.siteUrl.replace(/^https?:\/\//, "")}</div>
+                </div>
+              ),
+              owner: c.assignments.map((a) => a.user.name).join(", ") || <span className="text-slate-400">Unassigned</span>,
+              status: <StatusBadge status={c.status} />,
+              topics: c._count.topics ? <Link href={`/clients/${c.id}/topics?status=GENERATED`} className="num font-medium text-amber-700 hover:underline">{c._count.topics}</Link> : <span className="num text-slate-400">0</span>,
+              articles: c._count.articles ? <Link href={`/clients/${c.id}/articles`} className="num font-medium text-amber-700 hover:underline">{c._count.articles}</Link> : <span className="num text-slate-400">0</span>,
+            },
+          }))}
+          presets={[
+            { label: "Active", filters: { status: ["ACTIVE"] } },
+            { label: "Needs review", filters: { topics: ">0" } },
+            { label: "Articles waiting", filters: { articles: ">0" } },
+            { label: "Low on keywords", filters: { keywords: "<5", status: ["ACTIVE"] } },
+          ]}
+          searchPlaceholder="Search clients"
+          defaultSort={{ key: "name", dir: "asc" }}
+        />
       )}
     </>
   );

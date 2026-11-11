@@ -12,6 +12,8 @@ import { RefreshWhile, RewriteForm, TitleOptions } from "./rewrite";
 import { REVISE_STALE_MS } from "@/lib/revise";
 import { QualityCard } from "@/components/quality-card";
 import { ContentScoreCard } from "@/components/content-score-card";
+import { CopyChip } from "@/components/copy-chip";
+import { Icon } from "@/components/icons";
 import { dataforseoConfigured } from "@/lib/dataforseo";
 import type { ContentScore } from "@/lib/serp";
 import { NoteForm } from "./note-form";
@@ -57,14 +59,30 @@ export default async function ArticleReview({ params, searchParams }: { params: 
   const gaData = ga?.data as unknown as Ga4Data | undefined;
   const gaSlugs = new Set((gaData?.organicPages ?? []).map((p) => p.name.toLowerCase().split("?")[0].replace(/\/+$/, "").split("/").pop() ?? "").filter(Boolean));
   const traffic = gaData ? articleTraffic(gaData, matchArticleSlug(article, gaSlugs)) : null;
+  const plain = article.bodyHtml.replace(/<(script|style)[\s\S]*?<\/\1>/gi, " ").replace(/<[^>]+>/g, " ").replace(/&[#\w]+;/g, " ");
+  const words = (plain.match(/[\p{L}\p{N}'’-]+/gu) ?? []).length;
+  const kwHits = article.focusKeyword ? (plain.toLowerCase().match(new RegExp(article.focusKeyword.toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "g")) ?? []).length : 0;
+  const siteHost = article.client.siteUrl.replace(/^https?:\/\//, "").replace(/\/+$/, "");
+  const titleLen = article.metaTitle.length, descLen = article.metaDescription?.length ?? 0;
+  const lenTone = (n: number, lo: number, hi: number) => (n >= lo && n <= hi ? "text-emerald-600" : n === 0 ? "text-red-600" : "text-amber-600");
   const approver = article.approvedById ? await db.user.findUnique({ where: { id: article.approvedById }, select: { name: true } }) : null;
 
   return (
     <>
       <div className="mb-4 text-sm"><Link className="text-indigo-600 hover:underline" href={`/clients/${article.clientId}/articles`}>← {article.client.name}</Link></div>
-      <div className="mb-6 flex flex-wrap items-center gap-3">
+      <div className="mb-3 flex flex-wrap items-center gap-3">
         <h1 className="font-display text-slate-900 text-2xl font-bold tracking-tight ">{article.metaTitle}</h1>
         <StatusBadge status={article.status} />
+      </div>
+      <div className="mb-6 flex flex-wrap items-center gap-2 text-xs">
+        <span className="inline-flex items-center gap-1 rounded-full bg-indigo-50 py-0.5 pr-1 pl-2.5 font-medium text-indigo-800 ring-1 ring-indigo-100">
+          <Icon name="tag" className="h-3.5 w-3.5" /> Focus keyword <CopyChip text={article.focusKeyword} label="focus keyword" className="font-semibold" />
+        </span>
+        <span className="num rounded-full bg-slate-100 px-2.5 py-1 text-slate-600">{words.toLocaleString()} words · {Math.max(1, Math.round(words / 220))} min read</span>
+        <span className={`rounded-full px-2.5 py-1 ${kwHits ? "bg-slate-100 text-slate-600" : "bg-amber-50 text-amber-700"}`} title="How many times the exact focus keyword appears in the text">keyword used <b className="num">{kwHits}×</b></span>
+        {article.qualityScore != null && <a href="#sop" className={`num rounded-full px-2.5 py-1 font-medium hover:underline ${article.qualityScore >= 85 ? "bg-emerald-50 text-emerald-700" : article.qualityScore >= 65 ? "bg-amber-50 text-amber-700" : "bg-red-50 text-red-700"}`}>SOP {article.qualityScore}</a>}
+        {article.contentScore != null && <a href="#top10" className={`num rounded-full px-2.5 py-1 font-medium hover:underline ${article.contentScore >= 75 ? "bg-emerald-50 text-emerald-700" : article.contentScore >= 55 ? "bg-amber-50 text-amber-700" : "bg-red-50 text-red-700"}`}>Top 10 score {article.contentScore}</a>}
+        {rankNow != null && <span className="num rounded-full bg-emerald-50 px-2.5 py-1 font-medium text-emerald-700">Google #{rankNow.toFixed(1)}</span>}
       </div>
 
       {revising && (
@@ -85,7 +103,21 @@ export default async function ArticleReview({ params, searchParams }: { params: 
         </article>
 
         <aside className="space-y-6 lg:col-span-2">
-          <section className="card space-y-2 text-sm">
+          <section className="card space-y-3 text-sm">
+            <div>
+              <div className="mb-1.5 flex items-center justify-between text-xs font-medium text-slate-500"><span>Google preview</span><span className="num"><span className={lenTone(titleLen, 30, 60)}>title {titleLen}/60</span> · <span className={lenTone(descLen, 120, 160)}>description {descLen}/160</span></span></div>
+              <div className="rounded-xl border border-slate-200 p-3">
+                <div className="truncate text-xs text-slate-500">{siteHost} › {article.slug}</div>
+                <div className="mt-0.5 line-clamp-2 text-base leading-snug text-[#1a0dab] dark:text-indigo-400">{article.metaTitle}</div>
+                <div className="mt-1 line-clamp-2 text-xs leading-relaxed text-slate-600">{article.metaDescription || <span className="text-red-600">No meta description yet.</span>}</div>
+              </div>
+            </div>
+            <dl className="grid grid-cols-[auto_minmax(0,1fr)] items-baseline gap-x-3 gap-y-1.5">
+              <dt className="text-slate-500">Focus keyword</dt><dd><CopyChip text={article.focusKeyword} label="focus keyword" className="-ml-1.5 font-medium text-slate-900" /></dd>
+              <dt className="text-slate-500">Slug</dt><dd><CopyChip text={`/${article.slug}/`} label="slug" className="-ml-1.5 font-mono text-xs" /></dd>
+              {article.metaDescription && <><dt className="text-slate-500">Meta</dt><dd><CopyChip text={article.metaDescription} label="meta description" className="-ml-1.5 text-xs text-slate-600" /></dd></>}
+            </dl>
+            <div className="space-y-2 border-t border-slate-100 pt-3">
             {article.topic ? <div><span className="text-slate-500">Topic:</span> {article.topic.title}</div> : <div><span className="text-slate-500">Source:</span> imported from WordPress ({article.wpType ?? "post"}){article.importedAt && ` on ${fmtDate(article.importedAt)}`}</div>}
             {article.topic?.angle && <div><span className="text-slate-500">Angle:</span> {article.topic.angle}</div>}
             {article.wpBuilder && <div className="rounded-lg bg-amber-50 p-2 text-xs text-amber-800">Built with a page builder, so Rankflow won&apos;t rewrite or push it. Edit it in WordPress.</div>}
@@ -93,6 +125,7 @@ export default async function ArticleReview({ params, searchParams }: { params: 
             {approver && <div><span className="text-slate-500">Approved by:</span> {approver.name} on {fmtDate(article.approvedAt)}</div>}
             {article.wpPostUrl && <div><a className="text-indigo-600 hover:underline" href={article.wpPostUrl} target="_blank" rel="noreferrer">{article.importedAt ? "Open the live page" : `Open WordPress draft #${article.wpPostId}`}</a></div>}
             {article.lastPushError && article.status === "PUSH_FAILED" && <div className="rounded bg-red-50 p-2 text-red-700">Push failed: {article.lastPushError}</div>}
+            </div>
           </section>
 
           {["APPROVED", "PUSHING", "PUSHED_DRAFT", "PUSH_FAILED"].includes(article.status) && (
@@ -210,6 +243,7 @@ export default async function ArticleReview({ params, searchParams }: { params: 
               )}
             </section>
           )}
+          <div id="sop" className="scroll-mt-24" />
           <QualityCard
             score={article.qualityScore}
             report={article.qualityReport as unknown as QualityReport | null}
@@ -222,6 +256,7 @@ export default async function ArticleReview({ params, searchParams }: { params: 
             aiReady={geminiConfigured()}
           />
 
+          <div id="top10" className="scroll-mt-24" />
           <ContentScoreCard
             report={article.contentReport as unknown as ContentScore | null}
             checkedAt={article.contentCheckedAt}

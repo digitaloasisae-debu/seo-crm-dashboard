@@ -1,3 +1,4 @@
+import { DataTable } from "@/components/data-table";
 import { db } from "@/lib/db";
 import { requireAdmin } from "@/lib/session";
 import { Field, PageHeader } from "@/components/ui";
@@ -22,30 +23,30 @@ export default async function UsersPage() {
       </form>
 
       <div className="card overflow-x-auto p-0">
-        <table className="table">
-          <thead><tr><th>Name</th><th>Email</th><th>Clients</th><th>Role, status and password</th></tr></thead>
-          <tbody>
-            {users.map((u) => (
-              <tr key={u.id}>
-                <td className="font-medium">{u.name}</td>
-                <td>{u.email}</td>
-                <td>{u._count.assignments}</td>
-                <td>
-                  {!isSuper && u.role === "SUPER_ADMIN" ? <span className="text-xs text-slate-500">super admin</span> : (
-                  <form action={updateUserAction.bind(null, u.id)} className="flex flex-wrap items-center gap-2">
-                    <select className="input w-36" name="role" defaultValue={u.role}>
-                      {roles.map((r) => <option key={r} value={r}>{r.replace("_", " ").toLowerCase()}</option>)}
-                    </select>
-                    <label className="flex items-center gap-1 text-xs"><input type="checkbox" name="active" defaultChecked={u.active} disabled={u.id === me.id} /> active</label>
-                    <input className="input w-40" name="password" placeholder="New password" minLength={10} />
-                    <SubmitButton className="btn-secondary">Save</SubmitButton>
-                  </form>
-                  )}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <DataTable
+          id="users"
+          bare
+          columns={[{ key: "name", label: "Name" }, { key: "email", label: "Email" }, { key: "role", label: "Role", type: "enum" }, { key: "active", label: "Status", type: "enum" }, { key: "clients", label: "Clients", type: "number" }, { key: "edit", label: "Role, status and password", sortable: false, filterable: false }]}
+          rows={users.map((u) => ({
+            id: u.id,
+            values: { name: u.name, email: u.email, role: u.role.replace("_", " ").toLowerCase(), active: u.active ? "active" : "inactive", clients: u._count.assignments, edit: "" },
+            cells: {
+              name: <span className="font-medium">{u.name}</span>,
+              role: <span className="text-xs capitalize">{u.role.replace("_", " ").toLowerCase()}</span>,
+              edit: !isSuper && u.role === "SUPER_ADMIN" ? <span className="text-xs text-slate-500">super admin</span> : (
+                <form action={updateUserAction.bind(null, u.id)} className="flex flex-wrap items-center gap-2">
+                  <select className="input w-36" name="role" defaultValue={u.role}>
+                    {roles.map((r) => <option key={r} value={r}>{r.replace("_", " ").toLowerCase()}</option>)}
+                  </select>
+                  <label className="flex items-center gap-1 text-xs"><input type="checkbox" name="active" defaultChecked={u.active} disabled={u.id === me.id} /> active</label>
+                  <input className="input w-40" name="password" placeholder="New password" minLength={10} />
+                  <SubmitButton className="btn-secondary">Save</SubmitButton>
+                </form>
+              ),
+            },
+          }))}
+          searchPlaceholder="Search people"
+        />
       </div>
     </>
   );

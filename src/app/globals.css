@@ -224,3 +224,7 @@ details[open] > *:not(summary) { @apply animate-fade-in; }
 .rf-lift:hover { transform: translateY(-3px); box-shadow: var(--shadow-pop); }
 .caret { display: inline-block; width: 7px; height: 14px; background: var(--color-indigo-600); vertical-align: -2px; animation: blink 1s steps(2) infinite; }
 @keyframes blink { 50% { opacity: 0; } }
+
+/* Small popovers (table filters, column picker) */
+.rf-pop { animation: rf-pop-in 0.14s var(--ease-out-soft, ease-out); transform-origin: top; }
+@keyframes rf-pop-in { from { opacity: 0; transform: translateY(-4px) scale(0.98); } }

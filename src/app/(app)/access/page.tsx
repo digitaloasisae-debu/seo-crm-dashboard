@@ -1,3 +1,4 @@
+import { DataTable } from "@/components/data-table";
 import { db } from "@/lib/db";
 import { clientScope } from "@/lib/access";
 import { requireUser } from "@/lib/session";
@@ -21,29 +22,29 @@ export default async function AccessPage() {
         <PageHeader title="Access requests" subtitle="Admins ask here to oversee another member's client." />
         {requests.length === 0 ? <Empty>No requests yet.</Empty> : (
           <div className="card overflow-x-auto p-0">
-            <table className="table">
-              <thead><tr><th>Requested</th><th>Who</th><th>Client</th><th>Access</th><th>Reason</th><th>Decision</th></tr></thead>
-              <tbody>
-                {requests.map((r) => (
-                  <tr key={r.id}>
-                    <td>{fmtDate(r.createdAt)}</td>
-                    <td>{r.requester.name}</td>
-                    <td>{r.client.name}</td>
-                    <td><StatusBadge status={r.access} /></td>
-                    <td className="max-w-xs text-sm">{r.reason}</td>
-                    <td>
-                      {r.status === "PENDING" ? (
-                        <form className="flex flex-wrap gap-2">
-                          <input className="input w-36" type="date" name="expiresAt" title="Optional expiry" />
-                          <SubmitButton data-celebrate="approved" formAction={decideAccessAction.bind(null, r.id, true)} className="btn-primary">Approve</SubmitButton>
-                          <SubmitButton formAction={decideAccessAction.bind(null, r.id, false)} className="btn-danger">Deny</SubmitButton>
-                        </form>
-                      ) : <StatusBadge status={r.status} />}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            <DataTable
+              id="access"
+              bare
+              columns={[{ key: "requested", label: "Requested", type: "date" }, { key: "who", label: "Who", type: "enum" }, { key: "client", label: "Client", type: "enum" }, { key: "access", label: "Access", type: "enum" }, { key: "reason", label: "Reason" }, { key: "status", label: "Decision", type: "enum" }]}
+              rows={requests.map((r) => ({
+                id: r.id,
+                values: { requested: r.createdAt.toISOString(), who: r.requester.name, client: r.client.name, access: r.access, reason: r.reason ?? "", status: r.status },
+                cells: {
+                  requested: <span className="whitespace-nowrap">{fmtDate(r.createdAt)}</span>,
+                  access: <StatusBadge status={r.access} />,
+                  reason: <div className="max-w-xs text-sm">{r.reason}</div>,
+                  status: r.status === "PENDING" ? (
+                    <form className="flex flex-wrap gap-2">
+                      <input className="input w-36" type="date" name="expiresAt" title="Optional expiry" />
+                      <SubmitButton data-celebrate="approved" formAction={decideAccessAction.bind(null, r.id, true)} className="btn-primary">Approve</SubmitButton>
+                      <SubmitButton formAction={decideAccessAction.bind(null, r.id, false)} className="btn-danger">Deny</SubmitButton>
+                    </form>
+                  ) : <StatusBadge status={r.status} />,
+                },
+              }))}
+              presets={[{ label: "Pending", filters: { status: ["PENDING"] } }]}
+              searchPlaceholder="Search requests"
+            />
           </div>
         )}
       </>

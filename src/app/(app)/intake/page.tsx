@@ -1,3 +1,4 @@
+import { DataTable } from "@/components/data-table";
 import { db } from "@/lib/db";
 import { requireUser } from "@/lib/session";
 import { Badge, Empty, PageHeader } from "@/components/ui";
@@ -24,32 +25,32 @@ export default async function IntakePage({ searchParams }: { searchParams: Promi
       />
       {subs.length === 0 ? <Empty>No failed submissions.</Empty> : (
         <div className="card overflow-x-auto p-0">
-          <table className="table">
-            <thead><tr><th>Received</th><th>Form</th><th>Result</th><th>Client</th><th></th></tr></thead>
-            <tbody>
-              {subs.map((s) => (
-                <tr key={s.id}>
-                  <td>{fmtDate(s.receivedAt)}</td>
-                  <td>{s.form.toLowerCase()}</td>
-                  <td>{s.processedAt ? <Badge color="green">processed</Badge> : <span className="text-sm text-red-700">{s.error ?? "not processed"}</span>}</td>
-                  <td>{s.clientId ? clientName.get(s.clientId) : ""}</td>
-                  <td>
-                    {!s.processedAt && (
-                      <form action={retrySubmissionAction.bind(null, s.id)} className="flex gap-2">
-                        {s.form === "KEYWORDS" && (
-                          <select className="input" name="clientId" defaultValue="">
-                            <option value="">Match by name</option>
-                            {clients.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-                          </select>
-                        )}
-                        <SubmitButton className="btn-secondary">Retry</SubmitButton>
-                      </form>
+          <DataTable
+            id="intake"
+            bare
+            columns={[{ key: "received", label: "Received", type: "date" }, { key: "form", label: "Form", type: "enum" }, { key: "result", label: "Result", type: "enum" }, { key: "client", label: "Client", type: "enum" }, { key: "fix", label: "", sortable: false, filterable: false }]}
+            rows={subs.map((s) => ({
+              id: s.id,
+              values: { received: s.receivedAt.toISOString(), form: s.form.toLowerCase(), result: s.processedAt ? "processed" : "failed", client: s.clientId ? clientName.get(s.clientId) ?? "" : "", fix: "" },
+              cells: {
+                received: <span className="whitespace-nowrap">{fmtDate(s.receivedAt)}</span>,
+                result: s.processedAt ? <Badge color="green">processed</Badge> : <span className="text-sm text-red-700">{s.error ?? "not processed"}</span>,
+                fix: !s.processedAt ? (
+                  <form action={retrySubmissionAction.bind(null, s.id)} className="flex gap-2">
+                    {s.form === "KEYWORDS" && (
+                      <select className="input" name="clientId" defaultValue="">
+                        <option value="">Match by name</option>
+                        {clients.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                      </select>
                     )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                    <SubmitButton className="btn-secondary">Retry</SubmitButton>
+                  </form>
+                ) : null,
+              },
+            }))}
+            presets={[{ label: "Failed", filters: { result: ["failed"] } }]}
+            searchPlaceholder="Search submissions"
+          />
         </div>
       )}
     </>

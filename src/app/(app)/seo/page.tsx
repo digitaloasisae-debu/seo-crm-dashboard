@@ -1,3 +1,4 @@
+import { DataTable } from "@/components/data-table";
 import Link from "next/link";
 import { db } from "@/lib/db";
 import { clientScope } from "@/lib/access";
@@ -29,26 +30,31 @@ export default async function SeoOverview({ searchParams }: { searchParams: Prom
       <PageHeader title="SEO" subtitle="Latest site audit for each client. Open a client to run a new one." />
       {clients.length === 0 ? <Empty>No clients.</Empty> : (
         <div className="card overflow-x-auto p-0">
-          <table className="table">
-            <thead><tr><th>Client</th><th>Health</th><th>Change</th><th>Mobile perf.</th><th>Errors</th><th>Last audit</th></tr></thead>
-            <tbody>
-              {clients.map((c) => {
-                const [a, prev] = c.audits;
-                const errors = ((a?.issues as unknown as Issue[] | null) ?? []).filter((i) => i.severity === "error").length;
-                const delta = a?.score != null && prev?.score != null ? a.score - prev.score : null;
-                return (
-                  <tr key={c.id}>
-                    <td><Link className="text-indigo-600 hover:underline" href={`/clients/${c.id}/seo`}>{c.name}</Link></td>
-                    <td className={`font-semibold ${tone(a?.score)}`}>{a?.score ?? "—"}</td>
-                    <td className={delta == null ? "text-slate-400" : delta >= 0 ? "text-emerald-600" : "text-red-600"}>{delta == null ? "—" : `${delta > 0 ? "+" : ""}${delta}`}</td>
-                    <td className={tone((a?.psiMobile as unknown as PsiSummary | null)?.performance)}>{(a?.psiMobile as unknown as PsiSummary | null)?.performance ?? "—"}</td>
-                    <td className={errors ? "text-red-600" : "text-slate-500"}>{a ? errors : "—"}</td>
-                    <td className="text-slate-500">{a ? fmtDate(a.finishedAt) : "never"}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+          <DataTable
+            id="seo-overview"
+            bare
+            columns={[{ key: "client", label: "Client" }, { key: "health", label: "Health", type: "number" }, { key: "change", label: "Change", type: "number" }, { key: "mobile", label: "Mobile perf.", type: "number" }, { key: "errors", label: "Errors", type: "number" }, { key: "last", label: "Last audit", type: "date" }]}
+            rows={clients.map((c) => {
+              const [a, prev] = c.audits;
+              const errors = ((a?.issues as unknown as Issue[] | null) ?? []).filter((i) => i.severity === "error").length;
+              const delta = a?.score != null && prev?.score != null ? a.score - prev.score : null;
+              const mobile = (a?.psiMobile as unknown as PsiSummary | null)?.performance ?? null;
+              return {
+                id: c.id,
+                values: { client: c.name, health: a?.score ?? null, change: delta, mobile, errors: a ? errors : null, last: a?.finishedAt?.toISOString() ?? null },
+                cells: {
+                  client: <Link className="text-indigo-600 hover:underline" href={`/clients/${c.id}/seo`}>{c.name}</Link>,
+                  health: <span className={`num font-semibold ${tone(a?.score)}`}>{a?.score ?? "—"}</span>,
+                  change: <span className={`num ${delta == null ? "text-slate-400" : delta >= 0 ? "text-emerald-600" : "text-red-600"}`}>{delta == null ? "—" : `${delta > 0 ? "+" : ""}${delta}`}</span>,
+                  mobile: <span className={`num ${tone(mobile ?? undefined)}`}>{mobile ?? "—"}</span>,
+                  errors: <span className={`num ${errors ? "text-red-600" : "text-slate-500"}`}>{a ? errors : "—"}</span>,
+                  last: <span className="text-slate-500">{a ? fmtDate(a.finishedAt) : "never"}</span>,
+                },
+              };
+            })}
+            presets={[{ label: "Health under 70", filters: { health: "<70" } }, { label: "Has errors", filters: { errors: ">0" } }, { label: "Never audited", filters: { last: "none" } }]}
+            searchPlaceholder="Search clients"
+          />
         </div>
       )}
       {agency && (

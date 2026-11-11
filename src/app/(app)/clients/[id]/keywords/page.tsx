@@ -1,7 +1,8 @@
 import { db } from "@/lib/db";
 import { canEdit } from "@/lib/access";
 import { requireUser } from "@/lib/session";
-import { Empty, KeywordLink, RankChange, StatusBadge } from "@/components/ui";
+import { KeywordLink, RankChange, StatusBadge } from "@/components/ui";
+import { DataTable, type Col, type Row } from "@/components/data-table";
 import { fmtDate } from "@/lib/utils";
 import { keywordPositions } from "@/lib/gsc-report";
 import { addKeywordsAction, checkKeywordsAction, deleteKeywordsAction, setKeywordStatusAction } from "../../../../actions";
@@ -15,28 +16,15 @@ export default async function KeywordsPage({ params, searchParams }: { params: P
   const [editable, ranks] = await Promise.all([canEdit(user, id), keywordPositions(id)]);
   const hasGsc = ranks.size > 0;
   const all = await db.keyword.findMany({
-    where: {
-      clientId: id,
-      ...(status ? { status: status as "APPROVED" } : {}),
-      ...(used ? { used: used === "true" } : {}),
-    },
+    where: { clientId: id },
     orderBy: [{ used: "asc" }, { addedAt: "desc" }],
-    take: 500,
+    take: 3000,
   });
-  const keywords = weak ? all.filter((k) => keywordFlags(k).length > 0) : all;
+  const initial = { ...(status ? { status: [status] } : {}), ...(used ? { used: [used === "true" ? "Used" : "Not used"] } : {}), ...(weak ? { flag: ["Weak"] } : {}) };
   const unchecked = all.filter((k) => !k.metricsCheckedAt).length;
   const weakCount = all.filter((k) => !k.used && keywordFlags(k).length > 0).length;
   const dfs = dataforseoConfigured();
   const [checkKind, ...checkRest] = (check ?? "").split(":");
-
-  const filters = [
-    { label: "All", q: "" },
-    { label: "Approved, unused", q: "?status=APPROVED&used=false" },
-    { label: "Pending", q: "?status=PENDING" },
-    { label: "Used", q: "?used=true" },
-    { label: "Rejected", q: "?status=REJECTED" },
-    { label: "⚠ Weak", q: "?weak=1" },
-  ];
 
   return (
     <div className="space-y-6">
@@ -54,7 +42,7 @@ export default async function KeywordsPage({ params, searchParams }: { params: P
           <div className="min-w-48 flex-1">
             <div className="font-semibold">Keyword check</div>
             <div className="text-xs text-slate-500">
-              {dfs ? <>Search volume from Google Keyword Planner, difficulty from DataForSEO. New keywords are checked automatically. {unchecked > 0 ? `${unchecked} not checked yet.` : "All checked."} {weakCount > 0 && <a href="?weak=1" className="font-medium text-amber-700 hover:underline">{weakCount} unused weak keyword{weakCount === 1 ? "" : "s"}</a>}</> : "Add DATAFORSEO_LOGIN and DATAFORSEO_PASSWORD in Vercel to check volume and difficulty."}
+              {dfs ? <>Search volume from Google Keyword Planner, difficulty from DataForSEO. New keywords are checked automatically. {unchecked > 0 ? `${unchecked} not checked yet.` : "All checked."} {weakCount > 0 && <a href={`/clients/${id}/keywords?weak=1&used=false`} className="font-medium text-amber-700 hover:underline">{weakCount} unused weak keyword{weakCount === 1 ? "" : "s"}</a>}</> : "Add DATAFORSEO_LOGIN and DATAFORSEO_PASSWORD in Vercel to check volume and difficulty."}
             </div>
           </div>
           {dfs && (
@@ -68,45 +56,68 @@ export default async function KeywordsPage({ params, searchParams }: { params: P
         </div>
       )}
 
-      <div className="flex flex-wrap gap-2 text-sm">
-        {filters.map((f) => <a key={f.label} href={`/clients/${id}/keywords${f.q}`} className="btn-secondary">{f.label}</a>)}
-      </div>
-
-      {keywords.length === 0 ? <Empty>No keywords match.</Empty> : (
-        <form className="card overflow-x-auto p-0">
-          {editable && (
-            <div className="flex flex-wrap gap-2 border-b border-slate-200 p-3">
-              <SubmitButton data-celebrate="approved" formAction={setKeywordStatusAction.bind(null, id, "APPROVED")} className="btn-primary">Approve selected</SubmitButton>
-              <SubmitButton formAction={setKeywordStatusAction.bind(null, id, "REJECTED")} className="btn-danger">Reject selected</SubmitButton>
-              <SubmitButton formAction={deleteKeywordsAction.bind(null, id)} className="btn-secondary">Delete selected (unused only)</SubmitButton>
-            </div>
-          )}
-          <table className="table">
-            <thead><tr>{editable && <th></th>}<th>Keyword</th><th>Category</th><th title="Monthly Google searches in the client's country">Volume</th><th title="Keyword difficulty, 0 to 100">KD</th><th>Intent</th>{hasGsc && <th title="Average Google position and clicks, last 4 weeks (Search Console)">Position</th>}{hasGsc && <th>Clicks 4w</th>}<th>Status</th><th>Used</th><th>Added</th><th>Source</th></tr></thead>
-            <tbody>
-              {keywords.map((k) => (
-                <tr key={k.id} className={k.used ? "text-slate-400" : ""}>
-                  {editable && <td><input type="checkbox" name="ids" value={k.id} /></td>}
-                  <td className="font-medium"><KeywordLink keyword={k.keyword} /></td>
-                  <td>{k.category}</td>
-                  <td className="whitespace-nowrap">
-                    {k.searchVolume != null ? k.searchVolume.toLocaleString() : <span className="text-slate-300">—</span>}
-                    {keywordFlags(k).includes("low") && <span className="ml-1.5 rounded-full bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700" title={`Fewer than ${LOW_VOLUME} searches a month`}>low</span>}
-                  </td>
-                  <td>{k.difficulty != null ? <KdChip kd={k.difficulty} /> : <span className="text-slate-300">—</span>}</td>
-                  <td className="text-xs text-slate-500">{k.intent ?? ""}</td>
-                  {hasGsc && <td className="whitespace-nowrap">{ranks.get(k.keywordNorm) ? <>{ranks.get(k.keywordNorm)!.position.toFixed(1)} <RankChange position={ranks.get(k.keywordNorm)!.position} prev={ranks.get(k.keywordNorm)!.prevPosition} /></> : <span className="text-slate-300">—</span>}</td>}
-                  {hasGsc && <td>{ranks.get(k.keywordNorm)?.clicks ?? ""}</td>}
-                  <td><StatusBadge status={k.status} /></td>
-                  <td>{k.used ? fmtDate(k.usedAt) || "yes" : ""}</td>
-                  <td>{fmtDate(k.addedAt)}</td>
-                  <td className="text-xs">{k.source.toLowerCase()}{k.submittedBy ? ` · ${k.submittedBy}` : ""}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </form>
-      )}
+      <form>
+        <DataTable
+          id="keywords"
+          columns={[
+            { key: "keyword", label: "Keyword", className: "min-w-44" },
+            { key: "category", label: "Category", type: "enum" },
+            { key: "volume", label: "Volume", type: "number", title: "Monthly Google searches in the client's country" },
+            { key: "kd", label: "KD", type: "number", title: "Keyword difficulty, 0 to 100" },
+            { key: "intent", label: "Intent", type: "enum" },
+            ...(hasGsc ? [{ key: "position", label: "Position", type: "number" as const, title: "Average Google position, last 4 weeks (Search Console)" }, { key: "clicks", label: "Clicks 4w", type: "number" as const }] : []),
+            { key: "status", label: "Status", type: "enum" },
+            { key: "used", label: "Used", type: "enum" },
+            { key: "flag", label: "Check", type: "enum", title: "Weak = low volume or hard to rank" },
+            { key: "added", label: "Added", type: "date" },
+            { key: "source", label: "Source", type: "enum", hidden: true },
+          ] satisfies Col[]}
+          rows={all.map((k): Row => {
+            const r = ranks.get(k.keywordNorm);
+            const flags = keywordFlags(k);
+            return {
+              id: k.id,
+              className: k.used ? "text-slate-400" : "",
+              values: {
+                keyword: k.keyword, category: k.category ?? "", volume: k.searchVolume, kd: k.difficulty, intent: k.intent ?? "",
+                position: r ? Number(r.position.toFixed(1)) : null, clicks: r?.clicks ?? null,
+                status: k.status, used: k.used ? "Used" : "Not used", flag: !k.metricsCheckedAt ? "Not checked" : flags.length ? "Weak" : "OK",
+                added: k.addedAt.toISOString(), source: k.source.toLowerCase(),
+              },
+              cells: {
+                keyword: <span className="font-medium"><KeywordLink keyword={k.keyword} /></span>,
+                volume: <span className="num whitespace-nowrap">{k.searchVolume != null ? k.searchVolume.toLocaleString() : <span className="text-slate-300">—</span>}{flags.includes("low") && <span className="ml-1.5 rounded-full bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700" title={`Fewer than ${LOW_VOLUME} searches a month`}>low</span>}</span>,
+                kd: k.difficulty != null ? <KdChip kd={k.difficulty} /> : <span className="text-slate-300">—</span>,
+                intent: <span className="text-xs text-slate-500">{k.intent ?? ""}</span>,
+                position: r ? <span className="num whitespace-nowrap">{r.position.toFixed(1)} <RankChange position={r.position} prev={r.prevPosition} /></span> : <span className="text-slate-300">—</span>,
+                status: <StatusBadge status={k.status} />,
+                used: k.used ? <span className="whitespace-nowrap text-xs">{fmtDate(k.usedAt) || "yes"}</span> : <span className="text-xs text-slate-400">no</span>,
+                flag: !k.metricsCheckedAt ? <span className="text-xs text-slate-400">not checked</span> : flags.length ? <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-700">weak</span> : <span className="text-xs text-emerald-600">ok</span>,
+                added: <span className="whitespace-nowrap">{fmtDate(k.addedAt)}</span>,
+                source: <span className="text-xs">{k.source.toLowerCase()}{k.submittedBy ? ` · ${k.submittedBy}` : ""}</span>,
+              },
+              selectable: editable,
+            };
+          })}
+          initialFilters={initial}
+          presets={[
+            { label: "Approved, unused", filters: { status: ["APPROVED"], used: ["Not used"] } },
+            { label: "Pending", filters: { status: ["PENDING"] } },
+            { label: "Used", filters: { used: ["Used"] } },
+            { label: "Rejected", filters: { status: ["REJECTED"] } },
+            { label: "⚠ Weak", filters: { flag: ["Weak"], used: ["Not used"] } },
+          ]}
+          searchPlaceholder="Search keywords"
+          empty="No keywords yet. Add some above or send them through the Tally form."
+          bulk={editable ? (
+            <>
+              <SubmitButton data-celebrate="approved" formAction={setKeywordStatusAction.bind(null, id, "APPROVED")} className="btn-primary px-3 py-1.5 text-xs">Approve</SubmitButton>
+              <SubmitButton formAction={setKeywordStatusAction.bind(null, id, "REJECTED")} className="btn-danger px-3 py-1.5 text-xs">Reject</SubmitButton>
+              <SubmitButton formAction={deleteKeywordsAction.bind(null, id)} className="btn-secondary px-3 py-1.5 text-xs">Delete (unused only)</SubmitButton>
+            </>
+          ) : undefined}
+        />
+      </form>
     </div>
   );
 }

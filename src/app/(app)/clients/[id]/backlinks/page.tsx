@@ -1,6 +1,7 @@
 import { db } from "@/lib/db";
 import { canEdit } from "@/lib/access";
 import { requireUser } from "@/lib/session";
+import { DataTable } from "@/components/data-table";
 import { SubmitButton } from "@/components/submit-button";
 import { fmtDate } from "@/lib/utils";
 import { dataforseoConfigured } from "@/lib/dataforseo";
@@ -10,7 +11,7 @@ import { refreshBacklinksAction, saveCompetitorsAction } from "./actions";
 
 export const maxDuration = 60;
 
-const fmt = (v: number) => v.toLocaleString("en-US");
+const fmt = (v: number | null | undefined) => (v == null ? "—" : v.toLocaleString("en-US"));
 const short = (v: number) => (v >= 1e6 ? `${(v / 1e6).toFixed(1)}M` : v >= 1e4 ? `${Math.round(v / 1e3)}k` : fmt(v));
 
 function Tile({ label, value, hint, tone }: { label: string; value: string; hint?: string; tone?: "good" | "bad" }) {
@@ -56,26 +57,39 @@ function Trend({ months }: { months: BlMonth[] }) {
   );
 }
 
-function LinkTable({ links, empty, showDates }: { links: BlLink[]; empty: string; showDates: "first" | "last" }) {
+function LinkTable({ id, links, empty, showDates }: { id: string; links: BlLink[]; empty: string; showDates: "first" | "last" }) {
   if (!links.length) return <p className="p-4 text-sm text-slate-500">{empty}</p>;
   return (
-    <table className="table">
-      <thead><tr><th>From</th><th>Anchor</th><th>Rank</th><th>Type</th><th>{showDates === "first" ? "Found" : "Lost"}</th></tr></thead>
-      <tbody>
-        {links.map((l, i) => (
-          <tr key={`${l.from}-${i}`}>
-            <td className="max-w-[22rem]">
+    <DataTable
+      id={id}
+      bare
+      pageSize={25}
+      columns={[
+        { key: "from", label: "From" },
+        { key: "anchor", label: "Anchor" },
+        { key: "rank", label: "Rank", type: "number" },
+        { key: "type", label: "Type", type: "enum" },
+        { key: "date", label: showDates === "first" ? "Found" : "Lost", type: "date" },
+        { key: "to", label: "Links to", hidden: true },
+      ]}
+      rows={links.map((l, i) => ({
+        id: `${l.from}-${i}`,
+        values: { from: `${l.domain} ${l.from}`, anchor: l.anchor || "", rank: l.rank, type: l.dofollow ? "dofollow" : "nofollow", date: showDates === "first" ? l.firstSeen : l.lastSeen, to: l.to },
+        cells: {
+          from: (
+            <div className="max-w-[22rem]">
               <a href={l.from} target="_blank" rel="noreferrer" className="block truncate font-medium text-indigo-600 hover:underline">{l.domain || l.from}</a>
               <div className="truncate text-xs text-slate-400">{l.title || l.from} → {l.to.replace(/^https?:\/\/(www\.)?/, "")}</div>
-            </td>
-            <td className="max-w-[12rem] truncate text-sm">{l.anchor || <span className="text-slate-400">{l.type === "image" ? "(image)" : "—"}</span>}</td>
-            <td>{l.rank}</td>
-            <td><span className={`rounded-full px-2 py-0.5 text-xs ring-1 ring-inset ${l.dofollow ? "bg-emerald-50 text-emerald-700 ring-emerald-200" : "bg-slate-50 text-slate-500 ring-slate-200"}`}>{l.dofollow ? "dofollow" : "nofollow"}</span></td>
-            <td className="text-xs text-slate-500">{showDates === "first" ? l.firstSeen : l.lastSeen}</td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
+            </div>
+          ),
+          anchor: <div className="max-w-[12rem] truncate text-sm">{l.anchor || <span className="text-slate-400">{l.type === "image" ? "(image)" : "—"}</span>}</div>,
+          type: <span className={`rounded-full px-2 py-0.5 text-xs ring-1 ring-inset ${l.dofollow ? "bg-emerald-50 text-emerald-700 ring-emerald-200" : "bg-slate-50 text-slate-500 ring-slate-200"}`}>{l.dofollow ? "dofollow" : "nofollow"}</span>,
+          date: <span className="text-xs text-slate-500">{showDates === "first" ? l.firstSeen : l.lastSeen}</span>,
+        },
+      }))}
+      presets={[{ label: "Dofollow", filters: { type: ["dofollow"] } }, { label: "Rank 30+", filters: { rank: ">=30" } }]}
+      searchPlaceholder="Search sites and anchors"
+    />
   );
 }
 
@@ -160,18 +174,24 @@ export default async function BacklinksPage({ params, searchParams }: { params: 
                 <p className="text-xs text-slate-500">Your best outreach list. Sites that link to several competitors are the easiest wins.</p>
               </div>
               {gap.length === 0 ? <p className="p-4 pt-0 text-sm text-slate-500">No gap found.</p> : (
-                <table className="table">
-                  <thead><tr><th>Site</th><th>Rank</th><th>Links to</th></tr></thead>
-                  <tbody>
-                    {gap.slice(0, 30).map((g) => (
-                      <tr key={g.domain}>
-                        <td><a href={`https://${g.domain}`} target="_blank" rel="noreferrer" className="font-medium text-indigo-600 hover:underline">{g.domain}</a></td>
-                        <td>{g.rank}</td>
-                        <td className="text-xs text-slate-600">{g.linksTo.length > 1 && <span className="mr-1.5 rounded-full bg-amber-50 px-1.5 py-0.5 font-semibold text-amber-800 ring-1 ring-amber-200 ring-inset">{g.linksTo.length} competitors</span>}{g.linksTo.join(", ")}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                <DataTable
+                  id="backlinks-gap"
+                  bare
+                  pageSize={30}
+                  columns={[{ key: "site", label: "Site" }, { key: "rank", label: "Rank", type: "number" }, { key: "count", label: "Competitors", type: "number" }, { key: "to", label: "Links to" }]}
+                  rows={gap.map((g) => ({
+                    id: g.domain,
+                    values: { site: g.domain, rank: g.rank, count: g.linksTo.length, to: g.linksTo.join(", ") },
+                    cells: {
+                      site: <a href={`https://${g.domain}`} target="_blank" rel="noreferrer" className="font-medium text-indigo-600 hover:underline">{g.domain}</a>,
+                      count: g.linksTo.length > 1 ? <span className="num rounded-full bg-amber-50 px-1.5 py-0.5 text-xs font-semibold text-amber-800 ring-1 ring-amber-200 ring-inset">{g.linksTo.length}</span> : <span className="num">1</span>,
+                      to: <span className="text-xs text-slate-600">{g.linksTo.join(", ")}</span>,
+                    },
+                  }))}
+                  presets={[{ label: "Links to 2+ competitors", filters: { count: ">=2" } }]}
+                  defaultSort={{ key: "count", dir: "desc" }}
+                  searchPlaceholder="Search sites"
+                />
               )}
             </section>
           )}
@@ -179,16 +199,16 @@ export default async function BacklinksPage({ params, searchParams }: { params: 
           <section className="card p-0">
             <details open>
               <summary className="p-4 font-semibold">🆕 Newest links ({links.recent.length})</summary>
-              <LinkTable links={links.recent} empty="No new links found." showDates="first" />
+              <LinkTable id="backlinks-new" links={links.recent} empty="No new links found." showDates="first" />
             </details>
             <details className="border-t border-slate-100">
               <summary className="p-4 font-semibold">📉 Lost links ({links.lost.length})</summary>
               <p className="px-4 pb-2 text-xs text-slate-500">Worth checking: a lost link from a strong site can often be won back by emailing the site owner.</p>
-              <LinkTable links={links.lost} empty="No lost links found." showDates="last" />
+              <LinkTable id="backlinks-lost" links={links.lost} empty="No lost links found." showDates="last" />
             </details>
             <details className="border-t border-slate-100">
               <summary className="p-4 font-semibold">⭐ Strongest links, one per site ({links.best.length})</summary>
-              <LinkTable links={links.best} empty="No links found." showDates="first" />
+              <LinkTable id="backlinks-best" links={links.best} empty="No links found." showDates="first" />
             </details>
           </section>
 
@@ -196,26 +216,38 @@ export default async function BacklinksPage({ params, searchParams }: { params: 
             <div className="card p-0">
               <h2 className="p-4 pb-2 font-semibold">Top referring domains</h2>
               {domains.length === 0 ? <p className="p-4 pt-0 text-sm text-slate-500">None found.</p> : (
-                <table className="table">
-                  <thead><tr><th>Domain</th><th>Rank</th><th>Links</th><th>Since</th></tr></thead>
-                  <tbody>
-                    {domains.slice(0, 25).map((d) => (
-                      <tr key={d.domain}>
-                        <td><a href={`https://${d.domain}`} target="_blank" rel="noreferrer" className="text-indigo-600 hover:underline">{d.domain}</a>{d.spam >= 50 && <span className="ml-1.5 rounded bg-red-50 px-1 text-[10px] font-semibold text-red-700">spam {d.spam}%</span>}</td>
-                        <td>{d.rank}</td><td>{fmt(d.backlinks)}</td><td className="whitespace-nowrap text-xs text-slate-500">{d.firstSeen}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                <DataTable
+                  id="backlinks-domains"
+                  bare
+                  pageSize={25}
+                  columns={[{ key: "domain", label: "Domain" }, { key: "rank", label: "Rank", type: "number" }, { key: "links", label: "Links", type: "number" }, { key: "spam", label: "Spam %", type: "number", hidden: true }, { key: "since", label: "Since", type: "date" }]}
+                  rows={domains.map((d) => ({
+                    id: d.domain,
+                    values: { domain: d.domain, rank: d.rank, links: d.backlinks, spam: d.spam, since: d.firstSeen },
+                    cells: {
+                      domain: <><a href={`https://${d.domain}`} target="_blank" rel="noreferrer" className="text-indigo-600 hover:underline">{d.domain}</a>{d.spam >= 50 && <span className="ml-1.5 rounded bg-red-50 px-1 text-[10px] font-semibold text-red-700">spam {d.spam}%</span>}</>,
+                      since: <span className="whitespace-nowrap text-xs text-slate-500">{d.firstSeen}</span>,
+                    },
+                  }))}
+                  searchPlaceholder="Search domains"
+                />
               )}
             </div>
             <div className="card p-0">
               <h2 className="p-4 pb-2 font-semibold">Anchor text</h2>
               {anchors.length === 0 ? <p className="p-4 pt-0 text-sm text-slate-500">None found.</p> : (
-                <table className="table">
-                  <thead><tr><th>Anchor</th><th>Domains</th><th>Links</th></tr></thead>
-                  <tbody>{anchors.map((a, i) => <tr key={i}><td className="max-w-[16rem] truncate">{a.anchor || <span className="text-slate-400">(empty / image)</span>}</td><td>{fmt(a.domains)}</td><td>{fmt(a.backlinks)}</td></tr>)}</tbody>
-                </table>
+                <DataTable
+                  id="backlinks-anchors"
+                  bare
+                  pageSize={25}
+                  columns={[{ key: "anchor", label: "Anchor" }, { key: "domains", label: "Domains", type: "number" }, { key: "links", label: "Links", type: "number" }]}
+                  rows={anchors.map((a, i) => ({
+                    id: String(i),
+                    values: { anchor: a.anchor || "", domains: a.domains, links: a.backlinks },
+                    cells: { anchor: <div className="max-w-[16rem] truncate">{a.anchor || <span className="text-slate-400">(empty / image)</span>}</div> },
+                  }))}
+                  searchPlaceholder="Search anchors"
+                />
               )}
             </div>
           </section>

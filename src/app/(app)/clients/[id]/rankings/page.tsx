@@ -4,6 +4,7 @@ import { requireUser } from "@/lib/session";
 import { SubmitButton } from "@/components/submit-button";
 import { RankSparkline } from "@/components/ui";
 import { RefreshWhile } from "@/components/refresh-while";
+import { DataTable, type Col } from "@/components/data-table";
 import { dataforseoConfigured } from "@/lib/dataforseo";
 import { rankLocation, suggestRankKeywords } from "@/lib/rank";
 import { addRankKeywordsAction, checkRanksNowAction, removeRankKeywordAction, saveRankLocationAction } from "./actions";
@@ -79,37 +80,54 @@ export default async function RankingsPage({ params, searchParams }: { params: P
         </section>
       )}
 
-      <section className="card overflow-hidden p-0">
-        <div className="flex flex-wrap items-center gap-3 p-5 pb-3">
+      <section className="space-y-3">
+        <div className="flex flex-wrap items-center gap-3">
           <div className="min-w-0 flex-1">
             <h2 className="text-lg font-bold">Google rankings</h2>
             <p className="text-sm text-slate-500">Checked every day, top 30 results, searched from: <b className="font-medium text-slate-700">{loc.label}</b>{pending && <span className="ml-2 text-indigo-600">· checking…</span>}</p>
           </div>
           {editable && ready && kws.length > 0 && <form action={checkRanksNowAction.bind(null, id)}><SubmitButton className="btn-secondary">↻ Check now</SubmitButton></form>}
         </div>
-        {kws.length === 0 ? (
-          <p className="px-5 pb-6 text-sm text-slate-500">No keywords tracked yet. Add some below.</p>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="table">
-              <thead><tr><th>Keyword</th><th>Google</th><th>Change</th><th>Map pack</th><th>Best</th><th>30 days</th><th>Ranking page</th>{editable && <th />}</tr></thead>
-              <tbody>
-                {kws.map((k) => (
-                  <tr key={k.id}>
-                    <td className="font-medium">{k.keyword}{k.error && <span className="block text-xs font-normal text-red-600">{k.error}</span>}</td>
-                    <td>{k.checkedAt || k.position != null ? <Pos v={k.position} /> : <span className="text-xs text-slate-400">{k.pendingTask ? "checking…" : "—"}</span>}</td>
-                    <td><Move now={k.position} prev={k.prevPosition} first={k.checks.length < 2} /></td>
-                    <td>{k.mapPosition != null ? <span className="num rounded-lg bg-amber-50 px-2 py-0.5 text-sm font-medium text-amber-700">#{k.mapPosition}</span> : <span className="text-xs text-slate-400">{k.checkedAt ? "not in pack" : "—"}</span>}</td>
-                    <td className="num text-sm text-slate-500">{k.bestPosition ?? "—"}</td>
-                    <td><RankSparkline points={k.checks.filter((c) => c.position != null).map((c) => ({ position: c.position! }))} width={110} height={28} /></td>
-                    <td className="max-w-[16rem] truncate text-xs">{k.url ? <a href={k.url} target="_blank" rel="noreferrer" className="text-indigo-600 hover:underline">{k.url.replace(/^https?:\/\/[^/]+/, "") || "/"}</a> : <span className="text-slate-400">—</span>}</td>
-                    {editable && <td><form action={removeRankKeywordAction.bind(null, id, k.id)}><SubmitButton className="text-xs text-slate-400 hover:text-red-600">Remove</SubmitButton></form></td>}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+        <DataTable
+          id="rankings"
+          columns={[
+            { key: "keyword", label: "Keyword", className: "min-w-44" },
+            { key: "google", label: "Google", type: "number", title: "Organic position (empty = not in the top 30)" },
+            { key: "change", label: "Change", type: "number", title: "Places gained since the last check" },
+            { key: "map", label: "Map pack", type: "number" },
+            { key: "best", label: "Best", type: "number" },
+            { key: "trend", label: "30 days", sortable: false, filterable: false },
+            { key: "url", label: "Ranking page" },
+            { key: "checked", label: "Checked", type: "date", hidden: true },
+            ...(editable ? [{ key: "remove", label: "", sortable: false, filterable: false } as Col] : []),
+          ]}
+          rows={kws.map((k) => ({
+            id: k.id,
+            values: {
+              keyword: k.keyword, google: k.position, change: k.checkedAt && k.checks.length >= 2 ? (k.prevPosition ?? 31) - (k.position ?? 31) : null,
+              map: k.mapPosition, best: k.bestPosition, url: k.url?.replace(/^https?:\/\/[^/]+/, "") || "", checked: k.checkedAt?.toISOString() ?? null,
+            },
+            cells: {
+              keyword: <div className="font-medium">{k.keyword}{k.error && <span className="block text-xs font-normal text-red-600">{k.error}</span>}</div>,
+              google: k.checkedAt || k.position != null ? <Pos v={k.position} /> : <span className="text-xs text-slate-400">{k.pendingTask ? "checking…" : "—"}</span>,
+              change: <Move now={k.position} prev={k.prevPosition} first={k.checks.length < 2} />,
+              map: k.mapPosition != null ? <span className="num rounded-lg bg-amber-50 px-2 py-0.5 text-sm font-medium text-amber-700">#{k.mapPosition}</span> : <span className="text-xs text-slate-400">{k.checkedAt ? "not in pack" : "—"}</span>,
+              trend: <RankSparkline points={k.checks.filter((c) => c.position != null).map((c) => ({ position: c.position! }))} width={110} height={28} />,
+              url: <div className="max-w-[16rem] truncate text-xs">{k.url ? <a href={k.url} target="_blank" rel="noreferrer" className="text-indigo-600 hover:underline">{k.url.replace(/^https?:\/\/[^/]+/, "") || "/"}</a> : <span className="text-slate-400">—</span>}</div>,
+              remove: <form action={removeRankKeywordAction.bind(null, id, k.id)}><SubmitButton className="text-xs text-slate-400 hover:text-red-600">Remove</SubmitButton></form>,
+            },
+          }))}
+          presets={[
+            { label: "Top 3", filters: { google: "<=3" } },
+            { label: "Top 10", filters: { google: "<=10" } },
+            { label: "Page 2", filters: { google: "11-20" } },
+            { label: "In the map pack", filters: { map: ">0" } },
+            { label: "Climbing", filters: { change: ">0" } },
+            { label: "Dropping", filters: { change: "<0" } },
+          ]}
+          searchPlaceholder="Search keywords"
+          empty="No keywords tracked yet. Add some below."
+        />
       </section>
 
       {editable && (

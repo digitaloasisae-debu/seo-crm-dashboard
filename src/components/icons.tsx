@@ -34,6 +34,11 @@ const paths: Record<string, string> = {
   arrow: "M5 12h14M12 5l7 7-7 7",
   x: "M18 6 6 18M6 6l12 12",
   undo: "M3 7v6h6M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13",
+  filter: "M3 5h18l-7 8.5V19l-4 2v-7.5z",
+  columns: "M4 4h16v16H4zM10 4v16M15 4v16",
+  download: "M12 3v12m0 0-4-4m4 4 4-4M4 17v3h16v-3",
+  chevron: "m6 9 6 6 6-6",
+  copy: "M9 9h11v11H9zM5 15H4V4h11v1",
   external: "M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6M15 3h6v6M10 14 21 3",
 };
 
