@@ -86,11 +86,12 @@ export default async function ArticleReview({ params, searchParams }: { params: 
 
         <aside className="space-y-6 lg:col-span-2">
           <section className="card space-y-2 text-sm">
-            <div><span className="text-slate-500">Topic:</span> {article.topic.title}</div>
-            {article.topic.angle && <div><span className="text-slate-500">Angle:</span> {article.topic.angle}</div>}
-            <div><span className="text-slate-500">Scheduled:</span> {fmtDate(article.postingSlot?.scheduledDate) || "next open slot at push time"}</div>
+            {article.topic ? <div><span className="text-slate-500">Topic:</span> {article.topic.title}</div> : <div><span className="text-slate-500">Source:</span> imported from WordPress ({article.wpType ?? "post"}){article.importedAt && ` on ${fmtDate(article.importedAt)}`}</div>}
+            {article.topic?.angle && <div><span className="text-slate-500">Angle:</span> {article.topic.angle}</div>}
+            {article.wpBuilder && <div className="rounded-lg bg-amber-50 p-2 text-xs text-amber-800">Built with a page builder, so Rankflow won&apos;t rewrite or push it. Edit it in WordPress.</div>}
+            {!article.importedAt && <div><span className="text-slate-500">Scheduled:</span> {fmtDate(article.postingSlot?.scheduledDate) || "next open slot at push time"}</div>}
             {approver && <div><span className="text-slate-500">Approved by:</span> {approver.name} on {fmtDate(article.approvedAt)}</div>}
-            {article.wpPostUrl && <div><a className="text-indigo-600 hover:underline" href={article.wpPostUrl} target="_blank" rel="noreferrer">Open WordPress draft #{article.wpPostId}</a></div>}
+            {article.wpPostUrl && <div><a className="text-indigo-600 hover:underline" href={article.wpPostUrl} target="_blank" rel="noreferrer">{article.importedAt ? "Open the live page" : `Open WordPress draft #${article.wpPostId}`}</a></div>}
             {article.lastPushError && article.status === "PUSH_FAILED" && <div className="rounded bg-red-50 p-2 text-red-700">Push failed: {article.lastPushError}</div>}
           </section>
 
@@ -136,7 +137,7 @@ export default async function ArticleReview({ params, searchParams }: { params: 
               )}
               {(article.status === "APPROVED" || article.status === "PUSH_FAILED") && (
                 <form action={pushArticleAction.bind(null, id)}>
-                  <SubmitButton data-celebrate="pushed" className="btn-primary w-full" disabled={!hasCred}>{article.status === "PUSH_FAILED" ? "Retry push to WordPress" : "Push to WordPress as draft"}</SubmitButton>
+                  <SubmitButton data-celebrate="pushed" className="btn-primary w-full" disabled={!hasCred}>{article.status === "PUSH_FAILED" ? "Retry push to WordPress" : article.wpPostId ? "Push the update to WordPress" : "Push to WordPress as draft"}</SubmitButton>
                   {!hasCred && <p className="mt-1 text-xs text-red-600">No WordPress access saved for this client.</p>}
                 </form>
               )}

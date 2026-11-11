@@ -120,6 +120,8 @@ export async function applyRefresh(refreshId: string, userId: string) {
   if (!r.articleId) throw new Error("This page wasn't written in Rankflow, so use the brief instead");
   const b = r.brief as unknown as RefreshBrief | null;
   if (!b) throw new Error("Draft the plan first");
+  const art = await db.article.findUnique({ where: { id: r.articleId }, select: { wpBuilder: true } });
+  if (art?.wpBuilder) throw new Error("This page is built with a page builder, so update it in WordPress using the plan");
   const instructions = `CONTENT REFRESH (this live page is losing Google clicks). ${b.instructions}
 New SEO title: ${b.title}
 New meta description: ${b.metaDescription}

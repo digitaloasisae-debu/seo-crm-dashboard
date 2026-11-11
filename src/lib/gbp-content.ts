@@ -134,7 +134,7 @@ export async function draftWeeklyPosts(clientId: string, opts: { force?: boolean
   const [client, profiles, latest, brand] = await Promise.all([
     db.client.findUniqueOrThrow({ where: { id: clientId }, select: { name: true, servicesOffered: true, ctaText: true, ctaLink: true, siteUrl: true } }),
     db.gbpProfile.findMany({ where: { clientId, data: { not: { equals: null } } }, include: { posts: { orderBy: { weekOf: "desc" }, take: 4 } } }),
-    db.article.findMany({ where: { clientId, status: "PUSHED_DRAFT", wpPostUrl: { not: null } }, select: { metaTitle: true, metaDescription: true, wpPostUrl: true, slug: true }, orderBy: { pushedAt: "desc" }, take: 3 }),
+    db.article.findMany({ where: { clientId, status: "PUSHED_DRAFT", wpPostUrl: { not: null }, importedAt: null }, select: { metaTitle: true, metaDescription: true, wpPostUrl: true, slug: true }, orderBy: { pushedAt: "desc" }, take: 3 }),
     brandContext(clientId),
   ]);
   let n = 0;

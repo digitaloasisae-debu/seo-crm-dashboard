@@ -119,10 +119,10 @@ export async function addLink(linkId: string, actorId?: string) {
     if (!live) throw new Error("The new article isn't live yet. Publish it in WordPress first, then add the link.");
     const cred = await db.clientCredential.findUnique({ where: { clientId_kind: { clientId: l.clientId, kind: "WORDPRESS" } } });
     if (!cred) throw new Error("No WordPress login saved for this client");
-    const own = (await db.article.findMany({ where: { clientId: l.clientId, wpPostId: { not: null } }, select: { id: true, wpPostId: true, wpPostUrl: true, slug: true, bodyHtml: true } })).find((a) => norm(articleUrl(a, l.client.siteUrl)) === norm(l.sourceUrl));
+    const own = (await db.article.findMany({ where: { clientId: l.clientId, wpPostId: { not: null } }, select: { id: true, wpPostId: true, wpPostUrl: true, wpType: true, slug: true, bodyHtml: true } })).find((a) => norm(articleUrl(a, l.client.siteUrl)) === norm(l.sourceUrl));
     type Post = { id: number; content?: { raw?: string } };
     let post: Post | null = null, kind = "posts";
-    if (own?.wpPostId) post = (await wp(cred, `/posts/${own.wpPostId}?context=edit`)) as Post;
+    if (own?.wpPostId) { kind = own.wpType === "page" ? "pages" : "posts"; post = (await wp(cred, `/${kind}/${own.wpPostId}?context=edit`)) as Post; }
     else {
       const slug = norm(l.sourceUrl).split("/").pop() ?? "";
       for (const k of ["posts", "pages"]) {

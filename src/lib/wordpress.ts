@@ -16,7 +16,7 @@ function apiBase(endpoint: string): string {
   return endpoint.replace(/\/+$/, "").replace(/\/posts$/, "");
 }
 
-async function wpFetch(cred: ClientCredential, path: string, init: RequestInit = {}) {
+export async function wpFetch(cred: ClientCredential, path: string, init: RequestInit = {}) {
   const res = await fetch(`${apiBase(cred.endpoint)}${path}`, {
     ...init,
     headers: { Authorization: authHeader(cred), ...(init.headers ?? {}) },
@@ -67,6 +67,7 @@ async function uploadFeaturedImage(cred: ClientCredential, imageUrl: string, slu
  */
 export async function pushArticle(articleId: string, actorId?: string) {
   const article = await db.article.findUniqueOrThrow({ where: { id: articleId } });
+  if (article.wpBuilder) throw new Error("This page is built with a page builder. Edit it in WordPress instead.");
   if (!["APPROVED", "PUSH_FAILED"].includes(article.status)) {
     throw new Error(`Article must be approved before pushing (status is ${article.status})`);
   }
@@ -88,7 +89,8 @@ export async function pushArticle(articleId: string, actorId?: string) {
 
       const slot = article.wpPostId ? null : await nextOpenSlot(article.clientId);
       const payload: Record<string, unknown> = {
-        title: article.metaTitle,
+        // Imported posts keep their own headline; the SEO title goes into Rank Math.
+        title: article.wpTitle ?? article.metaTitle,
         content: article.bodyHtml,
         // New posts go in as drafts; an update (e.g. a content refresh) keeps the post's current status.
         ...(article.wpPostId ? {} : { status: "draft" }),
@@ -104,7 +106,8 @@ export async function pushArticle(articleId: string, actorId?: string) {
       if (slot) payload.date = `${slot.scheduledDate.toISOString().slice(0, 10)}T09:00:00`;
 
       // Update the existing draft if an earlier attempt already created it.
-      const post = await wpFetch(cred, article.wpPostId ? `/posts/${article.wpPostId}` : "/posts", {
+      const coll = article.wpType === "page" ? "pages" : "posts";
+      const post = await wpFetch(cred, article.wpPostId ? `/${coll}/${article.wpPostId}` : "/posts", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),

@@ -144,7 +144,7 @@ export async function dailyRanks(budgetMs = 40_000) {
 export async function suggestRankKeywords(clientId: string) {
   const [kws, arts, tracked] = await Promise.all([
     db.keyword.findMany({ where: { clientId, status: "APPROVED" }, select: { keyword: true }, orderBy: { searchVolume: { sort: "desc", nulls: "last" } }, take: 40 }),
-    db.article.findMany({ where: { clientId, status: "PUSHED_DRAFT" }, select: { focusKeyword: true }, take: 40 }),
+    db.article.findMany({ where: { clientId, status: "PUSHED_DRAFT", importedAt: null }, select: { focusKeyword: true }, take: 40 }),
     db.rankKeyword.findMany({ where: { clientId }, select: { keyword: true } }),
   ]);
   const have = new Set(tracked.map((t) => t.keyword.toLowerCase()));

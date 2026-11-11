@@ -31,7 +31,7 @@ export default async function RefreshPage({ params, searchParams }: { params: Pr
     db.client.findUniqueOrThrow({ where: { id }, select: { gscProperty: true, gscConnectionId: true } }),
   ]);
   const articleIds = rows.map((r) => r.articleId).filter(Boolean) as string[];
-  const arts = await db.article.findMany({ where: { id: { in: articleIds } }, select: { id: true, metaTitle: true, status: true, revisingAt: true } });
+  const arts = await db.article.findMany({ where: { id: { in: articleIds } }, select: { id: true, metaTitle: true, status: true, revisingAt: true, importedAt: true, wpBuilder: true } });
   const art = new Map(arts.map((a) => [a.id, a]));
   const busy = rows.some((r) => (r.status === "OPEN" && !r.error && Date.now() - r.updatedAt.getTime() < 3 * 60_000 && r.brief == null && r.updatedAt > r.createdAt)) || arts.some((a) => a.revisingAt && Date.now() - a.revisingAt.getTime() < 6 * 60_000);
   const ai = geminiConfigured();
@@ -66,7 +66,7 @@ export default async function RefreshPage({ params, searchParams }: { params: Pr
                   <div className="mt-1 flex flex-wrap gap-2 text-xs">
                     <span className="num rounded-full bg-red-50 px-2.5 py-1 text-red-700">▼ {drop}% clicks · {r.clicksBefore} → {r.clicksNow} / 4 wks</span>
                     {r.posBefore != null && r.posNow != null && <span className="num rounded-full bg-slate-100 px-2.5 py-1 text-slate-600">position {r.posBefore.toFixed(1)} → {r.posNow.toFixed(1)}</span>}
-                    {a ? <Link href={`/articles/${a.id}`} className="rounded-full bg-indigo-50 px-2.5 py-1 text-indigo-700">Rankflow article · {a.status.replace(/_/g, " ").toLowerCase()}</Link> : <span className="rounded-full bg-slate-100 px-2.5 py-1 text-slate-500">Not written in Rankflow</span>}
+                    {a ? <Link href={`/articles/${a.id}`} className="rounded-full bg-indigo-50 px-2.5 py-1 text-indigo-700">{a.importedAt ? "Imported from WordPress" : "Rankflow article"} · {a.status.replace(/_/g, " ").toLowerCase()}</Link> : <span className="rounded-full bg-slate-100 px-2.5 py-1 text-slate-500">Not written in Rankflow</span>}
                     {r.status === "DONE" && <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-emerald-700">Done</span>}
                   </div>
                 </div>
@@ -96,7 +96,7 @@ export default async function RefreshPage({ params, searchParams }: { params: Pr
                   </div>
                   {editable && r.status !== "DONE" && (
                     <div className="flex flex-wrap items-center gap-3 border-t border-slate-200 pt-3">
-                      {a ? (
+                      {a && !a.wpBuilder ? (
                         a.revisingAt && Date.now() - a.revisingAt.getTime() < 6 * 60_000 ? (
                           <span className="flex items-center gap-2 text-sm text-indigo-700"><Spinner className="h-4 w-4" /> Rewriting the article…</span>
                         ) : (
@@ -108,7 +108,7 @@ export default async function RefreshPage({ params, searchParams }: { params: Pr
                       ) : (
                         <>
                           <form action={setRefreshStatusAction.bind(null, id, r.id, "DONE")}><SubmitButton className="btn-primary">Mark as updated</SubmitButton></form>
-                          <span className="text-xs text-slate-500">This page wasn&apos;t written in Rankflow, so update it in WordPress using the plan above.</span>
+                          <span className="text-xs text-slate-500">{a?.wpBuilder ? "This page is built with a page builder, so update it in WordPress using the plan above." : <>This page isn&apos;t in Rankflow yet. Use <b>Import from WordPress</b> on the <Link href={`/clients/${id}/articles`} className="text-indigo-600 hover:underline">Articles tab</Link> to rewrite it here, or update it in WordPress using the plan above.</>}</span>
                         </>
                       )}
                     </div>

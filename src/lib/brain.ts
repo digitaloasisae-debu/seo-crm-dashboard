@@ -72,7 +72,7 @@ export async function learnFromRankings(clientId: string) {
   const { articleRanks, matchArticleSlug } = await import("./gsc-report");
   const ranks = await articleRanks(clientId);
   const articles = await db.article.findMany({
-    where: { clientId, status: "PUSHED_DRAFT" },
+    where: { clientId, status: "PUSHED_DRAFT", wpBuilder: false },
     select: { slug: true, metaTitle: true, focusKeyword: true, bodyHtml: true, qualityScore: true },
   });
   const rows = articles

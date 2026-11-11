@@ -56,7 +56,7 @@ async function context(articleId: string) {
   const head = `SOP:\n${sop}\n\nCLIENT: ${c.name}${c.businessType ? ` (${c.businessType})` : ""}${c.primaryCity ? `, local client in ${c.primaryCity}` : ""}${c.siteUrl ? `, site ${c.siteUrl}` : ""}${c.ctaText ? `\nCTA: ${c.ctaText}${c.ctaLink ? ` -> ${c.ctaLink}` : ""}` : ""}
 BRAND PROFILE AND CLIENT BRAIN (how this client writes, and rules the team taught; follow them strictly):\n${(await brandContext(article.clientId)) || "(none yet)"}
 
-TOPIC: ${article.topic.title}${article.topic.angle ? `\nANGLE: ${article.topic.angle}` : ""}
+TOPIC: ${article.topic?.title ?? article.metaTitle}${article.topic?.angle ? `\nANGLE: ${article.topic.angle}` : ""}${article.importedAt ? "\nThis is an existing live page imported from WordPress: keep its structure, links, images and facts unless the instructions say otherwise." : ""}
 FOCUS KEYWORD: ${article.focusKeyword}`;
   return { article, head };
 }

@@ -395,7 +395,7 @@ enum ArticleStatus {
 model Article {
   id               String        @id @default(cuid())
   clientId         String
-  topicId          String        @unique
+  topicId          String?       @unique
   metaTitle        String
   slug             String
   metaDescription  String?
@@ -429,9 +429,17 @@ model Article {
   sopFixFrom       Int?
   sopFixAt         DateTime?
   sopFixNote       String?
+  /// Set when the post was brought in from WordPress instead of written in Rankflow.
+  importedAt       DateTime?
+  /// "post" or "page" (the WordPress REST collection to update on push).
+  wpType           String?
+  /// The post's own headline in WordPress (metaTitle is the SEO title).
+  wpTitle          String?
+  /// Built with a page builder (Elementor, Divi...): Rankflow can't safely rewrite it.
+  wpBuilder        Boolean           @default(false)
 
   client      Client            @relation(fields: [clientId], references: [id], onDelete: Cascade)
-  topic       Topic             @relation(fields: [topicId], references: [id], onDelete: Cascade)
+  topic       Topic?            @relation(fields: [topicId], references: [id], onDelete: Cascade)
   postingSlot PostingSlot?
   notes       ArticleNote[]
   revisions   ArticleRevision[]
