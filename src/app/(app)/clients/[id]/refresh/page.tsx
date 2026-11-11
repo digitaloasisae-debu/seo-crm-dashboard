@@ -80,7 +80,8 @@ export default async function RefreshPage({ params, searchParams }: { params: Pr
           const drop = Math.round((1 - r.clicksNow / Math.max(1, r.clicksBefore)) * 100);
           const drafting = !!r.draftingAt && Date.now() - r.draftingAt.getTime() < 3 * 60_000;
           return (
-            <section key={r.id} id={idx === 0 ? "open" : firstDone ? "done" : undefined} className="card scroll-mt-20 space-y-4">
+            <section key={r.id} id={idx === 0 ? "open" : firstDone ? "done" : undefined} className="card scroll-mt-20 space-y-4 target:ring-2 target:ring-indigo-300">
+              <span id={`r-${r.id}`} className="block -translate-y-24" aria-hidden />
               <div className="flex flex-wrap items-start gap-3">
                 <div className="min-w-0 flex-1">
                   <a href={r.page} target="_blank" rel="noreferrer" className="block truncate font-medium text-indigo-600 hover:underline">{r.page.replace(/^https?:\/\/[^/]+/, "") || "/"}</a>

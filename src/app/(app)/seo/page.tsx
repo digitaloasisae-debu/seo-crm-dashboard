@@ -27,7 +27,7 @@ export default async function SeoOverview({ searchParams }: { searchParams: Prom
   });
   return (
     <>
-      <PageHeader title="SEO" subtitle="Latest site audit for each client. Open a client to run a new one." />
+      <PageHeader title="SEO" subtitle="Latest site audit for each client. Open a client to run a new one." actions={<Link href="/seo/refresh" className="btn-secondary">Pages losing traffic</Link>} />
       {clients.length === 0 ? <Empty>No clients.</Empty> : (
         <div className="card overflow-x-auto p-0">
           <DataTable
