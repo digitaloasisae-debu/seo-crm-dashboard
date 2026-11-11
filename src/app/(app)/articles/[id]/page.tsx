@@ -124,7 +124,7 @@ export default async function ArticleReview({ params, searchParams }: { params: 
               {article.metaDescription && <><dt className="text-slate-500">Meta</dt><dd><CopyChip text={article.metaDescription} label="meta description" className="-ml-1.5 text-xs text-slate-600" /></dd></>}
             </dl>
             <div className="space-y-2 border-t border-slate-100 pt-3">
-            {article.topic ? <div><span className="text-slate-500">Topic:</span> {article.topic.title}</div> : <div><span className="text-slate-500">Source:</span> imported from WordPress ({article.wpType ?? "post"}){article.importedAt && ` on ${fmtDate(article.importedAt)}`}</div>}
+            {article.topic && !article.importedAt ? <div><span className="text-slate-500">Topic:</span> {article.topic.title}</div> : <div><span className="text-slate-500">Source:</span> imported from WordPress ({article.wpType ?? "post"}){article.importedAt && ` on ${fmtDate(article.importedAt)}`}</div>}
             {article.topic?.angle && <div><span className="text-slate-500">Angle:</span> {article.topic.angle}</div>}
             {article.wpBuilder && <div className="rounded-lg bg-amber-50 p-2 text-xs text-amber-800">Built with a page builder, so Rankflow won&apos;t rewrite or push it. Edit it in WordPress.</div>}
             {!article.importedAt && <div><span className="text-slate-500">Scheduled:</span> {fmtDate(article.postingSlot?.scheduledDate) || "next open slot at push time"}</div>}

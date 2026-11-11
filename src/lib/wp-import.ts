@@ -8,6 +8,7 @@ import { db } from "./db";
 import { wpFetch } from "./wordpress";
 import { logActivity } from "./activity";
 import { findRefreshes } from "./refresh";
+import { normalizeKeyword } from "./utils";
 
 type WpItem = {
   id: number;
@@ -78,14 +79,19 @@ export async function importFromWordPress(clientId: string, opts: { pages?: bool
           wpType: type,
           wpBuilder: builder,
         };
+        const when = it.modified_gmt ? new Date(`${it.modified_gmt}Z`) : new Date();
+        let articleId: string;
         if (old) {
           await db.article.update({ where: { id: old.id }, data });
+          articleId = old.id;
           updated++;
         } else {
-          const when = it.modified_gmt ? new Date(`${it.modified_gmt}Z`) : new Date();
-          await db.article.create({ data: { ...data, clientId, wpPostId: it.id, status: "PUSHED_DRAFT", pushedAt: when, importedAt: new Date() } });
+          articleId = (await db.article.create({ data: { ...data, clientId, wpPostId: it.id, status: "PUSHED_DRAFT", pushedAt: when, importedAt: new Date() } })).id;
           added++;
         }
+        // Blog posts (and pages with a real SEO-plugin keyword) also fill the Keywords and Topics tabs.
+        const realKw = !!str(m.rank_math_focus_keyword);
+        if (type === "post" || realKw) await linkKeywordAndTopic(clientId, articleId, { keyword: data.focusKeyword, title: data.wpTitle, when });
       }
       if (items.length < 50) break;
     }
@@ -94,4 +100,40 @@ export async function importFromWordPress(clientId: string, opts: { pages?: bool
   // Pages that were losing clicks can now be rewritten here.
   await findRefreshes(clientId).catch(() => 0);
   return { added, updated, skipped, partial };
+}
+
+/**
+ * Make an imported post show up like a Rankflow one: its focus keyword is a used, approved keyword,
+ * and its title an approved topic linked to the article. Never touches keywords or topics the team made,
+ * except to mark a matching keyword as used.
+ */
+export async function linkKeywordAndTopic(clientId: string, articleId: string, p: { keyword: string; title: string; when: Date }) {
+  const keyword = p.keyword.trim().slice(0, 200);
+  if (!keyword) return;
+  const norm = normalizeKeyword(keyword);
+  const existing = await db.keyword.findUnique({ where: { clientId_keywordNorm: { clientId, keywordNorm: norm } } });
+  const kw = existing
+    ? existing.used
+      ? existing
+      : await db.keyword.update({ where: { id: existing.id }, data: { used: true, usedAt: p.when, ...(existing.status === "PENDING" ? { status: "APPROVED" as const } : {}) } })
+    : await db.keyword.create({ data: { clientId, keyword, keywordNorm: norm, status: "APPROVED", used: true, usedAt: p.when, source: "IMPORT", submittedBy: "WordPress", category: "From WordPress", addedAt: p.when } });
+  const art = await db.article.findUnique({ where: { id: articleId }, select: { topicId: true } });
+  if (art?.topicId) {
+    // Keep the imported topic in step with WordPress (title or keyword changed there).
+    await db.topic.updateMany({ where: { id: art.topicId, category: "From WordPress" }, data: { title: p.title, keyword, keywordId: kw.id } });
+    return;
+  }
+  const topic = await db.topic.create({ data: { clientId, keywordId: kw.id, keyword, title: p.title, status: "APPROVED", category: "From WordPress", generatedAt: p.when } });
+  await db.article.update({ where: { id: articleId }, data: { topicId: topic.id } });
+}
+
+/** One-off: give already imported articles their keyword and topic. Returns how many were linked. */
+export async function backfillImported(clientId?: string) {
+  const arts = await db.article.findMany({ where: { importedAt: { not: null }, topicId: null, OR: [{ wpType: null }, { wpType: "post" }], ...(clientId ? { clientId } : {}) }, select: { id: true, clientId: true, focusKeyword: true, wpTitle: true, metaTitle: true, wpType: true, pushedAt: true, importedAt: true } });
+  let n = 0;
+  for (const a of arts) {
+    await linkKeywordAndTopic(a.clientId, a.id, { keyword: a.focusKeyword, title: a.wpTitle ?? a.metaTitle, when: a.pushedAt ?? a.importedAt! });
+    n++;
+  }
+  return n;
 }

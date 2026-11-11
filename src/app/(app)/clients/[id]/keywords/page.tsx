@@ -1,3 +1,4 @@
+import { backfillImported } from "@/lib/wp-import";
 import { clientArticles, usageIndex } from "@/lib/keyword-usage";
 import Link from "next/link";
 import { Icon } from "@/components/icons";
@@ -16,6 +17,8 @@ export default async function KeywordsPage({ params, searchParams }: { params: P
   const { id } = await params;
   const { status, used, weak, check } = await searchParams;
   const user = await requireUser();
+  // Posts imported before keywords/topics were filled in get them now (fast no-op afterwards).
+  await backfillImported(id).catch((e) => console.error("backfill imported", e));
   const [editable, ranks] = await Promise.all([canEdit(user, id), keywordPositions(id)]);
   const hasGsc = ranks.size > 0;
   const all = await db.keyword.findMany({

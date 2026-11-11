@@ -1,3 +1,4 @@
+import { backfillImported } from "@/lib/wp-import";
 import { clientArticles, usageIndex } from "@/lib/keyword-usage";
 import Link from "next/link";
 import { db } from "@/lib/db";
@@ -13,6 +14,8 @@ export default async function TopicsPage({ params, searchParams }: { params: Pro
   const { id } = await params;
   const { status, edit } = await searchParams;
   const user = await requireUser();
+  // Posts imported before keywords/topics were filled in get them now (fast no-op afterwards).
+  await backfillImported(id).catch((e) => console.error("backfill imported", e));
   const editable = await canEdit(user, id);
   const topics = await db.topic.findMany({
     where: { clientId: id },
@@ -77,6 +80,7 @@ export default async function TopicsPage({ params, searchParams }: { params: Pro
             { label: "Approved", filters: { status: ["APPROVED"] } },
             { label: "Waiting for an article", filters: { status: ["APPROVED"], article: ["No article"] } },
             { label: "Rejected", filters: { status: ["REJECTED"] } },
+            { label: "From WordPress", filters: { category: ["From WordPress"] } },
             { label: "Keyword already used", filters: { reuse: ["Already used"] }, tone: "text-amber-700" },
           ]}
           searchPlaceholder="Search topics and keywords"
