@@ -5,6 +5,7 @@ import { findRefreshes } from "@/lib/refresh";
 import { dailyGbp } from "@/lib/gbp-content";
 import { dataforseoConfigured } from "@/lib/dataforseo";
 import { geminiConfigured } from "@/lib/gemini";
+import { runContentScore } from "@/lib/serp";
 
 export const maxDuration = 300;
 
@@ -20,5 +21,16 @@ export async function GET(req: NextRequest) {
   for (const c of withGsc) refresh[c.clientId] = await findRefreshes(c.clientId).catch((e) => `error: ${e instanceof Error ? e.message : e}`);
   out.refresh = refresh;
   if (dataforseoConfigured() && geminiConfigured()) out.gbp = await dailyGbp(120_000).catch((e) => `error: ${e instanceof Error ? e.message : e}`);
+  // Content score vs Google top 10 for articles that never had one (articles in review first), a few a day.
+  if (dataforseoConfigured()) {
+    const base = { contentCheckedAt: null, wpBuilder: false, client: { status: "ACTIVE" as const } };
+    const review = await db.article.findMany({ where: { ...base, status: "READY_FOR_REVIEW" }, select: { id: true }, take: 15 });
+    const rest = review.length < 15 ? await db.article.findMany({ where: { ...base, status: { in: ["APPROVED", "PUSHED_DRAFT", "PUSH_FAILED", "CHANGES_REQUESTED"] } }, select: { id: true }, orderBy: { pushedAt: { sort: "desc", nulls: "last" } }, take: 15 - review.length }) : [];
+    let scored = 0;
+    for (const a of [...review, ...rest]) {
+      if (await runContentScore(a.id).then(() => true, async () => { await db.article.update({ where: { id: a.id }, data: { contentCheckedAt: new Date() } }); return false; })) scored++;
+    }
+    out.contentScores = scored;
+  }
   return NextResponse.json(out);
 }

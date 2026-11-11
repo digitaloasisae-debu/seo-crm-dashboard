@@ -228,7 +228,7 @@ export default async function ArticleReview({ params, searchParams }: { params: 
             runAction={contentScoreAction.bind(null, id, false)}
             refreshAction={contentScoreAction.bind(null, id, true)}
             ready={dataforseoConfigured()}
-            canRun={editable && !locked}
+            canRun={editable}
           />
 
           {editable && !locked && (
