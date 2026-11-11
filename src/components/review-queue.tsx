@@ -57,13 +57,14 @@ export function ReviewQueue({ items, counts, streak }: { items: QueueItem[]; cou
     return () => window.removeEventListener("keydown", onKey);
   }, [open, items.length]);
 
+  const KIND_TONE: Record<QueueKind, string> = { keyword: "bg-sky-50 text-sky-600", topic: "bg-amber-50 text-amber-600", article: "bg-indigo-50 text-indigo-600", review: "bg-rose-50 text-rose-600", post: "bg-emerald-50 text-emerald-600" };
   const mins = Math.max(1, Math.round(counts.keyword * 0.15 + counts.topic * 0.3 + counts.article * 2 + counts.review * 0.3 + counts.post * 0.5));
   return (
     <>
       <div className="card flex flex-col !p-0 lg:col-span-2">
         <div className="flex flex-wrap items-end justify-between gap-4 p-5 pb-4">
           <div>
-            <div className="text-sm text-slate-500">Your review queue</div>
+            <div className="flex items-center gap-2 text-sm font-medium text-indigo-700"><span className="grid h-5 w-5 place-items-center rounded-full bg-indigo-600 text-[11px] font-semibold text-white">1</span>Review what&apos;s waiting</div>
             <div className="mt-0.5 flex items-baseline gap-2">
               <span className="num text-4xl font-semibold tracking-tight">{total}</span>
               <span className="text-sm text-slate-500">{total ? `waiting · about ${mins} min` : "nothing waiting"}</span>
@@ -86,7 +87,7 @@ export function ReviewQueue({ items, counts, streak }: { items: QueueItem[]; cou
                   onClick={() => { setOnly(k); setOpen(true); }}
                   className="group flex w-full cursor-pointer items-center gap-3 px-5 py-3 text-left text-sm transition-colors hover:bg-slate-50 disabled:cursor-default disabled:hover:bg-transparent"
                 >
-                  <span className={`grid h-7 w-7 place-items-center rounded-md ${n ? "bg-slate-100 text-slate-700" : "bg-slate-50 text-slate-300"}`}><Icon name={KIND_ICON[k]} className="h-3.5 w-3.5" /></span>
+                  <span className={`grid h-7 w-7 place-items-center rounded-md ${n ? KIND_TONE[k] : "bg-slate-50 text-slate-300"}`}><Icon name={KIND_ICON[k]} className="h-3.5 w-3.5" /></span>
                   <span className={`flex-1 ${n ? "text-slate-800" : "text-slate-400"}`}>{KIND_PLURAL[k]}</span>
                   <span className={`num font-medium ${n ? "text-slate-900" : "text-slate-300"}`}>{n}</span>
                   <Icon name="arrow" className={`h-3.5 w-3.5 transition ${has ? "text-slate-300 group-hover:translate-x-0.5 group-hover:text-slate-700" : "opacity-0"}`} />
@@ -95,18 +96,19 @@ export function ReviewQueue({ items, counts, streak }: { items: QueueItem[]; cou
             );
           })}
           <li className="flex items-center gap-3 border-b border-slate-100 px-5 py-3 text-sm text-slate-500">
-            <span className="grid h-7 w-7 place-items-center rounded-md bg-slate-50 text-slate-400"><Icon name="flag" className="h-3.5 w-3.5" /></span>
+            <span className="grid h-7 w-7 place-items-center rounded-md bg-amber-50 text-amber-600"><Icon name="flag" className="h-3.5 w-3.5" /></span>
             <span className="flex-1">Review streak</span>
             <span className="num font-medium text-slate-900">{streak} day{streak === 1 ? "" : "s"}</span>
           </li>
         </ul>
-        <div className="mt-auto flex flex-wrap items-center gap-x-4 gap-y-1 px-5 py-3 text-xs text-slate-500">
-          <span>Shortcuts in the queue:</span>
-          <span><span className="kbd">A</span> approve</span>
-          <span><span className="kbd">X</span> reject</span>
-          <span><span className="kbd">S</span> skip</span>
-          <span><span className="kbd">Esc</span> close</span>
-        </div>
+        <p className="mt-auto flex flex-wrap items-center gap-x-1.5 gap-y-1 px-5 py-3.5 text-xs text-slate-500">
+          <span className="font-medium text-slate-700">How it flows:</span>
+          <span className="rounded bg-sky-50 px-1.5 py-0.5 text-sky-700">keywords</span>→
+          <span className="rounded bg-amber-50 px-1.5 py-0.5 text-amber-700">topics</span>→
+          <span className="rounded bg-indigo-50 px-1.5 py-0.5 text-indigo-700">articles</span>→
+          <span className="rounded bg-emerald-50 px-1.5 py-0.5 text-emerald-700">WordPress</span>
+          <span className="w-full">Nothing moves on until someone approves it here.</span>
+        </p>
       </div>
       {open && createPortal(<ReviewOverlay items={shown} onClose={() => setOpen(false)} />, document.body)}
     </>
@@ -222,7 +224,7 @@ function ReviewOverlay({ items, onClose }: { items: QueueItem[]; onClose: () => 
                 <path d="M30 47l11 10 21-22" fill="none" stroke="var(--color-emerald-500)" strokeWidth="6" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
               <h3 className="font-display text-2xl font-semibold">Queue cleared</h3>
-              <p className="mt-1 mb-5 text-sm text-slate-500">{approved} approved. n8n picks up approved keywords and topics on its next run, and approved Google replies and posts wait on the Google profile tab.</p>
+              <p className="mt-1 mb-5 text-sm text-slate-500">{approved} approved. n8n picks up approved keywords and topics on its next run, and approved Google replies and posts wait on the Google Business page.</p>
               <button type="button" className="btn-primary" onClick={close}>Back to Today</button>
             </div>
           ) : (

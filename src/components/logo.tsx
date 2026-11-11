@@ -25,7 +25,7 @@ export function Logo({ size = 36, light = false, tagline = false, animated = fal
     <span className="inline-flex items-center gap-2.5">
       <LogoMark size={size} animated={animated} className="shrink-0" />
       <span className="leading-tight">
-        <span className={`block font-display font-semibold tracking-tight ${light ? "text-white" : "text-slate-900"}`} style={{ fontSize: Math.max(15, size * 0.58) }}>
+        <span className={`rf-wordmark block font-display font-semibold tracking-tight ${light ? "text-white" : "text-slate-900"}`} style={{ fontSize: Math.max(15, size * 0.58) }}>
           {BRAND.name}
         </span>
         {tagline && <span className={`block text-[11px] ${light ? "text-white/60" : "text-slate-500"}`}>{BRAND.tagline}</span>}

@@ -89,18 +89,34 @@ export function Empty({ children, icon }: { children: ReactNode; icon?: IconName
 
 export type PeekItem = { label: string; sub?: string; href: string };
 
-export function Stat({ label, value, href, icon, alert, items }: { label: string; value: number; href?: string; icon?: IconName; alert?: boolean; items?: PeekItem[] }) {
+export type Tone = "indigo" | "emerald" | "amber" | "rose" | "sky" | "violet";
+export const TONE_CHIP: Record<Tone, string> = {
+  indigo: "bg-indigo-50 text-indigo-600",
+  emerald: "bg-emerald-50 text-emerald-600",
+  amber: "bg-amber-50 text-amber-600",
+  rose: "bg-rose-50 text-rose-600",
+  sky: "bg-sky-50 text-sky-600",
+  violet: "bg-violet-50 text-violet-600",
+};
+const ICON_TONE: Partial<Record<IconName, Tone>> = {
+  check: "emerald", trending: "emerald", send: "emerald", star: "amber", lightbulb: "amber", refresh: "amber", clock: "amber",
+  alert: "rose", flag: "rose", x: "rose", tag: "sky", search: "sky", globe: "sky", chart: "sky", activity: "sky",
+  sparkles: "violet", brain: "violet", palette: "violet", pin: "rose", link: "sky", users: "indigo", file: "indigo",
+};
+
+export function Stat({ label, value, href, icon, alert, items, tone }: { label: string; value: number; href?: string; icon?: IconName; alert?: boolean; items?: PeekItem[]; tone?: Tone }) {
   const hot = alert && value > 0;
+  const t: Tone = hot ? "rose" : tone ?? (icon ? ICON_TONE[icon] : undefined) ?? "indigo";
   const body = (
     <div className={`card group relative h-full !p-4 ${hot ? "border-red-200" : ""}`}>
       <div className="flex items-center justify-between gap-2">
-        <div className="flex items-center gap-1.5 text-[13px] text-slate-500">
-          {icon && <Icon name={icon} className={`h-3.5 w-3.5 ${hot ? "text-red-500" : "text-slate-400"}`} />}
+        <div className="flex items-center gap-2 text-[13px] text-slate-500">
+          {icon && <span className={`flex h-6 w-6 items-center justify-center rounded-md ${TONE_CHIP[t]}`}><Icon name={icon} className="h-3.5 w-3.5" /></span>}
           {label}
         </div>
         {href && <Icon name="arrow" className="h-3.5 w-3.5 -translate-x-1 text-slate-300 opacity-0 transition group-hover:translate-x-0 group-hover:text-slate-500 group-hover:opacity-100" />}
       </div>
-      <div className={`mt-1.5 text-2xl font-semibold tracking-tight tabular-nums ${hot ? "text-red-600" : value > 0 ? "text-slate-900" : "text-slate-300"}`}><CountUp value={value} /></div>
+      <div className={`mt-2 text-2xl font-semibold tracking-tight tabular-nums ${hot ? "text-red-600" : value > 0 ? "text-slate-900" : "text-slate-300"}`}><CountUp value={value} /></div>
     </div>
   );
   const card = href ? <Link href={href} className="block h-full">{body}</Link> : body;

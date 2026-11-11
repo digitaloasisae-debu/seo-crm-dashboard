@@ -33,8 +33,8 @@ export default async function BrainPage({ params, searchParams }: { params: Prom
           <div className="relative flex flex-wrap items-start gap-4">
             <span className="flex h-10 w-10 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 text-slate-700"><Icon name="brain" className="h-5 w-5" /></span>
             <div className="min-w-0 flex-1">
-              <h2 className="text-lg font-semibold tracking-tight">Client brain</h2>
-              <p className="text-sm text-slate-500">This client&apos;s own learning agent. It turns the team&apos;s notes into rules, and n8n uses them to write every new blog for this client.</p>
+              <h2 className="text-lg font-semibold tracking-tight">Writing rules</h2>
+              <p className="text-sm text-slate-500">Rankflow turns your team&apos;s notes on this client&apos;s blogs into writing rules, and n8n follows them to write every new blog for this client.</p>
               <div className="mt-2 flex flex-wrap gap-2 text-xs">
                 <span className="rounded-md bg-indigo-50 px-2.5 py-1 font-medium text-indigo-700">Version {brain?.version ?? 0}</span>
                 <span className="rounded-md bg-slate-100 px-2.5 py-1 text-slate-600">Last learned {brain?.lastLearnedAt ? fmtDate(brain.lastLearnedAt) : "never"}</span>

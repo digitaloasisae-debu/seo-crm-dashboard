@@ -59,7 +59,7 @@ export default async function ClientSeo({ params }: { params: Promise<{ id: stri
       <SearchPerformance clientId={id} editable={editable} />
       <section className="card flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h2 className="flex items-center gap-2 font-semibold"><span className="flex h-7 w-7 items-center justify-center rounded-lg bg-indigo-50 text-indigo-500"><Icon name="search" className="h-4 w-4" /></span>Site audit</h2>
+          <h2 className="flex items-center gap-2 font-semibold"><span className="flex h-7 w-7 items-center justify-center rounded-lg bg-indigo-50 text-indigo-500"><Icon name="search" className="h-4 w-4" /></span>Quick SEO check</h2>
           <p className="text-sm text-slate-500">PageSpeed for the home page, plus on-page checks on up to 25 pages from the sitemap.</p>
           {last?.status === "FAILED" && <p className="mt-1 text-sm text-red-700">Last run failed: {last.error}</p>}
         </div>

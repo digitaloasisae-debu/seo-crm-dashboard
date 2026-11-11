@@ -2,7 +2,6 @@ import Link from "next/link";
 import { db } from "@/lib/db";
 import { clientScope } from "@/lib/access";
 import { requireUser } from "@/lib/session";
-import { StatusBadge } from "@/components/ui";
 import { weeklyWins } from "@/lib/stats";
 import { Greeting } from "@/components/fun";
 import { ReviewQueue, type QueueItem } from "@/components/review-queue";
@@ -18,12 +17,12 @@ const ago = (d: Date) => {
 };
 
 const FEED: Record<string, { text: (n: number) => string; tone: string; icon: string }> = {
-  "keyword.approved": { text: (n) => `approved ${n} keyword${n === 1 ? "" : "s"}`, tone: "bg-slate-100 text-slate-600", icon: "check" },
-  "keyword.add": { text: (n) => `added ${n > 1 ? `${n} ` : ""}keywords`, tone: "bg-slate-100 text-slate-600", icon: "plus" },
-  "topic.approved": { text: (n) => `approved ${n} topic${n === 1 ? "" : "s"}`, tone: "bg-slate-100 text-slate-600", icon: "check" },
-  "topic.generate": { text: () => "generated new topics", tone: "bg-slate-100 text-slate-600", icon: "lightbulb" },
-  "article.ready": { text: () => "delivered an article for review", tone: "bg-slate-100 text-slate-600", icon: "file" },
-  "article.approved": { text: () => "approved an article", tone: "bg-slate-100 text-slate-600", icon: "check" },
+  "keyword.approved": { text: (n) => `approved ${n} keyword${n === 1 ? "" : "s"}`, tone: "bg-emerald-50 text-emerald-600", icon: "check" },
+  "keyword.add": { text: (n) => `added ${n > 1 ? `${n} ` : ""}keywords`, tone: "bg-sky-50 text-sky-600", icon: "plus" },
+  "topic.approved": { text: (n) => `approved ${n} topic${n === 1 ? "" : "s"}`, tone: "bg-emerald-50 text-emerald-600", icon: "check" },
+  "topic.generate": { text: () => "generated new topics", tone: "bg-amber-50 text-amber-600", icon: "lightbulb" },
+  "article.ready": { text: () => "delivered an article for review", tone: "bg-indigo-50 text-indigo-600", icon: "file" },
+  "article.approved": { text: () => "approved an article", tone: "bg-emerald-50 text-emerald-600", icon: "check" },
   "article.push": { text: () => "pushed an article to WordPress", tone: "bg-emerald-50 text-emerald-600", icon: "send" },
   "article.push_failed": { text: () => "couldn't push an article to WordPress", tone: "bg-red-50 text-red-600", icon: "alert" },
   "audit.done": { text: () => "finished a site audit", tone: "bg-slate-100 text-slate-600", icon: "stethoscope" },
@@ -35,7 +34,7 @@ const FEED: Record<string, { text: (n: number) => string; tone: string; icon: st
   "brand.update": { text: () => "updated a brand profile", tone: "bg-slate-100 text-slate-600", icon: "palette" },
   "gbp.reply_posted": { text: () => "replied to a Google review", tone: "bg-slate-100 text-slate-600", icon: "message" },
   "gbp.post_posted": { text: () => "posted on a Google profile", tone: "bg-slate-100 text-slate-600", icon: "pin" },
-  "client.create": { text: () => "added a new client", tone: "bg-slate-100 text-slate-600", icon: "plus" },
+  "client.create": { text: () => "added a new client", tone: "bg-sky-50 text-sky-600", icon: "plus" },
 };
 
 export default async function Home() {
@@ -59,7 +58,7 @@ export default async function Home() {
       db.gbpPost.count({ where: { ...scope, status: "DRAFTED" } }),
     ]),
     db.article.findMany({ where: { ...scope, status: "PUSH_FAILED" }, select: { id: true, metaTitle: true, status: true, client: { select: { name: true } } }, take: 8 }),
-    db.article.findMany({ where: { ...scope, status: "APPROVED" }, select: { id: true, metaTitle: true, status: true, client: { select: { name: true } } }, orderBy: { approvedAt: "asc" }, take: 8 }),
+    db.article.findMany({ where: { ...scope, status: "APPROVED" }, select: { id: true, metaTitle: true, status: true, client: { select: { name: true } } }, orderBy: { approvedAt: "asc" }, take: 50 }),
     user.role === "SUPER_ADMIN" ? db.accessRequest.count({ where: { status: "PENDING" } }) : Promise.resolve(0),
     user.role !== "MEMBER" ? db.formSubmission.count({ where: { processedAt: null } }) : Promise.resolve(0),
     weeklyWins(user.id),
@@ -172,45 +171,110 @@ export default async function Home() {
   const topLosing = [...losing].sort((a, b) => b._count - a._count)[0];
   const nWon = results.filter((r) => (r.afterClicks ?? 0) > (r.baseClicks ?? 0)).length;
   const [firstGoogle, okReplies, okPosts] = toPostGoogle;
+  type Todo = { href: string; text: string; sub: string; icon: string; chip: string };
   const alerts = [
-    failedPushes.length > 0 && { href: `/articles/${failedPushes[0].id}`, text: `${failedPushes.length} article${failedPushes.length === 1 ? "" : "s"} failed to push to WordPress`, tone: "bg-red-50 text-red-700 border-red-200" },
-    openRequests > 0 && { href: "/access", text: `${openRequests} access request${openRequests === 1 ? "" : "s"} waiting`, tone: "bg-amber-50 text-amber-700 border-amber-200" },
-    okReplies + okPosts > 0 && { href: `/clients/${firstGoogle?.clientId ?? ""}/gbp`, text: `${okReplies + okPosts} approved Google repl${okReplies + okPosts === 1 ? "y or post" : "ies and posts"} to publish`, tone: "bg-indigo-50 text-indigo-700 border-indigo-200" },
-    nLosing > 0 && { href: losing.length > 1 ? "/seo/refresh" : `/clients/${topLosing.clientId}/refresh`, text: `${nLosing} page${nLosing === 1 ? " is" : "s are"} losing Google traffic${losing.length > 1 ? ` across ${losing.length} clients` : ""}`, tone: "bg-amber-50 text-amber-700 border-amber-200" },
-    results.length > 0 && { href: `/clients/${results[0].clientId}/refresh#done`, text: `Update results are in: ${nWon} of ${results.length} page${results.length === 1 ? "" : "s"} won traffic back`, tone: "bg-emerald-50 text-emerald-700 border-emerald-200" },
-    failedIntake > 0 && { href: "/intake", text: `${failedIntake} Tally submission${failedIntake === 1 ? "" : "s"} need a look`, tone: "bg-amber-50 text-amber-700 border-amber-200" },
-  ].filter(Boolean) as { href: string; text: string; tone: string }[];
+    failedPushes.length > 0 && { href: `/articles/${failedPushes[0].id}`, text: `${failedPushes.length} article${failedPushes.length === 1 ? "" : "s"} failed to send to WordPress`, sub: "Open it and press Send again", icon: "alert", chip: "bg-rose-50 text-rose-600" },
+    toPush.length > 0 && { href: `/articles/${toPush[0].id}`, text: `${toPush.length} approved article${toPush.length === 1 ? "" : "s"} ready for WordPress`, sub: toPush.slice(0, 2).map((x) => x.client.name).filter((v, i, arr) => arr.indexOf(v) === i).join(", "), icon: "send", chip: "bg-emerald-50 text-emerald-600" },
+    okReplies + okPosts > 0 && { href: `/clients/${firstGoogle?.clientId ?? ""}/gbp`, text: `${okReplies + okPosts} Google repl${okReplies + okPosts === 1 ? "y or post" : "ies and posts"} to publish`, sub: "Approved, waiting on Google Business", icon: "pin", chip: "bg-sky-50 text-sky-600" },
+    nLosing > 0 && { href: losing.length > 1 ? "/seo/refresh" : `/clients/${topLosing.clientId}/refresh`, text: `${nLosing} page${nLosing === 1 ? " is" : "s are"} losing Google traffic`, sub: losing.length > 1 ? `Across ${losing.length} clients. See what to update` : "See what to update in Traffic recovery", icon: "trending", chip: "bg-amber-50 text-amber-600" },
+    results.length > 0 && { href: `/clients/${results[0].clientId}/refresh#done`, text: `${nWon} of ${results.length} updated page${results.length === 1 ? "" : "s"} won traffic back`, sub: "New before and after results this week", icon: "star", chip: "bg-emerald-50 text-emerald-600" },
+    openRequests > 0 && { href: "/access", text: `${openRequests} access request${openRequests === 1 ? "" : "s"} waiting`, sub: "Someone wants to join", icon: "key", chip: "bg-indigo-50 text-indigo-600" },
+    failedIntake > 0 && { href: "/intake", text: `${failedIntake} Tally submission${failedIntake === 1 ? "" : "s"} need a look`, sub: "They couldn't be matched to a client", icon: "zap", chip: "bg-amber-50 text-amber-600" },
+  ].filter(Boolean) as Todo[];
   const goal = 25;
 
   return (
     <>
-      <Greeting name={user.name.split(" ")[0]} sub={total ? `${total} decision${total === 1 ? " is" : "s are"} waiting on you.` : "Nothing is waiting on you. Your clients are moving."} />
+      <Greeting name={user.name.split(" ")[0]} sub={total ? `${total} decision${total === 1 ? " is" : "s are"} waiting on you. Start with step 1.` : "Nothing is waiting on you. Your clients are moving."} />
 
-      {alerts.length > 0 && (
-        <div className="mb-5 flex flex-wrap gap-2">
-          {alerts.map((a) => (
-            <Link key={a.href} href={a.href} className={`group flex items-center gap-2 rounded-lg border px-3 py-1.5 text-sm font-medium transition hover:brightness-[0.97] ${a.tone}`}>
-              <Icon name="alert" className="h-4 w-4" /> {a.text} <Icon name="arrow" className="h-3.5 w-3.5 transition group-hover:translate-x-0.5" />
-            </Link>
-          ))}
-        </div>
-      )}
-
-      <section className="mb-8 grid gap-4 lg:grid-cols-3">
+      <section className="mb-10 grid gap-4 lg:grid-cols-3">
         <ReviewQueue items={items} counts={{ keyword: nKw, topic: nTopic, article: nArt, review: nRev, post: nPost }} streak={wins.streak} />
-        <div className="card p-5">
-          <h2 className="font-sans text-sm font-semibold tracking-normal">Live activity</h2>
-          {feed.length === 0 ? (
-            <p className="mt-3 text-sm text-slate-500">Approvals, new articles and audits will show up here.</p>
+        <div className="card flex flex-col !p-0">
+          <div className="p-5 pb-3">
+            <div className="flex items-center gap-2 text-sm font-medium text-indigo-700"><span className="grid h-5 w-5 place-items-center rounded-full bg-indigo-600 text-[11px] font-semibold text-white">2</span>Then check these</div>
+            <p className="mt-1 text-sm text-slate-500">{alerts.length ? "Things that need a click from you." : "Nothing else needs you right now."}</p>
+          </div>
+          {alerts.length === 0 ? (
+            <div className="flex flex-1 flex-col items-center justify-center gap-2 px-5 pb-8 text-center text-sm text-slate-500">
+              <span className="grid h-10 w-10 place-items-center rounded-full bg-emerald-50 text-emerald-600"><Icon name="check" className="h-5 w-5" /></span>
+              All clear
+            </div>
           ) : (
-            <ol className="mt-3.5 grid gap-3.5">
-              {feed.map((f) => {
+            <ul className="border-t border-slate-100">
+              {alerts.map((a) => (
+                <li key={a.href + a.icon} className="border-b border-slate-100 last:border-b-0">
+                  <Link href={a.href} className="group flex items-center gap-3 px-5 py-3 transition-colors hover:bg-slate-50">
+                    <span className={`grid h-8 w-8 shrink-0 place-items-center rounded-lg ${a.chip}`}><Icon name={a.icon as never} className="h-4 w-4" /></span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-sm font-medium text-slate-900">{a.text}</span>
+                      {a.sub && <span className="block truncate text-xs text-slate-500">{a.sub}</span>}
+                    </span>
+                    <Icon name="arrow" className="h-3.5 w-3.5 text-slate-300 transition group-hover:translate-x-0.5 group-hover:text-slate-700" />
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </section>
+
+      <div className="mb-3 flex items-end justify-between gap-3">
+        <div>
+          <h2 className="text-lg font-semibold">Your clients</h2>
+          <p className="text-sm text-slate-500">Google clicks over the last 12 weeks. Clients with work waiting come first.</p>
+        </div>
+        <Link href="/clients" className="btn-secondary shrink-0">See all</Link>
+      </div>
+      <div className="stagger mb-10 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        {pulses.map((c) => <ClientPulse key={c.id} c={c} />)}
+      </div>
+
+      <h2 className="mb-3 text-lg font-semibold">This week</h2>
+      <section className="grid gap-4 lg:grid-cols-3">
+        <div className="card">
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-semibold">Your progress</h3>
+            <span className="num text-sm text-slate-500">{wins.total} / {goal} wins</span>
+          </div>
+          <div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-100">
+            <span className="grow-x block h-full rounded-full" style={{ width: `${Math.min(100, (wins.total / goal) * 100)}%`, background: "linear-gradient(90deg, #4f4cc4, #f5b83d)" }} />
+          </div>
+          <div className="mt-3 flex flex-wrap gap-2 text-xs font-medium">
+            <span className="rounded-md bg-sky-50 px-2.5 py-1 text-sky-700">{wins.by.keywords} keywords</span>
+            <span className="rounded-md bg-amber-50 px-2.5 py-1 text-amber-700">{wins.by.topics} topics</span>
+            <span className="rounded-md bg-indigo-50 px-2.5 py-1 text-indigo-700">{wins.by.approved} articles</span>
+            <span className="rounded-md bg-emerald-50 px-2.5 py-1 text-emerald-700">{wins.by.pushed} sent</span>
+          </div>
+        </div>
+        <div className="card">
+          <h3 className="text-sm font-semibold">Team leaderboard</h3>
+          {wins.leaders.length === 0 ? (
+            <p className="mt-2 text-sm text-slate-500">No wins yet this week. Be the first on the board.</p>
+          ) : (
+            <ol className="mt-3 space-y-2">
+              {wins.leaders.slice(0, 5).map((l, i) => (
+                <li key={l.id} className="flex items-center gap-3 text-sm">
+                  <span className={`num grid h-5 w-5 place-items-center rounded text-[11px] font-semibold ${i === 0 ? "bg-[#f5b83d] text-[#1c1b45]" : i < 3 ? "bg-indigo-50 text-indigo-700" : "text-slate-400"}`}>{i + 1}</span>
+                  <span className="min-w-0 flex-1 truncate">{l.name}{l.id === user.id && <span className="ml-1 text-xs text-indigo-600">(you)</span>}</span>
+                  <span className="num font-medium">{l.score}</span>
+                </li>
+              ))}
+            </ol>
+          )}
+        </div>
+        <div className="card">
+          <h3 className="text-sm font-semibold">Recent activity</h3>
+          {feed.length === 0 ? (
+            <p className="mt-2 text-sm text-slate-500">Approvals, new articles and audits will show up here.</p>
+          ) : (
+            <ol className="mt-3 grid gap-3">
+              {feed.slice(0, 5).map((f) => {
                 const m = FEED[f.action];
                 const n = Number((f.after as { count?: number } | null)?.count ?? 1);
                 const who = f.actor?.name.split(" ")[0] ?? (f.actorTag === "n8n" ? "n8n" : f.actorTag === "tally" ? "Tally" : "Rankflow");
                 return (
                   <li key={f.id} className="grid grid-cols-[auto_1fr_auto] items-start gap-2.5 text-[13px] leading-snug">
-                    <span className={`grid h-6 w-6 place-items-center rounded-md ${m.tone}`}><Icon name={m.icon} className="h-3.5 w-3.5" /></span>
+                    <span className={`grid h-6 w-6 place-items-center rounded-md ${m.tone}`}><Icon name={m.icon as never} className="h-3.5 w-3.5" /></span>
                     <span className="min-w-0">
                       <b className="font-semibold">{who}</b> {m.text(n)}
                       {f.clientId && names.get(f.clientId) && <> for <Link href={`/clients/${f.clientId}`} className="font-semibold hover:text-indigo-600">{names.get(f.clientId)}</Link></>}
@@ -219,66 +283,6 @@ export default async function Home() {
                   </li>
                 );
               })}
-            </ol>
-          )}
-        </div>
-      </section>
-
-      {toPush.length > 0 && (
-        <section className="mb-8">
-          <h2 className="mb-3 text-lg font-semibold">Approved, ready to push</h2>
-          <div className="card divide-y divide-slate-100 p-0">
-            {toPush.map((a) => (
-              <Link key={a.id} href={`/articles/${a.id}`} className="flex items-center gap-3 px-5 py-3 text-sm transition-colors hover:bg-slate-50">
-                <span className="min-w-0 flex-1 truncate font-medium">{a.metaTitle}</span>
-                <span className="hidden truncate text-slate-500 sm:block">{a.client.name}</span>
-                <StatusBadge status={a.status} />
-              </Link>
-            ))}
-          </div>
-        </section>
-      )}
-
-      <div className="mb-3 flex items-end justify-between gap-3">
-        <div>
-          <h2 className="text-lg font-semibold">Clients</h2>
-          <p className="text-sm text-slate-500">Google clicks per week over the last 12 weeks. Clients that need you come first.</p>
-        </div>
-        <Link href="/clients" className="btn-secondary shrink-0">See all</Link>
-      </div>
-      <div className="stagger mb-10 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
-        {pulses.map((c) => <ClientPulse key={c.id} c={c} />)}
-      </div>
-
-      <section className="grid gap-4 md:grid-cols-2">
-        <div className="card">
-          <div className="flex items-center justify-between">
-            <h2 className="font-sans text-sm font-semibold tracking-normal">Your week</h2>
-            <span className="num text-sm text-slate-500">{wins.total} / {goal} wins</span>
-          </div>
-          <div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-100">
-            <span className="grow-x block h-full rounded-full bg-indigo-600" style={{ width: `${Math.min(100, (wins.total / goal) * 100)}%` }} />
-          </div>
-          <div className="mt-3 flex flex-wrap gap-2 text-xs font-medium text-slate-600">
-            <span className="rounded-md bg-slate-100 px-2.5 py-1">{wins.by.keywords} keywords</span>
-            <span className="rounded-md bg-slate-100 px-2.5 py-1">{wins.by.topics} topics</span>
-            <span className="rounded-md bg-slate-100 px-2.5 py-1">{wins.by.approved} articles</span>
-            <span className="rounded-md bg-slate-100 px-2.5 py-1">{wins.by.pushed} pushed</span>
-          </div>
-        </div>
-        <div className="card">
-          <h2 className="font-sans text-sm font-semibold tracking-normal">Team this week</h2>
-          {wins.leaders.length === 0 ? (
-            <p className="mt-2 text-sm text-slate-500">No wins yet this week. Be the first on the board.</p>
-          ) : (
-            <ol className="mt-3 space-y-2">
-              {wins.leaders.map((l, i) => (
-                <li key={l.id} className="flex items-center gap-3 text-sm">
-                  <span className={`num grid h-5 w-5 place-items-center rounded text-[11px] font-medium ${i < 3 ? "ink" : "text-slate-400"}`}>{i + 1}</span>
-                  <span className="min-w-0 flex-1 truncate">{l.name}{l.id === user.id && <span className="ml-1 text-xs text-indigo-600">(you)</span>}</span>
-                  <span className="num font-medium">{l.score}</span>
-                </li>
-              ))}
             </ol>
           )}
         </div>

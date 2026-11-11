@@ -105,15 +105,15 @@ select.input { @apply cursor-pointer; }
 .label { @apply mb-1.5 block text-[13px] font-medium text-slate-700; }
 
 /* Buttons */
-/* Primary is ink (near-black), not a bright brand colour: one strong action per screen, easy on the eye. */
+/* Primary is the Rankflow indigo: one clear, coloured action per screen. */
 .btn-primary {
-  @apply btn-base text-white focus-visible:ring-slate-500/30;
-  background-color: #18181b;
-  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.12), 0 1px 2px rgb(0 0 0 / 0.15);
+  @apply btn-base text-white focus-visible:ring-indigo-500/30;
+  background-color: #4f4cc4;
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.16), 0 1px 2px rgb(49 46 129 / 0.25);
 }
-.btn-primary:hover { background-color: #2e2e33; }
-:root[data-theme="dark"] .btn-primary { background-color: #f4f4f5; color: #18181b; box-shadow: none; }
-:root[data-theme="dark"] .btn-primary:hover { background-color: #ffffff; }
+.btn-primary:hover { background-color: #433fb0; }
+:root[data-theme="dark"] .btn-primary { background-color: #6461d6; color: #fff; box-shadow: none; }
+:root[data-theme="dark"] .btn-primary:hover { background-color: #7471e0; }
 .btn-secondary {
   @apply btn-base border border-slate-200 bg-white text-slate-800
     hover:border-slate-300 hover:bg-slate-50 focus-visible:ring-slate-400/20;
@@ -268,3 +268,19 @@ details[open] > *:not(summary) { @apply animate-fade-in; }
 /* Articles carry their own <style> from WordPress or n8n (dark text on white). Keep them readable in dark mode. */
 :root[data-theme="dark"] .prose-preview :is(h1, h2, h3, h4, h5, h6, p, li, span, strong, em, b, td, th, div, blockquote, figcaption) { color: var(--color-slate-800) !important; background-color: transparent !important; }
 :root[data-theme="dark"] .prose-preview a { color: var(--color-indigo-700) !important; }
+
+/* Sidebar: deep Rankflow indigo in both themes, gold for "you are here". */
+.rf-side { background: #1c1b45; color: #fff; border-color: rgb(255 255 255 / 0.06) !important; }
+:root[data-theme="dark"] .rf-side { background: #131230; }
+.rf-side-link { color: rgb(226 226 248 / 0.72); }
+.rf-side-link:hover { background: rgb(255 255 255 / 0.07); color: #fff; }
+.rf-side-link[aria-current="page"] { background: rgb(255 255 255 / 0.12); color: #fff; }
+.rf-side-link .rf-side-icon { color: rgb(226 226 248 / 0.5); }
+.rf-side-link:hover .rf-side-icon { color: #fff; }
+.rf-side-link[aria-current="page"] .rf-side-icon { color: #f5b83d; }
+.rf-side-muted { color: rgb(226 226 248 / 0.45); }
+.rf-side-badge { background: #f5b83d; color: #1c1b45; font-weight: 600; }
+.rf-side-hover:hover { background: rgb(255 255 255 / 0.07); }
+.rf-side .rf-wordmark { color: #fff !important; }
+.rf-side-btn { color: rgb(226 226 248 / 0.6); }
+.rf-side-btn:hover { background: rgb(255 255 255 / 0.08); color: #fff; }

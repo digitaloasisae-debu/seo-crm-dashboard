@@ -49,7 +49,7 @@ export default async function RefreshPage({ params, searchParams }: { params: Pr
       {busy && <RefreshWhile ms={6000} />}
       <section className="card flex flex-wrap items-center gap-4">
         <div className="min-w-0 flex-1">
-          <h2 className="text-lg font-semibold">Content refresh</h2>
+          <h2 className="text-lg font-semibold">Traffic recovery</h2>
           <p className="text-sm text-slate-500">Pages whose Google clicks fell by 30% or more (last 4 weeks vs. their best 4 weeks in the 3 months before). Checked every day from Search Console.</p>
           {scanned && <p className="mt-1 text-sm text-indigo-700">Scan done: {scanned} page{scanned === "1" ? "" : "s"} losing traffic.</p>}
           {!linked && <p className="mt-1 text-sm text-amber-700">Link this client to Search Console first (Super admin → Google).</p>}

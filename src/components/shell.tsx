@@ -120,10 +120,16 @@ export function CommandMenu({ clients, links }: { clients: PaletteClient[]; link
       ["/keywords", "Keywords", "tag"],
       ["/topics", "Topics", "lightbulb"],
       ["/articles", "Articles", "file"],
-      ["/audit", "Site audit", "stethoscope"],
-      ["/gbp", "Google profile", "pin"],
+      ["/rankings", "Keyword tracking", "trending"],
+      ["/refresh", "Traffic recovery", "refresh"],
+      ["/seo", "SEO audit", "chart"],
+      ["/audit", "Full site audit", "stethoscope"],
+      ["/gbp", "Google Business", "pin"],
       ["/backlinks", "Backlinks", "link"],
       ["/analytics", "Analytics", "activity"],
+      ["/brand", "Brand voice", "palette"],
+      ["/brain", "Writing rules", "brain"],
+      ["/settings", "Settings", "shield"],
     ];
     const per: Cmd[] = clients.flatMap((c) =>
       tabs.map(([path, tab, icon]) => ({ id: `${c.id}${path}`, label: path ? `${c.name} › ${tab}` : c.name, hint: path ? "Client page" : c.site.replace(/^https?:\/\/(www\.)?/, "").replace(/\/$/, ""), icon, href: `/clients/${c.id}${path}`, keywords: c.site })),

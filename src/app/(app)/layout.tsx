@@ -14,7 +14,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const nav: NavItem[] = [
     { href: "/", label: "Today", icon: "inbox" },
     { href: "/clients", label: "Clients", icon: "briefcase" },
-    { href: "/seo", label: "SEO", icon: "chart" },
+    { href: "/seo", label: "SEO overview", icon: "chart" },
     ...(user.role !== "MEMBER"
       ? ([
           { href: "/intake", label: "Intake", icon: "zap", group: "Admin" },
@@ -46,28 +46,28 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const initials = user.name.split(/\s+/).map((w) => w[0]).slice(0, 2).join("").toUpperCase();
   return (
     <div className="min-h-screen md:flex">
-      <aside className="relative z-10 border-b border-slate-200 bg-slate-50 md:sticky md:top-0 md:flex md:h-screen md:w-60 md:shrink-0 md:flex-col md:border-r md:border-b-0">
+      <aside className="rf-side relative z-10 border-b md:sticky md:top-0 md:flex md:h-screen md:w-60 md:shrink-0 md:flex-col md:border-r md:border-b-0">
         <div className="flex items-center justify-between px-5 py-4">
           <Link href="/" className="transition-opacity hover:opacity-80">
             <Logo size={26} />
           </Link>
-          <div className="md:hidden"><ThemeToggle /></div>
+          <div className="rf-side-btn rounded-md md:hidden [&_button]:!text-inherit [&_button:hover]:!bg-transparent"><ThemeToggle /></div>
         </div>
         <div className="md:flex-1 md:overflow-y-auto">
           <SideNav items={nav} />
         </div>
-        <div className="hidden items-center gap-1 border-t border-slate-200 p-3 md:flex">
-          <Link href="/profile" data-tip="Your profile and password" className="group flex min-w-0 flex-1 items-center gap-2.5 rounded-md p-1.5 transition-colors hover:bg-slate-200/60">
-            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full ink text-[11px] font-semibold">
+        <div className="hidden items-center gap-1 border-t border-white/10 p-3 md:flex" style={{ borderColor: "rgb(255 255 255 / 0.08)" }}>
+          <Link href="/profile" data-tip="Your profile and password" className="rf-side-hover group flex min-w-0 flex-1 items-center gap-2.5 rounded-md p-1.5 transition-colors">
+            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#f5b83d] text-[11px] font-semibold text-[#1c1b45]">
               {initials}
             </span>
             <span className="min-w-0 flex-1">
-              <span className="block truncate text-[13px] leading-tight font-medium">{user.name}</span>
-              <span className="block text-[11px] leading-tight text-slate-500 capitalize">{user.role.replace("_", " ").toLowerCase()}</span>
+              <span className="block truncate text-[13px] leading-tight font-medium text-white">{user.name}</span>
+              <span className="rf-side-muted block text-[11px] leading-tight capitalize">{user.role.replace("_", " ").toLowerCase()}</span>
             </span>
           </Link>
           <form action={logoutAction}>
-            <button aria-label="Sign out" data-tip="Sign out" className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-md text-slate-400 transition-colors hover:bg-red-50 hover:text-red-600">
+            <button aria-label="Sign out" data-tip="Sign out" className="rf-side-btn flex h-8 w-8 cursor-pointer items-center justify-center rounded-md transition-colors">
               <Icon name="logout" className="h-4 w-4" />
             </button>
           </form>

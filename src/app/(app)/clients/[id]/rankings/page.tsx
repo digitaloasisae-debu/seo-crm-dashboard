@@ -83,7 +83,7 @@ export default async function RankingsPage({ params, searchParams }: { params: P
       <section className="space-y-3">
         <div className="flex flex-wrap items-center gap-3">
           <div className="min-w-0 flex-1">
-            <h2 className="text-lg font-semibold">Google rankings</h2>
+            <h2 className="text-lg font-semibold">Keyword tracking</h2>
             <p className="text-sm text-slate-500">Checked every day, top 30 results, searched from: <b className="font-medium text-slate-700">{loc.label}</b>{pending && <span className="ml-2 text-indigo-600">· checking…</span>}</p>
           </div>
           {editable && ready && kws.length > 0 && <form action={checkRanksNowAction.bind(null, id)}><SubmitButton className="btn-secondary">Check now</SubmitButton></form>}

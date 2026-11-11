@@ -26,7 +26,7 @@ export default async function LosingTraffic() {
 
   return (
     <>
-      <PageHeader title="Losing traffic" subtitle="Pages whose Google clicks fell 30% or more, for every client. Click a row to plan the update on that client's Refresh tab." />
+      <PageHeader title="Losing traffic" subtitle="Pages whose Google clicks fell 30% or more, for every client. Click a row to plan the update on that client's Traffic recovery page." />
       <div className="mb-6 grid gap-3 sm:grid-cols-4">
         <Stat label="Pages losing traffic" value={open.length} icon="trending" alert />
         <Stat label="Clients affected" value={clients} icon="briefcase" />

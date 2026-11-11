@@ -32,7 +32,7 @@ export default async function BrandPage({ params, searchParams }: { params: Prom
       <section className="card space-y-5">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <h2 className="text-lg font-semibold">Brand profile</h2>
+            <h2 className="text-lg font-semibold">Brand voice</h2>
             <p className="text-sm text-slate-500">How this client writes. n8n and every AI writer in Rankflow (rewrites, SOP fixes, refreshes, Google posts, review replies) follow it.</p>
             {p && <p className="mt-1 text-xs text-slate-400">Last updated {fmtDate(p.updatedAt)}</p>}
           </div>

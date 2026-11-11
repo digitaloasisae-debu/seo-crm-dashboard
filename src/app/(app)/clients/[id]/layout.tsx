@@ -3,7 +3,7 @@ import { db } from "@/lib/db";
 import { accessLevel } from "@/lib/access";
 import { requireUser } from "@/lib/session";
 import { Badge, StatusBadge } from "@/components/ui";
-import { Tabs } from "@/components/nav";
+import { ClientNav, type GroupedNav } from "@/components/nav";
 import { Icon } from "@/components/icons";
 
 export default async function ClientLayout({ children, params }: { children: React.ReactNode; params: Promise<{ id: string }> }) {
@@ -14,21 +14,30 @@ export default async function ClientLayout({ children, params }: { children: Rea
   const client = await db.client.findUnique({ where: { id } });
   if (!client) notFound();
 
-  const tabs = [
-    { href: `/clients/${id}`, label: "Overview", icon: "briefcase" as const },
-    { href: `/clients/${id}/keywords`, label: "Keywords", icon: "tag" as const },
-    { href: `/clients/${id}/topics`, label: "Topics", icon: "lightbulb" as const },
-    { href: `/clients/${id}/articles`, label: "Articles", icon: "file" as const },
-    { href: `/clients/${id}/seo`, label: "SEO", icon: "chart" as const },
-    { href: `/clients/${id}/rankings`, label: "Rankings", icon: "trending" as const },
-    { href: `/clients/${id}/refresh`, label: "Refresh", icon: "refresh" as const },
-    { href: `/clients/${id}/audit`, label: "Site audit", icon: "stethoscope" as const },
-    { href: `/clients/${id}/gbp`, label: "Google profile", icon: "pin" as const },
-    { href: `/clients/${id}/backlinks`, label: "Backlinks", icon: "link" as const },
-    { href: `/clients/${id}/analytics`, label: "Analytics", icon: "activity" as const },
-    { href: `/clients/${id}/brand`, label: "Brand", icon: "palette" as const },
-    { href: `/clients/${id}/brain`, label: "Brain", icon: "sparkles" as const },
-    { href: `/clients/${id}/settings`, label: "Settings", icon: "shield" as const },
+  const c = `/clients/${id}`;
+  const groups: GroupedNav = [
+    { label: "Content", tone: "indigo", icon: "file", items: [
+      { href: c, label: "Overview", icon: "briefcase", tip: "Everything about this client at a glance" },
+      { href: `${c}/keywords`, label: "Keywords", icon: "tag", tip: "Search terms to write about. Approve them so n8n can use them" },
+      { href: `${c}/topics`, label: "Topics", icon: "lightbulb", tip: "Blog ideas made from the keywords. Approve the ones to write" },
+      { href: `${c}/articles`, label: "Articles", icon: "file", tip: "Written blogs. Review, edit and send them to WordPress" },
+    ] },
+    { label: "Growth", tone: "emerald", icon: "trending", items: [
+      { href: `${c}/rankings`, label: "Keyword tracking", icon: "trending", tip: "Where the site ranks on Google for each keyword, checked daily" },
+      { href: `${c}/refresh`, label: "Traffic recovery", icon: "refresh", tip: "Pages that lost Google clicks, and what to update to win them back" },
+      { href: `${c}/analytics`, label: "Analytics", icon: "activity", tip: "Visitors and where they come from (Google Analytics)" },
+    ] },
+    { label: "Audits", tone: "amber", icon: "stethoscope", items: [
+      { href: `${c}/seo`, label: "SEO audit", icon: "chart", tip: "Google search clicks plus a quick speed and on-page check" },
+      { href: `${c}/audit`, label: "Full site audit", icon: "stethoscope", tip: "Deep crawl of the whole site with a PDF report for the client" },
+      { href: `${c}/backlinks`, label: "Backlinks", icon: "link", tip: "Sites linking to this client, and links competitors have that we don't" },
+      { href: `${c}/gbp`, label: "Google Business", icon: "pin", tip: "Google Maps profile: audit, review replies and weekly posts" },
+    ] },
+    { label: "Setup", tone: "slate", icon: "shield", items: [
+      { href: `${c}/brand`, label: "Brand voice", icon: "palette", tip: "How this client sounds. Every AI writer follows it" },
+      { href: `${c}/brain`, label: "Writing rules", icon: "brain", tip: "Rules the AI learned from your team's notes, used in every new blog" },
+      { href: `${c}/settings`, label: "Settings", icon: "shield", tip: "WordPress login and who on the team can see this client" },
+    ] },
   ];
   const initials = client.name.split(/\s+/).map((w) => w[0]).slice(0, 2).join("").toUpperCase();
   return (
@@ -47,7 +56,7 @@ export default async function ClientLayout({ children, params }: { children: Rea
           </a>
         </div>
       </div>
-      <Tabs items={tabs} />
+      <ClientNav groups={groups} />
       {children}
     </>
   );

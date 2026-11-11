@@ -90,9 +90,9 @@ export default async function ArticlesPage({ params, searchParams }: { params: P
         </div>
       )}
       {importErr && <p className="rounded-xl bg-red-50 px-4 py-2 text-sm text-red-700">{importErr}</p>}
-      {imported != null && <p className="rounded-xl bg-emerald-50 px-4 py-2 text-sm text-emerald-800">Imported {imported} new and refreshed {synced ?? 0} from WordPress.{partial && " There's more: press Sync again to continue."} The Refresh tab can now rewrite them.</p>}
+      {imported != null && <p className="rounded-xl bg-emerald-50 px-4 py-2 text-sm text-emerald-800">Imported {imported} new and refreshed {synced ?? 0} from WordPress.{partial && " There's more: press Sync again to continue."} Traffic recovery can now rewrite them.</p>}
       {!client.gscProperty && <p className="rounded-xl bg-slate-100 px-4 py-2 text-sm text-slate-600">Google rankings appear here once this client is linked to Search Console on the <Link className="text-indigo-600 hover:underline" href="/google">Google</Link> page.</p>}
-      {client.gscProperty && ranks.size === 0 && <p className="rounded-xl bg-amber-50 px-4 py-2 text-sm text-amber-800">No ranking history yet. Open the <Link className="font-medium underline" href={`/clients/${id}/seo`}>SEO tab</Link> and click <b>Refresh now</b> once to load it.</p>}
+      {client.gscProperty && ranks.size === 0 && <p className="rounded-xl bg-amber-50 px-4 py-2 text-sm text-amber-800">No ranking history yet. Open the <Link className="font-medium underline" href={`/clients/${id}/seo`}>SEO audit</Link> and click <b>Refresh now</b> once to load it.</p>}
       <DataTable
         id={`articles`}
         columns={columns}
