@@ -7,6 +7,7 @@ import { Greeting } from "@/components/fun";
 import { ReviewQueue, type QueueItem } from "@/components/review-queue";
 import { ClientPulse, type Pulse } from "@/components/client-pulse";
 import { Icon } from "@/components/icons";
+import { pulseReasons, pulseWindow } from "@/lib/pulse-reasons";
 
 const ago = (d: Date) => {
   const s = (Date.now() - d.getTime()) / 1000;
@@ -40,7 +41,6 @@ const FEED: Record<string, { text: (n: number) => string; tone: string; icon: st
 export default async function Home() {
   const user = await requireUser();
   const scope = { client: clientScope(user, "edit") };
-  const since12 = new Date(Date.now() - 12 * 7 * 864e5);
   const today = new Date(new Date().toISOString().slice(0, 10));
 
   const [kw, topics, arts, replies, gposts, toPostGoogle, counts, failedPushes, toPush, openRequests, failedIntake, wins, clients] = await Promise.all([
@@ -65,8 +65,10 @@ export default async function Home() {
     db.client.findMany({ where: { ...clientScope(user), status: "ACTIVE" }, select: { id: true, name: true, siteUrl: true, brandPrimaryColor: true }, orderBy: { name: "asc" }, take: 60 }),
   ]);
   const ids = clients.map((c) => c.id);
+  const win = pulseWindow();
+  const whyP = pulseReasons(ids, win);
   const [weeks, crawls, slots, waitingKw, waitingTopics, waitingArts, feed] = await Promise.all([
-    db.gscPageWeek.groupBy({ by: ["clientId", "weekStart"], where: { clientId: { in: ids }, weekStart: { gte: since12 } }, _sum: { clicks: true, impressions: true }, orderBy: { weekStart: "asc" } }),
+    db.gscPageWeek.groupBy({ by: ["clientId", "weekStart"], where: { clientId: { in: ids }, weekStart: { gte: win.first, lte: win.last } }, _sum: { clicks: true, impressions: true }, orderBy: { weekStart: "asc" } }),
     db.siteCrawl.findMany({ where: { clientId: { in: ids }, status: "DONE", score: { not: null } }, select: { clientId: true, score: true }, orderBy: { startedAt: "desc" }, distinct: ["clientId"] }),
     db.postingSlot.findMany({ where: { clientId: { in: ids }, scheduledDate: { gte: today } }, select: { clientId: true, scheduledDate: true }, orderBy: { scheduledDate: "asc" }, distinct: ["clientId"] }),
     db.keyword.groupBy({ by: ["clientId"], where: { clientId: { in: ids }, status: "PENDING" }, _count: true }),
@@ -77,6 +79,7 @@ export default async function Home() {
 
   // Average position for the latest week, weighted by impressions.
   const lastWeek = await db.gscPageWeek.groupBy({ by: ["clientId", "weekStart"], where: { clientId: { in: ids }, weekStart: { gte: new Date(Date.now() - 14 * 864e5) } }, _sum: { impressions: true }, _avg: { position: true }, orderBy: { weekStart: "desc" } });
+  const why = await whyP;
   const names = new Map(clients.map((c) => [c.id, c.name]));
   const waitingBy = new Map<string, number>();
   for (const g of [...waitingKw, ...waitingTopics, ...waitingArts]) waitingBy.set(g.clientId, (waitingBy.get(g.clientId) ?? 0) + g._count);
@@ -96,6 +99,7 @@ export default async function Home() {
       trend,
       next: slot ? new Date(slot.scheduledDate).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" }) : "No post scheduled",
       waiting: waitingBy.get(c.id) ?? 0,
+      why: why.get(c.id),
     };
   });
   // Clients that need you first, then the rest by clicks.

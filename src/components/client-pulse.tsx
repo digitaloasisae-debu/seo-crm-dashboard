@@ -1,4 +1,5 @@
 import Link from "next/link";
+import type { PulseWhy } from "@/lib/pulse-reasons";
 
 export type Pulse = {
   id: string;
@@ -11,6 +12,7 @@ export type Pulse = {
   trend: number[]; // weekly clicks, oldest first
   next: string;
   waiting: number;
+  why?: PulseWhy;
 };
 
 const host = (u: string) => u.replace(/^https?:\/\/(www\.)?/, "").replace(/\/.*$/, "");
@@ -36,10 +38,11 @@ export function Spark({ values, up }: { values: number[]; up: boolean }) {
 export function ClientPulse({ c }: { c: Pulse }) {
   const first = c.trend.find((v) => v > 0) ?? 0;
   const lastV = c.trend.at(-1) ?? 0;
-  const up = lastV >= first;
-  const pct = first ? Math.round((lastV / first - 1) * 100) : null;
+  const up = c.why ? c.why.now >= c.why.before : lastV >= first;
+  const pct = c.why ? c.why.pct : first ? Math.round((lastV / first - 1) * 100) : null;
   const tone = c.health == null ? "bg-slate-100 text-slate-500" : c.health >= 80 ? "bg-emerald-50 text-emerald-700" : c.health >= 65 ? "bg-amber-50 text-amber-700" : "bg-red-50 text-red-700";
   return (
+    <div className="group/why relative min-w-0 hover:z-30 focus-within:z-30">
     <Link href={`/clients/${c.id}`} className="card rf-lift block min-w-0 p-4.5 hover:border-indigo-200">
       <div className="flex items-center gap-3">
         <span className="font-display grid h-9 w-9 shrink-0 place-items-center rounded-xl text-[13px] font-semibold text-white" style={{ background: c.color || "var(--color-indigo-600)" }}>
@@ -54,7 +57,7 @@ export function ClientPulse({ c }: { c: Pulse }) {
       <div className="mt-4 mb-2 flex justify-between gap-2 text-xs text-slate-500">
         <div>Clicks / wk<b className="num block text-lg font-medium text-slate-900">{c.clicks == null ? "—" : c.clicks.toLocaleString()}</b></div>
         <div>Avg. position<b className="num block text-lg font-medium text-slate-900">{c.position == null ? "—" : c.position.toFixed(1)}</b></div>
-        <div>12 weeks<b className={`num block text-lg font-medium ${pct == null ? "text-slate-400" : up ? "text-emerald-600" : "text-red-600"}`}>{pct == null ? "—" : `${up ? "▲" : "▼"} ${Math.abs(pct)}%`}</b></div>
+        <div data-why className="text-right">12 weeks<b className={`num block text-lg font-medium ${pct == null ? "text-slate-400" : up ? "text-emerald-600" : "text-red-600"}`}>{pct == null ? "—" : `${up ? "▲" : "▼"} ${Math.abs(pct)}%`}</b></div>
       </div>
       <Spark values={c.trend} up={up} />
       <div className="mt-3 flex justify-between gap-2 text-xs text-slate-500">
@@ -62,5 +65,44 @@ export function ClientPulse({ c }: { c: Pulse }) {
         <span className="truncate">{c.next}</span>
       </div>
     </Link>
+    {c.why && <Why c={c} up={up} pct={pct} />}
+    </div>
+  );
+}
+
+const fmt = (v: number) => (v >= 10 ? Math.round(v) : Math.round(v * 10) / 10).toLocaleString();
+
+function Why({ c, up, pct }: { c: Pulse; up: boolean; pct: number | null }) {
+  const w = c.why!;
+  const dot = { up: "bg-emerald-500", down: "bg-red-500", info: "bg-indigo-400" } as const;
+  return (
+    <div className="pointer-events-none invisible absolute top-[calc(100%-10px)] right-2 left-2 z-30 translate-y-2 rounded-xl border border-slate-200 bg-white p-4 opacity-0 shadow-[var(--shadow-pop)] transition-all duration-200 group-hover/why:pointer-events-auto group-hover/why:visible group-hover/why:translate-y-0 group-hover/why:opacity-100">
+      <div className="flex items-baseline justify-between gap-2">
+        <span className="text-sm font-semibold">{pct != null && Math.abs(pct) < 5 ? "Steady, here's why" : <>Why it {up ? "rose" : "dropped"}{pct != null && <span className={up ? " text-emerald-600" : " text-red-600"}> {up ? "+" : "−"}{Math.abs(pct)}%</span>}</>}</span>
+        <span className="num text-xs text-slate-500">{fmt(w.before)} → {fmt(w.now)} clicks/wk</span>
+      </div>
+      <p className="mt-0.5 text-[11px] text-slate-400">First 4 weeks vs last 4 complete weeks</p>
+      <ul className="mt-2.5 space-y-1.5">
+        {w.reasons.map((r, i) => (
+          <li key={i} className="flex gap-2 text-[13px] leading-snug text-slate-700">
+            <span className={`mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full ${dot[r.tone]}`} />{r.text}
+          </li>
+        ))}
+      </ul>
+      {w.movers.length > 0 && (
+        <>
+          <div className="mt-3 mb-1 text-xs font-medium text-slate-500">Pages that moved most</div>
+          <ul className="space-y-1">
+            {w.movers.map((m) => (
+              <li key={m.label} className="flex items-center gap-2 text-xs">
+                <span className="min-w-0 flex-1 truncate text-slate-700" title={m.label}>{m.label}</span>
+                <span className={`num shrink-0 font-medium ${m.now >= m.before ? "text-emerald-600" : "text-red-600"}`}>{fmt(m.before)} → {fmt(m.now)}</span>
+                {m.posBefore != null && m.posNow != null && <span className="num shrink-0 text-slate-400">pos {m.posBefore.toFixed(0)}→{m.posNow.toFixed(0)}</span>}
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+    </div>
   );
 }
