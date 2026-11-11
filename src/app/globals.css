@@ -284,3 +284,66 @@ details[open] > *:not(summary) { @apply animate-fade-in; }
 .rf-side .rf-wordmark { color: #fff !important; }
 .rf-side-btn { color: rgb(226 226 248 / 0.6); }
 .rf-side-btn:hover { background: rgb(255 255 255 / 0.08); color: #fff; }
+
+/* ---------- Client pages (design B): group tabs, page pills, animated banner ---------- */
+.rf-tone-indigo { --t1: #5b57e0; --t2: #8b5cf6; --tsoft: #eeedfd; --tink: #3d3aa8; }
+.rf-tone-emerald { --t1: #10b981; --t2: #06b6d4; --tsoft: #e3f8f0; --tink: #0b7a55; }
+.rf-tone-amber { --t1: #f59e0b; --t2: #f43f5e; --tsoft: #fef2e0; --tink: #a5560a; }
+.rf-tone-violet { --t1: #d946ef; --t2: #6366f1; --tsoft: #fbeafd; --tink: #9b1fae; }
+:root[data-theme="dark"] .rf-tone-indigo { --tsoft: #23224a; --tink: #b9b7ff; }
+:root[data-theme="dark"] .rf-tone-emerald { --tsoft: #0f2c24; --tink: #6ee7b7; }
+:root[data-theme="dark"] .rf-tone-amber { --tsoft: #33240c; --tink: #fcd34d; }
+:root[data-theme="dark"] .rf-tone-violet { --tsoft: #34143a; --tink: #f0abfc; }
+
+.rf-gtab { background: var(--color-white); border-color: var(--color-slate-200); color: var(--color-slate-800); box-shadow: var(--shadow-card); }
+.rf-gtab:hover { border-color: var(--t1); transform: translateY(-2px); box-shadow: 0 14px 30px -18px var(--t1); }
+.rf-gtab .rf-gtab-icon { background: var(--tsoft); color: var(--tink); }
+.rf-gtab .rf-gtab-sub { color: var(--color-slate-500); }
+.rf-gtab .rf-gtab-badge { background: var(--tsoft); color: var(--tink); }
+.rf-gtab::before { content: ""; position: absolute; inset: 0; opacity: 0; transition: opacity .35s; background: linear-gradient(120deg, var(--t1), var(--t2)); }
+.rf-gtab::after { content: ""; position: absolute; inset: 0; opacity: 0; background: linear-gradient(105deg, transparent 35%, rgb(255 255 255 / .35) 50%, transparent 65%); background-size: 250% 100%; }
+.rf-gtab.is-on { border-color: transparent; color: #fff; box-shadow: 0 16px 34px -16px var(--t1); }
+.rf-gtab.is-on::before { opacity: 1; }
+.rf-gtab.is-on::after { opacity: 1; animation: rf-sheen 3.2s ease-in-out infinite; }
+.rf-gtab.is-on .rf-gtab-icon { background: rgb(255 255 255 / .22); color: #fff; }
+.rf-gtab.is-on .rf-gtab-sub { color: rgb(255 255 255 / .82); }
+.rf-gtab.is-on .rf-gtab-badge { background: #fff; color: var(--t1); }
+@keyframes rf-sheen { 0% { background-position: 150% 0; } 60%, 100% { background-position: -100% 0; } }
+
+.rf-pill { background: var(--color-white); border-color: var(--color-slate-200); color: var(--color-slate-600); animation: rf-pop-in .35s var(--ease-spring) both; }
+.rf-pill svg { color: var(--t1); }
+.rf-pill:hover { border-color: var(--t1); color: var(--tink); background: var(--tsoft); }
+.rf-pill.is-on { background: linear-gradient(120deg, var(--t1), var(--t2)); border-color: transparent; color: #fff; box-shadow: 0 8px 18px -10px var(--t1); }
+.rf-pill.is-on svg { color: #fff; }
+.rf-pill .rf-pill-badge { background: var(--tsoft); color: var(--tink); }
+.rf-pill.is-on .rf-pill-badge { background: rgb(255 255 255 / .25); color: #fff; }
+@keyframes rf-pop-in { from { opacity: 0; transform: translateY(6px) scale(.94); } to { opacity: 1; transform: none; } }
+
+/* Banner: a slow, living aurora in the client's brand colour (like a looping video, no download). */
+.rf-banner { position: relative; overflow: hidden; border-radius: 1.25rem; background: #17163a; color: #fff; isolation: isolate; }
+.rf-banner .blob { position: absolute; border-radius: 9999px; filter: blur(48px); opacity: .75; z-index: -1; will-change: transform; }
+.rf-banner .b1 { width: 420px; height: 420px; left: -80px; top: -220px; background: var(--brand, #5b57e0); animation: rf-drift1 16s ease-in-out infinite alternate; }
+.rf-banner .b2 { width: 340px; height: 340px; right: 8%; top: -160px; background: #f5b83d; opacity: .45; animation: rf-drift2 19s ease-in-out infinite alternate; }
+.rf-banner .b3 { width: 380px; height: 380px; right: -120px; bottom: -260px; background: #d946ef; opacity: .5; animation: rf-drift3 22s ease-in-out infinite alternate; }
+.rf-banner .grid-fx { position: absolute; inset: 0; z-index: -1; opacity: .22;
+  background-image: linear-gradient(rgb(255 255 255 / .12) 1px, transparent 1px), linear-gradient(90deg, rgb(255 255 255 / .12) 1px, transparent 1px);
+  background-size: 28px 28px; mask-image: radial-gradient(ellipse at 70% 0%, #000 10%, transparent 70%); }
+.rf-banner .stars span { position: absolute; width: 3px; height: 3px; border-radius: 50%; background: #fff; opacity: 0; animation: rf-twinkle 4s ease-in-out infinite; }
+@keyframes rf-drift1 { to { transform: translate(140px, 60px) scale(1.15); } }
+@keyframes rf-drift2 { to { transform: translate(-160px, 70px) scale(.9); } }
+@keyframes rf-drift3 { to { transform: translate(-120px, -60px) scale(1.2); } }
+@keyframes rf-twinkle { 0%, 100% { opacity: 0; transform: scale(.5); } 50% { opacity: .9; transform: scale(1); } }
+.rf-avatar-ring { position: relative; padding: 3px; border-radius: 1.1rem; background: conic-gradient(from var(--rf-a, 0deg), #f5b83d, #d946ef, #5b57e0, #10b981, #f5b83d); animation: rf-spin 6s linear infinite; }
+@property --rf-a { syntax: "<angle>"; inherits: false; initial-value: 0deg; }
+@keyframes rf-spin { to { --rf-a: 360deg; } }
+.rf-glass { background: rgb(255 255 255 / .1); border: 1px solid rgb(255 255 255 / .14); backdrop-filter: blur(8px); }
+.rf-team > * { transition: transform .2s var(--ease-spring); }
+.rf-team > *:hover { transform: translateY(-4px) scale(1.08); z-index: 2; }
+.rf-live { position: relative; }
+.rf-live::before { content: ""; position: absolute; inset: -3px; border-radius: 9999px; background: #34d399; opacity: .5; animation: rf-ping 1.8s cubic-bezier(0, 0, .2, 1) infinite; }
+@keyframes rf-ping { 75%, 100% { transform: scale(2.2); opacity: 0; } }
+.rf-page-in { animation: rf-page-in .45s cubic-bezier(.22, 1, .36, 1) both; }
+@keyframes rf-page-in { from { opacity: 0; transform: translateY(12px); filter: blur(3px); } to { opacity: 1; transform: none; filter: none; } }
+@media (prefers-reduced-motion: reduce) {
+  .rf-banner .blob, .rf-banner .stars span, .rf-avatar-ring, .rf-gtab.is-on::after, .rf-live::before, .rf-pill, .rf-page-in { animation: none !important; }
+}

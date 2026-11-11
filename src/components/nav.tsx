@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useEffect, useState } from "react";
 import { Icon, type IconName } from "./icons";
 
 export type NavItem = { href: string; label: string; icon: IconName; group?: string; badge?: number };
@@ -62,65 +63,67 @@ export function Tabs({ items }: { items: { href: string; label: string; icon?: I
   );
 }
 
-export type GroupTone = "indigo" | "emerald" | "amber" | "slate";
-export type GroupedNav = { label: string; tone: GroupTone; icon: IconName; items: { href: string; label: string; icon: IconName; tip: string }[] }[];
+export type GroupTone = "indigo" | "emerald" | "amber" | "violet";
+export type GroupedNav = { label: string; tone: GroupTone; icon: IconName; blurb: string; items: { href: string; label: string; icon: IconName; tip: string; badge?: number }[] }[];
 
-const TONE: Record<GroupTone, { head: string; dot: string; on: string; icon: string }> = {
-  indigo: { head: "text-indigo-700", dot: "bg-indigo-500", on: "bg-indigo-50 text-indigo-800 ring-indigo-200", icon: "text-indigo-500" },
-  emerald: { head: "text-emerald-700", dot: "bg-emerald-500", on: "bg-emerald-50 text-emerald-800 ring-emerald-200", icon: "text-emerald-600" },
-  amber: { head: "text-amber-700", dot: "bg-amber-500", on: "bg-amber-50 text-amber-800 ring-amber-200", icon: "text-amber-600" },
-  slate: { head: "text-slate-600", dot: "bg-slate-400", on: "bg-slate-100 text-slate-900 ring-slate-300", icon: "text-slate-500" },
-};
-
-/** Every client page at a glance: four labelled groups, nothing hidden behind a scroll. */
-export function ClientNav({ groups }: { groups: GroupedNav }) {
+/** Design B: four big group tabs; the open group's pages sit right underneath as pills. */
+export function ClientTabs({ groups }: { groups: GroupedNav }) {
   const path = usePathname();
   const first = groups[0]?.items[0]?.href;
   const isOn = (href: string) => (href === first ? path === href : path === href || path.startsWith(`${href}/`));
-  const current = groups.flatMap((g) => g.items.map((i) => ({ ...i, g }))).find((i) => isOn(i.href));
+  const current = groups.findIndex((g) => g.items.some((i) => isOn(i.href)));
+  const [open, setOpen] = useState(current < 0 ? 0 : current);
+  useEffect(() => { if (current >= 0) setOpen(current); }, [current]);
+  const g = groups[open];
+  const page = groups.flatMap((x) => x.items).find((i) => isOn(i.href));
   return (
-    <div className="mb-6">
-      <nav className="grid grid-cols-2 gap-x-4 gap-y-4 rounded-xl border border-slate-200 bg-white p-4 shadow-[var(--shadow-card)] lg:grid-cols-[1fr_1fr_1.35fr_1fr] lg:divide-x lg:divide-slate-100 lg:p-0">
-        {groups.map((g) => {
-          const t = TONE[g.tone];
+    <div className="mb-7">
+      <div role="tablist" className="grid grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-4">
+        {groups.map((x, i) => {
+          const on = i === open;
+          const waiting = x.items.reduce((a, it) => a + (it.badge ?? 0), 0);
           return (
-            <div key={g.label} className="min-w-0 lg:px-4 lg:py-3.5">
-              <div className={`mb-2 flex items-center gap-1.5 text-xs font-semibold ${t.head}`}>
-                <span className={`h-1.5 w-1.5 rounded-full ${t.dot}`} />
-                {g.label}
-              </div>
-              <div className="flex flex-wrap gap-1">
-                {g.items.map((i) => {
-                  const on = isOn(i.href);
-                  return (
-                    <Link
-                      key={i.href}
-                      href={i.href}
-                      aria-current={on ? "page" : undefined}
-                      data-tip={i.tip}
-                      data-tip-pos="bottom"
-                      className={`group inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-[13px] whitespace-nowrap transition-colors duration-100 ${
-                        on ? `font-medium ring-1 ${t.on}` : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
-                      }`}
-                    >
-                      <Icon name={i.icon} className={`h-3.5 w-3.5 shrink-0 ${on ? "" : `${t.icon} opacity-70 group-hover:opacity-100`}`} />
-                      {i.label}
-                    </Link>
-                  );
-                })}
-              </div>
-            </div>
+            <button
+              key={x.label}
+              type="button"
+              role="tab"
+              aria-selected={on}
+              onClick={() => setOpen(i)}
+              className={`rf-gtab rf-tone-${x.tone} group relative flex cursor-pointer items-center gap-3 overflow-hidden rounded-2xl border p-3 text-left transition-all duration-300 sm:p-3.5 ${on ? "is-on" : ""}`}
+            >
+              <span className="rf-gtab-icon relative grid h-10 w-10 shrink-0 place-items-center rounded-xl transition-transform duration-300 group-hover:scale-110 group-hover:-rotate-6">
+                <Icon name={x.icon} className="h-5 w-5" />
+              </span>
+              <span className="relative min-w-0 flex-1">
+                <span className="block text-[15px] font-semibold leading-tight">{x.label}</span>
+                <span className="rf-gtab-sub block truncate text-xs">{x.blurb}</span>
+              </span>
+              {waiting > 0 && <span className="rf-gtab-badge relative num rounded-full px-2 text-[11px] leading-5 font-semibold">{waiting}</span>}
+            </button>
           );
         })}
-      </nav>
-      {current && (
-        <p className="mt-3 flex items-center gap-2 text-sm text-slate-500">
-          <span className={`h-1.5 w-1.5 rounded-full ${TONE[current.g.tone].dot}`} />
-          <span className="font-medium text-slate-800">{current.label}</span>
-          <span className="text-slate-300">·</span>
-          {current.tip}
-        </p>
-      )}
+      </div>
+      <div key={open} className={`rf-tone-${g.tone} rf-pages mt-3 flex flex-wrap items-center gap-2`}>
+        {g.items.map((it, k) => {
+          const on = isOn(it.href);
+          return (
+            <Link
+              key={it.href}
+              href={it.href}
+              data-tip={it.tip}
+              data-tip-pos="bottom"
+              aria-current={on ? "page" : undefined}
+              style={{ animationDelay: `${k * 45}ms` }}
+              className={`rf-pill group inline-flex items-center gap-2 rounded-full border px-3.5 py-1.5 text-[13px] font-medium whitespace-nowrap transition-all duration-200 ${on ? "is-on" : ""}`}
+            >
+              <Icon name={it.icon} className="h-3.5 w-3.5 transition-transform duration-200 group-hover:scale-125" />
+              {it.label}
+              {!!it.badge && <span className="rf-pill-badge num rounded-full px-1.5 text-[10.5px] leading-[18px] font-semibold">{it.badge}</span>}
+            </Link>
+          );
+        })}
+      </div>
+      {page && <p key={page.href} className="animate-fade-in mt-3 text-sm text-slate-500"><span className="font-medium text-slate-800">{page.label}:</span> {page.tip}.</p>}
     </div>
   );
 }
