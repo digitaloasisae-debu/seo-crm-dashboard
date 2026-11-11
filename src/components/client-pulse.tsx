@@ -72,37 +72,47 @@ export function ClientPulse({ c }: { c: Pulse }) {
 
 const fmt = (v: number) => (v >= 10 ? Math.round(v) : Math.round(v * 10) / 10).toLocaleString();
 
-function Why({ c, up, pct }: { c: Pulse; up: boolean; pct: number | null }) {
+function Why({ c, pct }: { c: Pulse; up: boolean; pct: number | null }) {
   const w = c.why!;
-  const dot = { up: "bg-emerald-500", down: "bg-red-500", info: "bg-indigo-400" } as const;
+  const tone = (b: boolean | null) => (b == null ? "text-slate-700" : b ? "text-emerald-600" : "text-red-600");
+  const Movers = ({ title, rows }: { title: string; rows: PulseWhy["movers"] }) =>
+    rows.length ? (
+      <>
+        <div className="mt-3 mb-1 text-xs font-medium text-slate-500">{title}</div>
+        <ul className="space-y-1">
+          {rows.map((m) => (
+            <li key={m.label} className="flex items-center gap-2 text-xs">
+              <span className="min-w-0 flex-1 truncate text-slate-700" title={m.label}>{m.label}</span>
+              <span className={`num shrink-0 font-medium ${m.now > m.before ? "text-emerald-600" : "text-red-600"}`}>{fmt(m.before)} → {fmt(m.now)}</span>
+              {m.posBefore != null && m.posNow != null && <span className="num w-16 shrink-0 text-right text-slate-400">pos {m.posBefore.toFixed(0)} → {m.posNow.toFixed(0)}</span>}
+            </li>
+          ))}
+        </ul>
+      </>
+    ) : null;
   return (
     <div className="pointer-events-none invisible absolute top-[calc(100%-10px)] right-2 left-2 z-30 translate-y-2 rounded-xl border border-slate-200 bg-white p-4 opacity-0 shadow-[var(--shadow-pop)] transition-all duration-200 group-hover/why:pointer-events-auto group-hover/why:visible group-hover/why:translate-y-0 group-hover/why:opacity-100">
       <div className="flex items-baseline justify-between gap-2">
-        <span className="text-sm font-semibold">{pct != null && Math.abs(pct) < 5 ? "Steady, here's why" : <>Why it {up ? "rose" : "dropped"}{pct != null && <span className={up ? " text-emerald-600" : " text-red-600"}> {up ? "+" : "−"}{Math.abs(pct)}%</span>}</>}</span>
-        <span className="num text-xs text-slate-500">{fmt(w.before)} → {fmt(w.now)} clicks/wk</span>
+        <span className="text-sm font-semibold">What changed{pct != null && <span className={pct >= 0 ? " text-emerald-600" : " text-red-600"}> {pct >= 0 ? "+" : "−"}{Math.abs(pct)}% clicks</span>}</span>
       </div>
-      <p className="mt-0.5 text-[11px] text-slate-400">First 4 weeks vs last 4 complete weeks</p>
-      <ul className="mt-2.5 space-y-1.5">
-        {w.reasons.map((r, i) => (
-          <li key={i} className="flex gap-2 text-[13px] leading-snug text-slate-700">
-            <span className={`mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full ${dot[r.tone]}`} />{r.text}
-          </li>
-        ))}
+      <p className="mt-0.5 text-[11px] text-slate-400">Search Console, first 4 weeks vs last 4 complete weeks</p>
+      <table className="mt-2 w-full text-xs">
+        <tbody>
+          {w.metrics.map((m) => (
+            <tr key={m.label}>
+              <td className="py-0.5 text-slate-500">{m.label}</td>
+              <td className="num py-0.5 text-right text-slate-500">{m.before}</td>
+              <td className="px-1.5 py-0.5 text-center text-slate-300">→</td>
+              <td className={`num py-0.5 text-right font-medium ${tone(m.better)}`}>{m.now}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <Movers title="Searches with the biggest change (clicks a week)" rows={w.searches} />
+      <Movers title="Pages with the biggest change (clicks a week)" rows={w.movers} />
+      <ul className="mt-3 space-y-0.5 border-t border-slate-100 pt-2 text-xs text-slate-500">
+        {w.facts.map((f) => <li key={f}>{f}</li>)}
       </ul>
-      {w.movers.length > 0 && (
-        <>
-          <div className="mt-3 mb-1 text-xs font-medium text-slate-500">Pages that moved most</div>
-          <ul className="space-y-1">
-            {w.movers.map((m) => (
-              <li key={m.label} className="flex items-center gap-2 text-xs">
-                <span className="min-w-0 flex-1 truncate text-slate-700" title={m.label}>{m.label}</span>
-                <span className={`num shrink-0 font-medium ${m.now >= m.before ? "text-emerald-600" : "text-red-600"}`}>{fmt(m.before)} → {fmt(m.now)}</span>
-                {m.posBefore != null && m.posNow != null && <span className="num shrink-0 text-slate-400">pos {m.posBefore.toFixed(0)}→{m.posNow.toFixed(0)}</span>}
-              </li>
-            ))}
-          </ul>
-        </>
-      )}
     </div>
   );
 }

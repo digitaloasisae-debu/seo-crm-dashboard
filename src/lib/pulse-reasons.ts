@@ -18,8 +18,9 @@ export function pulseWindow(now = new Date()) {
 }
 
 export type Mover = { label: string; before: number; now: number; posBefore: number | null; posNow: number | null };
-export type Reason = { tone: "up" | "down" | "info"; text: string };
-export type PulseWhy = { pct: number | null; before: number; now: number; reasons: Reason[]; movers: Mover[] };
+export type Metric = { label: string; before: string; now: string; better: boolean | null };
+/** Measured numbers only: no interpretation of causes. */
+export type PulseWhy = { pct: number | null; before: number; now: number; metrics: Metric[]; searches: Mover[]; movers: Mover[]; facts: string[] };
 
 type Row = { clientId: string; key: string; before: number; now: number; posBefore: number | null; posNow: number | null; impBefore: number; impNow: number; rn: number };
 
@@ -48,7 +49,6 @@ const path = (u: string) => {
   try { const p = new URL(u).pathname.replace(/\/$/, ""); return p || "Home page"; } catch { return u; }
 };
 const n = (v: number) => (v >= 10 ? Math.round(v) : Math.round(v * 10) / 10).toLocaleString();
-const pctOf = (a: number, b: number) => (b ? Math.round((a / b - 1) * 100) : null);
 
 export async function pulseReasons(ids: string[], w = pulseWindow()): Promise<Map<string, PulseWhy>> {
   const [pages, queries, totals, pushed, losing] = await Promise.all([
@@ -76,39 +76,28 @@ export async function pulseReasons(ids: string[], w = pulseWindow()): Promise<Ma
     // Sums were divided by 4; rescale when a window has fewer weeks of data (new site, late Search Console link).
     const kb = t.nb ? 4 / t.nb : 0, kn = t.nn ? 4 / t.nn : 0;
     if (!kb || !kn) continue;
-    const before = Number(t.before) * kb, now = Number(t.now) * kn, impB = Number(t.impBefore) * kb, impN = Number(t.impNow) * kn;
+    const before = Number(t.before) * kb, now = Number(t.now) * kn, impB = (Number(t.impBefore) * kb) / 4, impN = (Number(t.impNow) * kn) / 4; // views a week
     const pct = before ? Math.round((now / before - 1) * 100) : null;
-    const up = now >= before;
-    const reasons: Reason[] = [];
-    const impPct = pctOf(impN, impB);
     const pb = t.posBefore == null ? null : Number(t.posBefore), pn = t.posNow == null ? null : Number(t.posNow);
-    const ctrB = impB ? before * 4 / impB : 0, ctrN = impN ? now * 4 / impN : 0;
-
-    // 1. What kind of change: seen less/more, ranking moved, or same visibility with different clicks.
-    if (impPct != null && Math.abs(impPct) >= 15) {
-      reasons.push({ tone: impPct > 0 ? "up" : "down", text: impPct > 0 ? `Shown in Google ${impPct}% more often (${n(impB / 4)} → ${n(impN / 4)} views a week)` : `Shown in Google ${-impPct}% less often (${n(impB / 4)} → ${n(impN / 4)} views a week)` });
-    }
-    if (pb != null && pn != null && Math.abs(pn - pb) >= 1) {
-      reasons.push({ tone: pn < pb ? "up" : "down", text: pn < pb ? `Ranking improved: average position ${pb.toFixed(1)} → ${pn.toFixed(1)}` : `Ranking slipped: average position ${pb.toFixed(1)} → ${pn.toFixed(1)}` });
-    }
-    if (ctrB && ctrN && Math.abs(ctrN / ctrB - 1) >= 0.25 && (impPct == null || Math.abs(impPct) < 15)) {
-      reasons.push({ tone: ctrN > ctrB ? "up" : "down", text: `Same visibility, ${ctrN > ctrB ? "more" : "fewer"} people clicking (${(ctrB * 100).toFixed(1)}% → ${(ctrN * 100).toFixed(1)}% of views)` });
-    }
-    // 2. Which searches drove it.
-    const qs = queries.filter((q) => q.clientId === t.clientId && (up ? q.now * kn > q.before * kb : q.now * kn < q.before * kb)).slice(0, 2);
-    if (qs.length) reasons.push({ tone: up ? "up" : "down", text: `${up ? "Gained" : "Lost"} most on ${qs.map((q) => `"${q.key}"`).join(" and ")}` });
-    // 3. Rankflow activity.
+    const ctrB = impB ? (before / impB) * 100 : null, ctrN = impN ? (now / impN) * 100 : null;
+    const cmp = (a: number | null, b: number | null, higherIsBetter: boolean) => (a == null || b == null || a === b ? null : higherIsBetter ? b > a : b < a);
+    const metrics: Metric[] = [
+      { label: "Clicks a week", before: n(before), now: n(now), better: cmp(before, now, true) },
+      { label: "Google views a week", before: n(impB), now: n(impN), better: cmp(impB, impN, true) },
+      { label: "Average position", before: pb == null ? "—" : pb.toFixed(1), now: pn == null ? "—" : pn.toFixed(1), better: cmp(pb && +pb.toFixed(1), pn && +pn.toFixed(1), false) },
+      { label: "Click rate", before: ctrB == null ? "—" : `${ctrB.toFixed(1)}%`, now: ctrN == null ? "—" : `${ctrN.toFixed(1)}%`, better: cmp(ctrB && +ctrB.toFixed(1), ctrN && +ctrN.toFixed(1), true) },
+    ];
+    const searches = queries.filter((q) => q.clientId === t.clientId).map((q) => ({ label: q.key, before: q.before * kb, now: q.now * kn, posBefore: q.posBefore == null ? null : Number(q.posBefore), posNow: q.posNow == null ? null : Number(q.posNow) }))
+      .filter((q) => Math.abs(q.now - q.before) >= 0.5).sort((x, y) => Math.abs(y.now - y.before) - Math.abs(x.now - x.before)).slice(0, 3);
+    const facts: string[] = [];
     const p = pushed.find((x) => x.clientId === t.clientId)?._count ?? 0;
-    if (p) reasons.push({ tone: "info", text: `${p} blog${p === 1 ? "" : "s"} sent to WordPress in these 12 weeks` });
-    else if (!up) reasons.push({ tone: "info", text: "No new blogs sent to WordPress in these 12 weeks" });
+    facts.push(`${p} blog${p === 1 ? "" : "s"} sent to WordPress in these 12 weeks`);
     const l = losing.find((x) => x.clientId === t.clientId)?._count ?? 0;
-    if (l) reasons.push({ tone: "info", text: `${l} page${l === 1 ? " is" : "s are"} on the Traffic recovery list` });
-    if (!reasons.length) reasons.push({ tone: "info", text: "Small change, within normal week-to-week ups and downs" });
-
+    if (l) facts.push(`${l} page${l === 1 ? " is" : "s are"} on the Traffic recovery list`);
     const mv = pages.filter((r) => r.clientId === t.clientId).map((r) => ({ ...r, before: r.before * kb, now: r.now * kn }))
-      .filter((r) => Math.abs(r.now - r.before) >= 0.5 && (up ? r.now > r.before : r.now < r.before)).slice(0, 3)
+      .filter((r) => Math.abs(r.now - r.before) >= 0.5).sort((x, y) => Math.abs(y.now - y.before) - Math.abs(x.now - x.before)).slice(0, 3)
       .map((r) => ({ label: path(r.key), before: r.before, now: r.now, posBefore: r.posBefore == null ? null : Number(r.posBefore), posNow: r.posNow == null ? null : Number(r.posNow) }));
-    out.set(t.clientId, { pct, before, now, reasons: reasons.slice(0, 4), movers: mv });
+    out.set(t.clientId, { pct, before, now, metrics, searches, movers: mv, facts });
   }
   return out;
 }
