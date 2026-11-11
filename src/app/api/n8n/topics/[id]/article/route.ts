@@ -20,8 +20,26 @@ const Body = z
     content_html: z.string().optional(),
     content_markdown: z.string().optional(),
     featured_image_url: z.string().url().optional(),
+    /** Pages the writer researched: URLs, or {url, title, kind}. Shown on the article page as "Sources". */
+    sources: z
+      .array(z.union([z.string(), z.object({ url: z.string(), title: z.string().optional(), kind: z.string().optional() })]))
+      .optional(),
   })
   .refine((b) => b.content_html || b.content_markdown, { message: "content_html or content_markdown is required" });
+
+/** Keep valid http(s) URLs only, one entry per URL. */
+function cleanSources(list: (string | { url: string; title?: string; kind?: string })[]) {
+  const seen = new Set<string>();
+  const out: { url: string; title?: string; kind: string }[] = [];
+  for (const x of list) {
+    const s = typeof x === "string" ? { url: x } : x;
+    const url = s.url.trim();
+    if (!/^https?:\/\//i.test(url) || seen.has(url)) continue;
+    seen.add(url);
+    out.push({ url, title: s.title?.slice(0, 200), kind: (s.kind ?? "research").slice(0, 30) });
+  }
+  return out.slice(0, 40);
+}
 
 // POST /api/n8n/topics/{id}/article
 // Replaces "Build WP Payload" + the WordPress HTTP Request + "Mark Topic Row as Drafted" in WF2.
@@ -48,6 +66,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     bodyHtml: toSafeHtml({ html: b.content_html, markdown: b.content_markdown }),
     featuredImageUrl: b.featured_image_url,
     status: "READY_FOR_REVIEW" as const,
+    ...(b.sources ? { sources: cleanSources(b.sources) } : {}),
   };
   const article = await db.article.upsert({
     where: { topicId },

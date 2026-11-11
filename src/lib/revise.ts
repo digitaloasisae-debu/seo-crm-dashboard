@@ -5,6 +5,7 @@
 import { db } from "./db";
 import { brandContext } from "./brand-profile";
 import { geminiJson } from "./gemini";
+import { linkIdeas } from "./keyword-usage";
 import { getSop } from "./sop";
 import { toSafeHtml } from "./content";
 import { runQuality, type QualityReport } from "./quality";
@@ -53,11 +54,14 @@ async function context(articleId: string) {
   });
   const sop = await getSop();
   const c = article.client;
+  // Related live pages on the same site: the rewrite should link to the ones not linked yet.
+  const ideas = (await linkIdeas(article.clientId, article.focusKeyword, { excludeId: article.id, bodyHtml: article.bodyHtml, limit: 5 }).catch(() => [])).filter((l) => !l.linked).slice(0, 3);
+  const linkLines = ideas.length ? `\nRELATED PAGES ON THIS SITE (add a natural internal link to each where it fits the text, anchor close to the text given; never invent other internal URLs):\n${ideas.map((l) => `- ${l.url} (anchor: ${l.anchor})`).join("\n")}` : "";
   const head = `SOP:\n${sop}\n\nCLIENT: ${c.name}${c.businessType ? ` (${c.businessType})` : ""}${c.primaryCity ? `, local client in ${c.primaryCity}` : ""}${c.siteUrl ? `, site ${c.siteUrl}` : ""}${c.ctaText ? `\nCTA: ${c.ctaText}${c.ctaLink ? ` -> ${c.ctaLink}` : ""}` : ""}
 BRAND PROFILE AND CLIENT BRAIN (how this client writes, and rules the team taught; follow them strictly):\n${(await brandContext(article.clientId)) || "(none yet)"}
 
 TOPIC: ${article.topic?.title ?? article.metaTitle}${article.topic?.angle ? `\nANGLE: ${article.topic.angle}` : ""}${article.importedAt ? "\nThis is an existing live page imported from WordPress: keep its structure, links, images and facts unless the instructions say otherwise." : ""}
-FOCUS KEYWORD: ${article.focusKeyword}`;
+FOCUS KEYWORD: ${article.focusKeyword}${linkLines}`;
   return { article, head };
 }
 

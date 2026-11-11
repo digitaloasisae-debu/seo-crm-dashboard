@@ -1,3 +1,5 @@
+import { clientArticles, usageIndex } from "@/lib/keyword-usage";
+import Link from "next/link";
 import { Icon } from "@/components/icons";
 import { db } from "@/lib/db";
 import { canEdit } from "@/lib/access";
@@ -21,6 +23,7 @@ export default async function KeywordsPage({ params, searchParams }: { params: P
     orderBy: [{ used: "asc" }, { addedAt: "desc" }],
     take: 3000,
   });
+  const usedBy = usageIndex(await clientArticles(id));
   const initial = { ...(status ? { status: [status] } : {}), ...(used ? { used: [used === "true" ? "Used" : "Not used"] } : {}), ...(weak ? { flag: ["Weak"] } : {}) };
   const unchecked = all.filter((k) => !k.metricsCheckedAt).length;
   const weakCount = all.filter((k) => !k.used && keywordFlags(k).length > 0).length;
@@ -69,6 +72,7 @@ export default async function KeywordsPage({ params, searchParams }: { params: P
             ...(hasGsc ? [{ key: "position", label: "Position", type: "number" as const, title: "Average Google position, last 4 weeks (Search Console)" }, { key: "clicks", label: "Clicks 4w", type: "number" as const }] : []),
             { key: "status", label: "Status", type: "enum" },
             { key: "used", label: "Used", type: "enum" },
+            { key: "usedBy", label: "Used by blog", title: "Blogs on this site whose focus keyword is the same (or ≈ similar)" },
             { key: "flag", label: "Check", type: "enum", title: "Weak = low volume or hard to rank" },
             { key: "added", label: "Added", type: "date" },
             { key: "source", label: "Source", type: "enum", hidden: true },
@@ -76,13 +80,15 @@ export default async function KeywordsPage({ params, searchParams }: { params: P
           rows={all.map((k): Row => {
             const r = ranks.get(k.keywordNorm);
             const flags = keywordFlags(k);
+            const blogs = usedBy(k.keyword);
+            const same = blogs.filter((b) => b.match === "same");
             return {
               id: k.id,
               className: k.used ? "text-slate-400" : "",
               values: {
                 keyword: k.keyword, category: k.category ?? "", volume: k.searchVolume, kd: k.difficulty, intent: k.intent ?? "",
                 position: r ? Number(r.position.toFixed(1)) : null, clicks: r?.clicks ?? null,
-                status: k.status, used: k.used ? "Used" : "Not used", flag: !k.metricsCheckedAt ? "Not checked" : flags.length ? "Weak" : "OK",
+                status: k.status, used: k.used ? "Used" : same.length ? "In a blog" : "Not used", usedBy: blogs.map((b) => b.title).join(" | "), flag: !k.metricsCheckedAt ? "Not checked" : flags.length ? "Weak" : "OK",
                 added: k.addedAt.toISOString(), source: k.source.toLowerCase(),
               },
               cells: {
@@ -92,7 +98,17 @@ export default async function KeywordsPage({ params, searchParams }: { params: P
                 intent: <span className="text-xs text-slate-500">{k.intent ?? ""}</span>,
                 position: r ? <span className="num whitespace-nowrap">{r.position.toFixed(1)} <RankChange position={r.position} prev={r.prevPosition} /></span> : <span className="text-slate-300">—</span>,
                 status: <StatusBadge status={k.status} />,
-                used: k.used ? <span className="whitespace-nowrap text-xs">{fmtDate(k.usedAt) || "yes"}</span> : <span className="text-xs text-slate-400">no</span>,
+                used: k.used ? <span className="whitespace-nowrap text-xs">{fmtDate(k.usedAt) || "yes"}</span> : same.length ? <span className="rounded-md bg-amber-50 px-1.5 py-0.5 text-[11px] font-medium whitespace-nowrap text-amber-700" data-tip="A blog already targets this keyword">in a blog</span> : <span className="text-xs text-slate-400">no</span>,
+                usedBy: blogs.length ? (
+                  <div className="max-w-64 space-y-0.5">
+                    {blogs.slice(0, 3).map((b) => (
+                      <Link key={b.id} href={`/articles/${b.id}`} className={`block truncate text-xs hover:underline ${b.match === "same" ? "text-indigo-600" : "text-slate-500"}`} title={`${b.title} (focus keyword: ${b.keyword})`}>
+                        {b.match === "similar" && "≈ "}{b.title}
+                      </Link>
+                    ))}
+                    {blogs.length > 3 && <span className="text-[11px] text-slate-400">+{blogs.length - 3} more</span>}
+                  </div>
+                ) : <span className="text-slate-300">—</span>,
                 flag: !k.metricsCheckedAt ? <span className="text-xs text-slate-400">not checked</span> : flags.length ? <span className="rounded-md bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-700">weak</span> : <span className="text-xs text-emerald-600">ok</span>,
                 added: <span className="whitespace-nowrap">{fmtDate(k.addedAt)}</span>,
                 source: <span className="text-xs">{k.source.toLowerCase()}{k.submittedBy ? ` · ${k.submittedBy}` : ""}</span>,
@@ -105,6 +121,7 @@ export default async function KeywordsPage({ params, searchParams }: { params: P
             { label: "Approved, unused", filters: { status: ["APPROVED"], used: ["Not used"] } },
             { label: "Pending", filters: { status: ["PENDING"] } },
             { label: "Used", filters: { used: ["Used"] } },
+            { label: "Already in a blog", filters: { used: ["In a blog"] }, tone: "text-amber-700" },
             { label: "Rejected", filters: { status: ["REJECTED"] } },
             { label: "Weak", filters: { flag: ["Weak"], used: ["Not used"] } },
           ]}

@@ -18,6 +18,8 @@ import { dataforseoConfigured } from "@/lib/dataforseo";
 import type { ContentScore } from "@/lib/serp";
 import { NoteForm } from "./note-form";
 import { InternalLinks } from "./links";
+import { KeywordCheck, Sources } from "./research";
+import { clientArticles, usageIn } from "@/lib/keyword-usage";
 import { runQuality, type QualityReport } from "@/lib/quality";
 import { geminiConfigured } from "@/lib/gemini";
 import { SubmitButton } from "@/components/submit-button";
@@ -65,6 +67,8 @@ export default async function ArticleReview({ params, searchParams }: { params: 
   const siteHost = article.client.siteUrl.replace(/^https?:\/\//, "").replace(/\/+$/, "");
   const titleLen = article.metaTitle.length, descLen = article.metaDescription?.length ?? 0;
   const lenTone = (n: number, lo: number, hi: number) => (n >= lo && n <= hi ? "text-emerald-600" : n === 0 ? "text-red-600" : "text-amber-600");
+  const kwUsed = article.focusKeyword ? usageIn(await clientArticles(article.clientId), article.focusKeyword, article.id) : [];
+  const kwSame = kwUsed.filter((u) => u.match === "same").length;
   const approver = article.approvedById ? await db.user.findUnique({ where: { id: article.approvedById }, select: { name: true } }) : null;
 
   return (
@@ -82,6 +86,8 @@ export default async function ArticleReview({ params, searchParams }: { params: 
         <span className={`rounded-md px-2.5 py-1 ${kwHits ? "bg-slate-100 text-slate-600" : "bg-amber-50 text-amber-700"}`} title="How many times the exact focus keyword appears in the text">keyword used <b className="num">{kwHits}×</b></span>
         {article.qualityScore != null && <a href="#sop" className={`num rounded-md px-2.5 py-1 font-medium hover:underline ${article.qualityScore >= 85 ? "bg-emerald-50 text-emerald-700" : article.qualityScore >= 65 ? "bg-amber-50 text-amber-700" : "bg-red-50 text-red-700"}`}>SOP {article.qualityScore}</a>}
         {article.contentScore != null && <a href="#top10" className={`num rounded-md px-2.5 py-1 font-medium hover:underline ${article.contentScore >= 75 ? "bg-emerald-50 text-emerald-700" : article.contentScore >= 55 ? "bg-amber-50 text-amber-700" : "bg-red-50 text-red-700"}`}>Top 10 score {article.contentScore}</a>}
+        <a href="#keyword" className={`rounded-md px-2.5 py-1 font-medium hover:underline ${kwSame ? "bg-amber-50 text-amber-700" : kwUsed.length ? "bg-slate-100 text-slate-600" : "bg-emerald-50 text-emerald-700"}`}>{kwSame ? `Keyword also used by ${kwSame} other blog${kwSame === 1 ? "" : "s"}` : kwUsed.length ? "Similar keyword used elsewhere" : "Keyword not used elsewhere"}</a>
+        <a href="#sources" className="rounded-md bg-slate-100 px-2.5 py-1 text-slate-600 hover:underline">Sources</a>
         {rankNow != null && <span className="num rounded-md bg-emerald-50 px-2.5 py-1 font-medium text-emerald-700">Google #{rankNow.toFixed(1)}</span>}
       </div>
 
@@ -127,6 +133,9 @@ export default async function ArticleReview({ params, searchParams }: { params: 
             {article.lastPushError && article.status === "PUSH_FAILED" && <div className="rounded bg-red-50 p-2 text-red-700">Push failed: {article.lastPushError}</div>}
             </div>
           </section>
+
+          {article.focusKeyword && <KeywordCheck articleId={article.id} clientId={article.clientId} keyword={article.focusKeyword} bodyHtml={article.bodyHtml} />}
+          <Sources sources={article.sources as never} bodyHtml={article.bodyHtml} siteUrl={article.client.siteUrl} competitors={article.client.competitors} writtenHere={!article.importedAt} />
 
           {["APPROVED", "PUSHING", "PUSHED_DRAFT", "PUSH_FAILED"].includes(article.status) && (
             <InternalLinks articleId={article.id} editable={editable} ai={geminiConfigured()} hasCred={hasCred} note={sp.linkErr ? `err:${sp.linkErr}` : sp.links ? (sp.links === "0" ? "No good matches on the site yet." : `${sp.links} link${sp.links === "1" ? "" : "s"} suggested.`) : undefined} />

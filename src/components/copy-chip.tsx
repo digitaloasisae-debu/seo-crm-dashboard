@@ -5,7 +5,7 @@ import { Icon } from "./icons";
 import { toast } from "./shell";
 
 /** Click to copy a value (keyword, slug, title…), with a quick tick so you know it worked. */
-export function CopyChip({ text, label, className = "" }: { text: string; label?: string; className?: string }) {
+export function CopyChip({ text, label, className = "", display }: { text: string; label?: string; className?: string; display?: string }) {
   const [done, setDone] = useState(false);
   return (
     <button
@@ -23,7 +23,7 @@ export function CopyChip({ text, label, className = "" }: { text: string; label?
       }}
       className={`group inline-flex max-w-full cursor-pointer items-center gap-1.5 rounded-lg px-1.5 py-0.5 text-left transition hover:bg-slate-100 active:scale-[0.98] ${className}`}
     >
-      <span className="min-w-0 break-words">{text}</span>
+      <span className="min-w-0 break-words">{display ?? text}</span>
       <Icon name={done ? "check" : "copy"} className={`h-3.5 w-3.5 shrink-0 transition ${done ? "text-emerald-600" : "text-slate-300 group-hover:text-slate-500"}`} />
     </button>
   );

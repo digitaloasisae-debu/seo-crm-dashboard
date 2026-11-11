@@ -416,6 +416,8 @@ model Article {
   updatedAt        DateTime      @updatedAt
 
   qualityScore     Int?
+  /// Research sources n8n used to write it: [{url, title?, kind}] (competitor, client_site, external, research).
+  sources          Json?
   qualityReport    Json?
   qualityCheckedAt DateTime?
   aiReviewedAt     DateTime?
