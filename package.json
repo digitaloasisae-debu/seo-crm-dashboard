@@ -20,6 +20,7 @@
     "@react-pdf/renderer": "4.3.0",
     "bcryptjs": "3.0.3",
     "exceljs": "^4.4.0",
+    "ffmpeg-static": "^5.2.0",
     "marked": "16.4.2",
     "next": "15.5.27",
     "next-auth": "5.0.0-beta.29",

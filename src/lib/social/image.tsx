@@ -16,7 +16,7 @@ import type { Client, SocialPost, SocialProject } from "@prisma/client";
 export const W = 1080;
 export const H = 1350;
 
-import { designOf, fallbackText, formatOf } from "./formats";
+import { designOf, fallbackText, formatOf, type Slide } from "./formats";
 export { FORMATS, FORMAT_HELP, PICTURE_FORMATS, TEXT_FORMATS, designOf, fallbackText, formatOf, isFormat, type DesignData } from "./formats";
 
 // ---------- AI photo (only when asked) ----------
@@ -431,7 +431,9 @@ function conceptTheme(id: string, colors: Pick<Client, "brandPrimaryColor" | "br
 
 /** Match the text colours to the real top of the AI visual (the model doesn't always hit the exact background). */
 async function fitTheme(t: Theme, photo: Buffer): Promise<Theme> {
-  const { channels } = await sharp(photo).extract({ left: 0, top: 0, width: W, height: 420 }).stats();
+  // stats() reads the whole input, not the extracted part, so cut the top band out first.
+  const top = await sharp(photo).extract({ left: 0, top: 0, width: W, height: 420 }).toBuffer();
+  const { channels } = await sharp(top).stats();
   const bg = `#${channels.slice(0, 3).map((c) => Math.round(c.mean).toString(16).padStart(2, "0")).join("")}`;
   const light = lum(bg) > 0.35;
   const fg = light ? "#151515" : "#ffffff";
@@ -477,8 +479,10 @@ export type DesignInput = {
   colors: Pick<Client, "brandPrimaryColor" | "brandSecondaryColor" | "brandAccentColor">;
 };
 
-/** Render one design. Returns a 1080x1350 JPEG. */
-export async function renderDesign(d: DesignInput): Promise<Buffer> {
+type Fonts = ConstructorParameters<typeof ImageResponse>[1] extends infer O ? (O extends { fonts?: infer F } ? F : never) : never;
+
+/** The look of a post (theme + font pairing) and the fonts it needs. */
+async function lookOf(d: Pick<DesignInput, "id" | "format" | "variant" | "photo" | "brand" | "colors">): Promise<{ c: Ctx; fonts: Fonts }> {
   const seed = hash(`${d.id}:${d.variant}`);
   const ts = themes(d.colors);
   // Photo posts never sit on the brand-colour theme (too loud next to a photo).
@@ -495,6 +499,27 @@ export async function renderDesign(d: DesignInput): Promise<Buffer> {
     googleFont("Inter", 700),
   ]);
   if (!inter4 || !disp) throw new Error("Could not load fonts, try again");
+  const fonts = [
+    { name: f.family, data: disp, weight: f.weight as 400 | 700, style: "normal" as const },
+    ...(dispItalic ? [{ name: f.family, data: dispItalic, weight: f.weight as 400 | 700, style: "italic" as const }] : []),
+    { name: "Inter", data: inter4, weight: 400 as const, style: "normal" as const },
+    ...(inter6 ? [{ name: "Inter", data: inter6, weight: 600 as const, style: "normal" as const }] : []),
+    ...(inter7 ? [{ name: "Inter", data: inter7, weight: 700 as const, style: "normal" as const }] : []),
+  ] as Fonts;
+  return { c, fonts };
+}
+
+async function png(el: React.ReactElement, fonts: Fonts, width = W, height = H) {
+  const res = new ImageResponse(el, { width, height, fonts });
+  const out = Buffer.from(await res.arrayBuffer());
+  if (out.length < 500) throw new Error("Image design failed to render");
+  return out;
+}
+const jpeg = async (p: Buffer) => sharp(p).jpeg({ quality: 90, mozjpeg: true }).toBuffer();
+
+/** Render one design. Returns a 1080x1350 JPEG. */
+export async function renderDesign(d: DesignInput): Promise<Buffer> {
+  const { c, fonts } = await lookOf(d);
   let el;
   if (d.format === "concept") {
     if (!d.photo) throw new Error("This post has no visual yet");
@@ -506,20 +531,126 @@ export async function renderDesign(d: DesignInput): Promise<Buffer> {
   else if (d.format === "list") el = <List c={c} text={d.text} />;
   else if (d.format === "versus") el = <Versus c={c} text={d.text} />;
   else el = <TypePoster c={c} text={d.text} />;
-  const res = new ImageResponse(el, {
-    width: W,
-    height: H,
-    fonts: [
-      { name: f.family, data: disp, weight: f.weight as 400 | 700, style: "normal" as const },
-      ...(dispItalic ? [{ name: f.family, data: dispItalic, weight: f.weight as 400 | 700, style: "italic" as const }] : []),
-      { name: "Inter", data: inter4, weight: 400 as const, style: "normal" as const },
-      ...(inter6 ? [{ name: "Inter", data: inter6, weight: 600 as const, style: "normal" as const }] : []),
-      ...(inter7 ? [{ name: "Inter", data: inter7, weight: 700 as const, style: "normal" as const }] : []),
-    ],
-  });
-  const png = Buffer.from(await res.arrayBuffer());
-  if (png.length < 1000) throw new Error("Image design failed to render");
-  return sharp(png).jpeg({ quality: 90, mozjpeg: true }).toBuffer();
+  return jpeg(await png(el, fonts));
+}
+
+// ---------- carousel ----------
+
+function SlideCard({ c, n, total, title, body }: { c: Ctx; n: number; total: number; title: string; body: string }) {
+  const tSize = fit(plain(title), INNER, 380, c.f.w, c.f.lh, 64, 118);
+  const bSize = fit(plain(body), INNER, 420, 0.5, 1.32, 34, 50);
+  return (
+    <div style={{ display: "flex", flexDirection: "column", width: W, height: H, background: c.t.bg, padding: PAD }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <div style={{ display: "flex", gap: 12, fontFamily: "Inter", fontSize: 34 }}>
+          <div style={{ display: "flex", fontWeight: 700, color: c.t.accent }}>{String(n).padStart(2, "0")}</div>
+          <div style={{ display: "flex", fontWeight: 400, color: c.t.muted }}>{`/ ${String(total).padStart(2, "0")}`}</div>
+        </div>
+        <Logo c={c} size={38} />
+      </div>
+      <div style={{ display: "flex", flexDirection: "column", flexGrow: 1, justifyContent: "center", gap: 44 }}>
+        <div style={{ display: "flex", width: 120, height: 10, background: c.t.accent }} />
+        <div style={{ display: "flex", fontFamily: c.f.family, fontWeight: c.f.weight, fontSize: tSize, lineHeight: c.f.lh, letterSpacing: c.f.ls, color: c.t.fg }}>
+          <Rich text={title} accent={c.t.accent} italic={c.f.italic} size={tSize} lh={c.f.lh} />
+        </div>
+        {body ? (
+          <div style={{ display: "flex", fontFamily: "Inter", fontWeight: 400, fontSize: bSize, lineHeight: 1.32, color: c.t.fg, opacity: 0.86 }}>
+            <Rich text={body} accent={c.t.accent} size={bSize} lh={1.32} />
+          </div>
+        ) : null}
+      </div>
+      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        {Array.from({ length: total }, (_, i) => (
+          <div key={i} style={{ display: "flex", height: 8, width: i + 1 === n ? 56 : 18, borderRadius: 4, background: i + 1 === n ? c.t.accent : c.t.muted, opacity: i + 1 === n ? 1 : 0.35 }} />
+        ))}
+        <div style={{ display: "flex", flexGrow: 1 }} />
+        <div style={{ display: "flex", fontFamily: "Inter", fontWeight: 600, fontSize: 28, color: c.t.muted }}>{n < total ? "Swipe" : ""}</div>
+      </div>
+    </div>
+  );
+}
+
+function EndSlide({ c, text }: { c: Ctx; text: string }) {
+  const size = fit(plain(text), INNER, 520, c.f.w, c.f.lh, 64, 130);
+  return (
+    <div style={{ display: "flex", flexDirection: "column", width: W, height: H, background: c.t.bg, padding: PAD, justifyContent: "space-between" }}>
+      <div style={{ display: "flex" }} />
+      <div style={{ display: "flex", fontFamily: c.f.family, fontWeight: c.f.weight, fontSize: size, lineHeight: c.f.lh, letterSpacing: c.f.ls, color: c.t.fg }}>
+        <Rich text={text} accent={c.t.accent} italic={c.f.italic} size={size} lh={c.f.lh} />
+      </div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 28 }}>
+        <div style={{ display: "flex", height: 2, width: "100%", background: c.t.line }} />
+        <Footer c={c} />
+      </div>
+    </div>
+  );
+}
+
+/**
+ * The carousel slides after the cover: one per point, then a closing slide. They share the
+ * cover's look (the same theme and fonts), so the carousel reads as one piece.
+ */
+export async function renderSlides(d: DesignInput, slides: Slide[], end: string): Promise<Buffer[]> {
+  const { c, fonts } = await lookOf(d);
+  const total = slides.length + 2;
+  const out: Buffer[] = [];
+  for (const [i, s] of slides.entries()) out.push(await jpeg(await png(<SlideCard c={c} n={i + 2} total={total} title={s.title} body={s.body} />, fonts)));
+  out.push(await jpeg(await png(<EndSlide c={c} text={end || "Save this for later"} />, fonts)));
+  return out;
+}
+
+// ---------- reel ----------
+
+export const RW = 1080;
+export const RH = 1920;
+
+/** One line of the Reel, as a transparent layer. Over a concept visual it sits in the empty top; otherwise in a solid block. */
+function ReelText({ c, text, boxed, small }: { c: Ctx; text: string; boxed: boolean; small?: boolean }) {
+  const size = fit(plain(text), RW - 2 * PAD - (boxed ? 80 : 0), 520, c.f.w, c.f.lh, 60, small ? 96 : 132);
+  const words = (
+    <div style={{ display: "flex", fontFamily: c.f.family, fontWeight: c.f.weight, fontSize: size, lineHeight: c.f.lh, letterSpacing: c.f.ls, color: c.t.fg }}>
+      <Rich text={text} accent={c.t.accent} italic={c.f.italic} size={size} lh={c.f.lh} />
+    </div>
+  );
+  return (
+    <div style={{ display: "flex", width: RW, height: RH, padding: PAD, paddingTop: 230, flexDirection: "column" }}>
+      {boxed ? <div style={{ display: "flex", background: c.t.bg, padding: 40, borderRadius: 8 }}>{words}</div> : words}
+    </div>
+  );
+}
+
+function ReelBrand({ c }: { c: Ctx }) {
+  return (
+    <div style={{ display: "flex", width: RW, height: RH, flexDirection: "column", justifyContent: "flex-end", padding: PAD, paddingBottom: 150 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", background: c.t.bg, padding: "26px 34px", borderRadius: 8 }}>
+        <Logo c={c} size={46} />
+        <div style={{ display: "flex", fontFamily: "Inter", fontWeight: 600, fontSize: 32, color: c.t.fg }}>{c.brand.site}</div>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * The pieces of a Reel: the background frame (1080x1920 JPEG: the visual on its flat colour, a
+ * full-bleed photo, or just the theme colour) and one transparent PNG per line of text, plus the
+ * brand card for the end. src/lib/social/video.ts animates them.
+ */
+export async function reelLayers(d: DesignInput, scenes: string[]): Promise<{ base: Buffer; lines: Buffer[]; brand: Buffer }> {
+  const { c, fonts } = await lookOf(d);
+  let base: Buffer;
+  if (d.format === "concept" && d.photo) {
+    // The concept visual sits on a flat colour, so the frame is extended with that colour.
+    base = await sharp({ create: { width: RW, height: RH, channels: 3, background: c.t.bg } })
+      .composite([{ input: await sharp(d.photo).resize(RW, H).toBuffer(), top: RH - H - 290, left: 0 }])
+      .jpeg({ quality: 92 })
+      .toBuffer();
+  } else if (d.photo) base = await sharp(d.photo).resize(RW, RH, { fit: "cover", position: "attention" }).jpeg({ quality: 92 }).toBuffer();
+  else base = await sharp({ create: { width: RW, height: RH, channels: 3, background: c.t.bg } }).jpeg({ quality: 92 }).toBuffer();
+  const boxed = Boolean(d.photo) && d.format !== "concept";
+  const lines = [];
+  for (const s of scenes) lines.push(await png(<ReelText c={c} text={s} boxed={boxed} />, fonts, RW, RH));
+  const brand = await png(<ReelBrand c={c} />, fonts, RW, RH);
+  return { base, lines, brand };
 }
 
 /**
@@ -588,9 +719,13 @@ export async function cleanLogo(input: Buffer): Promise<BrandLogo> {
 
 /** Design the image of a post (photo = the post's photo, or null for text-first formats). */
 export async function designImage(post: SocialPost, project: SocialProject & { client: Client }, photo: Buffer | null): Promise<Buffer> {
+  return renderDesign(await designInput(post, project, photo));
+}
+
+export async function designInput(post: SocialPost, project: SocialProject & { client: Client }, photo: Buffer | null): Promise<DesignInput> {
   const format = formatOf(post.imageLayout);
   const design = designOf(post.design);
-  return renderDesign({
+  return {
     id: post.id,
     format,
     text: design.texts?.[format]?.trim() || fallbackText(format, post),
@@ -601,10 +736,20 @@ export async function designImage(post: SocialPost, project: SocialProject & { c
     photo,
     brand: { name: project.client.name, site: project.client.siteUrl.replace(/^https?:\/\/(www\.)?/, "").replace(/\/+$/, ""), logo: await logoData(project.client.logoUrl) },
     colors: project.client,
-  });
+  };
 }
 
+const appUrl = () => (process.env.APP_URL || "https://seo-crm-dashboard-geuv.vercel.app").replace(/\/+$/, "");
+
 export function imageUrl(post: Pick<SocialPost, "id" | "imageVersion">) {
-  const app = (process.env.APP_URL || "https://seo-crm-dashboard-geuv.vercel.app").replace(/\/+$/, "");
-  return `${app}/api/social/image/${post.id}.jpg?v=${post.imageVersion}`;
+  return `${appUrl()}/api/social/image/${post.id}.jpg?v=${post.imageVersion}`;
+}
+
+/** Every image of a carousel in order: the cover, then the slides. */
+export function carouselUrls(post: Pick<SocialPost, "id" | "imageVersion">, slides: number) {
+  return [imageUrl(post), ...Array.from({ length: slides }, (_, i) => `${appUrl()}/api/social/image/${post.id}-${i + 2}.jpg?v=${post.imageVersion}`)];
+}
+
+export function videoUrl(post: Pick<SocialPost, "id" | "imageVersion">) {
+  return `${appUrl()}/api/social/video/${post.id}.mp4?v=${post.imageVersion}`;
 }

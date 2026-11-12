@@ -6,9 +6,9 @@ import type { Client, Prisma, SocialPost, SocialProject } from "@prisma/client";
 import { db } from "../db";
 import { geminiJson } from "../gemini";
 import { brandProfileText } from "../brand-profile";
-import { postingSlots } from "./schedule";
+import { toLocalInput, weeklySlots, zoned } from "./schedule";
 import { ensureResearch, researchText } from "./research";
-import { PICTURE_FORMATS, designOf, formatOf, type DesignData } from "./formats";
+import { PICTURE_FORMATS, PILLARS, WEEK_MIX, designOf, formatOf, pillarOf, type DesignData, type Slide } from "./formats";
 
 export const PLATFORMS = ["facebook", "instagram", "linkedin"] as const;
 export type Platform = (typeof PLATFORMS)[number];
@@ -113,11 +113,50 @@ function businessLine(c: Client) {
   return `${c.name} (${c.businessType ?? "business"}), based in ${[c.primaryCity, c.targetCountry].filter(Boolean).join(", ") || "unknown"}. Website: ${c.siteUrl}`;
 }
 
-type PlannedIdea = { service: string; angle: string; idea: string; why: string; score: number };
+type PlannedIdea = { slot: number; service: string; angle: string; idea: string; why: string; score: number };
+type MonthEvent = { date: string; name: string; why: string };
 
 /**
- * Plan a whole month for one project: fills the month up to postsPerMonth with new ideas,
- * spread over the targeted services and angles, each on its own posting date.
+ * National holidays, observances and big events in `month` that this audience cares about, with their
+ * dates in the country. Hamza approves every post, so a wrong date is caught in review.
+ */
+async function monthEvents(c: Client, month: string): Promise<MonthEvent[]> {
+  const country = c.targetCountry || "United Arab Emirates";
+  const prompt = `List the national holidays, public observances and big shared moments in ${country} during ${month} (YYYY-MM) that a ${c.businessType ?? "local business"} could post about on social media (for example national day, religious holidays and their eves, Mother's Day, back to school, White Friday / Black Friday, Dubai Shopping Festival, New Year, Earth Hour). Include international days only if people in ${country} really mark them and they fit this business.
+Give the date as it is observed in ${country} in that year. For moon-sighted holidays give the expected first day. Leave out anything you are not sure falls in ${month}.
+Return JSON: {"events":[{"date":"YYYY-MM-DD","name":"short name","why":"why this business can post about it, one short line"}]} (at most 6, most important first).`;
+  try {
+    const r = await geminiJson<{ events?: MonthEvent[] }>(prompt, { timeoutMs: 60_000, temperature: 0.1, model: textModel() });
+    return (r.events ?? []).filter((e) => String(e.date ?? "").startsWith(month) && e.name).map((e) => ({ date: String(e.date).slice(0, 10), name: String(e.name).slice(0, 80), why: String(e.why ?? "").slice(0, 200) }));
+  } catch (e) {
+    console.error("social.events_failed", e);
+    return [];
+  }
+}
+
+/** Spread pillars over `n` posts by their share, so no pillar sits twice in a row when it can be helped. */
+function pillarPlan(n: number, seed: number): string[] {
+  const parts = PILLARS.filter((x) => x.share > 0);
+  const exact = parts.map((x) => ({ key: x.key, v: x.share * n }));
+  const counts = exact.map((x) => ({ key: x.key, n: Math.floor(x.v), r: x.v - Math.floor(x.v) }));
+  let left = n - counts.reduce((a, x) => a + x.n, 0);
+  for (const x of [...counts].sort((a, b) => b.r - a.r)) if (left-- > 0) x.n++;
+  const out: string[] = [];
+  let s = seed;
+  while (out.length < n) {
+    const avail = counts.filter((x) => x.n > 0).sort((a, b) => b.n - a.n || ((s = (s * 9301 + 49297) % 233280) / 233280) - 0.5);
+    const pick = avail.find((x) => x.key !== out[out.length - 1]) ?? avail[0];
+    out.push(pick.key);
+    pick.n--;
+  }
+  return out;
+}
+
+/**
+ * Plan a whole month for one project, Monday to Saturday (never Sunday): every week gets the
+ * WEEK_MIX of formats (1 carousel, 2 Reels, 2 images). The posts are balanced over the content
+ * PILLARS (informative, hidden promo, client journey, promotional), and holidays and events go out
+ * on their real date. Days that already have a post are kept (the month is only topped up).
  * Returns how many posts were added.
  */
 export async function planMonth(projectId: string, month: string): Promise<number> {
@@ -126,19 +165,66 @@ export async function planMonth(projectId: string, month: string): Promise<numbe
   const { p, cards, brand, brain } = await projectContext(projectId);
   const research = researchText(p.research, "ideas");
   if (!p.services.length) throw new Error(`${p.client.name}: add at least one targeted service first`);
-  const existing = await db.socialPost.findMany({ where: { projectId, month, status: { not: "REJECTED" } }, select: { scheduledAt: true } });
-  const need = p.postsPerMonth - existing.length;
-  if (need <= 0) return 0;
-  const slots = postingSlots({ month, count: need, postingDays: p.postingDays, fromHour: p.postFromHour, toHour: p.postToHour, timezone: p.timezone, notBefore: new Date(Date.now() + 2 * 3600_000), taken: existing.map((e) => e.scheduledAt), seed: projectId });
-  if (!slots.length) throw new Error(`${p.client.name}: no posting days left in ${month}`);
+  const existing = await db.socialPost.findMany({ where: { projectId, month, status: { not: "REJECTED" } }, select: { scheduledAt: true, pillar: true } });
+  const skipDays = new Set(existing.map((e) => toLocalInput(e.scheduledAt, p.timezone).slice(0, 10)));
+  const notBefore = new Date(Date.now() + 2 * 3600_000);
+  const slots = weeklySlots({ month, fromHour: p.postFromHour, toHour: p.postToHour, timezone: p.timezone, notBefore, skipDays, seed: projectId, mix: WEEK_MIX });
+  if (!slots.length) return 0;
+
+  // Holidays and events: move the nearest post of that week onto the day (Sunday events go out on Saturday).
+  const events = await monthEvents(p.client, month);
+  const eventOf = new Map<number, MonthEvent>();
+  const hadEvent = existing.filter((e) => e.pillar === "event").length;
+  for (const ev of events.slice(0, Math.max(0, 4 - hadEvent))) {
+    let day = new Date(`${ev.date}T00:00:00Z`);
+    if (day.getUTCDay() === 0) day = new Date(day.getTime() - 864e5);
+    const key = day.toISOString().slice(0, 10);
+    if (!key.startsWith(month) || skipDays.has(key)) continue;
+    const at = zoned(day.getUTCFullYear(), day.getUTCMonth() + 1, day.getUTCDate(), Math.min(p.postFromHour + 1, p.postToHour), 0, p.timezone);
+    if (at <= notBefore) continue;
+    const same = slots.findIndex((x) => x.day === key);
+    let i = same;
+    if (i < 0) {
+      // The closest free slot within 3 days.
+      let best = -1;
+      let gap = 4 * 864e5;
+      slots.forEach((x, n) => {
+        const g = Math.abs(new Date(`${x.day}T00:00:00Z`).getTime() - day.getTime());
+        if (!eventOf.has(n) && g < gap && !slots.some((y) => y.day === key)) { best = n; gap = g; }
+      });
+      i = best;
+      if (i < 0) continue;
+      slots[i] = { ...slots[i], day: key, at };
+    }
+    if (eventOf.has(i)) continue;
+    eventOf.set(i, ev);
+  }
+  slots.sort((a, b) => a.at.getTime() - b.at.getTime());
+  // Re-key events after sorting.
+  const evByDay = new Map([...eventOf.values()].map((ev) => {
+    let d = new Date(`${ev.date}T00:00:00Z`);
+    if (d.getUTCDay() === 0) d = new Date(d.getTime() - 864e5);
+    return [d.toISOString().slice(0, 10), ev] as const;
+  }));
+  const regular = slots.filter((x) => !evByDay.has(x.day)).length;
+  const pillars = pillarPlan(regular, [...projectId].reduce((a, ch) => a + ch.charCodeAt(0), 0) + Number(month.replace("-", "")));
+  let pi = 0;
+  const plan = slots.map((x) => {
+    const ev = evByDay.get(x.day);
+    return { ...x, pillar: ev ? "event" : pillars[pi++], event: ev };
+  });
 
   const since = new Date(Date.now() - 120 * 864e5);
   const [recent, rejected] = await Promise.all([
     db.socialPost.findMany({ where: { projectId, createdAt: { gte: since }, status: { not: "REJECTED" } }, select: { idea: true, service: true, angle: true }, orderBy: { createdAt: "desc" }, take: 80 }),
     db.socialPost.findMany({ where: { projectId, status: "REJECTED" }, select: { idea: true, rejectionReason: true }, orderBy: { reviewedAt: "desc" }, take: 30 }),
   ]);
-  const want = slots.length + Math.min(8, Math.ceil(slots.length / 2));
-  const prompt = `Plan ${want} social media post ideas for ${p.client.name}'s own accounts (${p.platforms.join(", ")}).
+  const KIND_HINT: Record<string, string> = {
+    static: "one image post: one sharp point",
+    carousel: "a swipeable carousel of 4-6 slides: a step-by-step, a checklist, a breakdown or a story in stages, something people save",
+    video: "a short animated Reel (8-10 seconds, 3 lines of moving text over one visual): one punchy point with a twist",
+  };
+  const prompt = `Plan the social media posts of ${p.client.name}'s own accounts (${p.platforms.join(", ")}) for ${month}. There is one numbered slot per post; write exactly one idea for every slot.
 
 BUSINESS: ${businessLine(p.client)}
 
@@ -153,16 +239,25 @@ ${brain}
 
 ${research}
 
+CONTENT PILLARS:
+${PILLARS.map((x) => `- ${x.key}: ${x.label}. ${x.hint}`).join("\n")}
+
+POST FORMATS:
+${Object.entries(KIND_HINT).map(([k, v]) => `- ${k}: ${v}`).join("\n")}
+
 ANGLES (each idea uses one; use the key):
 ${ANGLES.map((a) => `- ${a.key}: ${a.label}. ${a.hint}`).join("\n")}
 
+SLOTS (number. date, format, pillar):
+${plan.map((x, n) => `${n + 1}. ${x.day} (${new Date(`${x.day}T00:00:00Z`).toLocaleDateString("en-GB", { weekday: "short", timeZone: "UTC" })}), ${x.kind}, ${x.pillar}${x.event ? `: ${x.event.name} (${x.event.why})` : ""}`).join("\n")}
+
 RULES
+- Each idea must fit its slot's pillar and format. An event slot is about that event, posted on that day.
 - An idea is one specific, concrete post, not a topic. Bad: "Benefits of SEO". Good: "Your Google Business Profile category is probably wrong, and it is costing you map calls".
 - Think like the buyer scrolling a feed: a fear, a surprise, a mistake they might be making, a decision they are stuck on, a moment in their week or season.
 - Use the competitor research indirectly: aim at the pains and buyers that win attention, borrow the shape of what works, and lean into the gaps they leave. Never copy a competitor's idea or wording, and never mention or hint at a competitor.
-- Spread ideas evenly across the services and use at least 6 different angles. At most 1 in 6 ideas may be the "offer" angle.
-- Use the season of ${month} for the audience's country when it fits (events, weather, sale seasons, religious holidays, financial year), without forcing it.
-- No invented numbers, prices, awards, client names or guarantees.
+- Spread the slots evenly across the services, and vary the angles (event slots use "moment").
+- No invented numbers, prices, discounts, awards, client names or guarantees.
 - Do not repeat or lightly reword these recent posts:
 ${recent.map((r) => `  - [${r.service} / ${r.angle}] ${r.idea}`).join("\n") || "  (none yet)"}
 - Hamza rejected these, so avoid what made them weak:
@@ -170,41 +265,22 @@ ${rejected.map((r) => `  - ${r.idea} -> reason: ${r.rejectionReason || "not give
 
 Score each idea 1-10 for: how hard the hook stops a scroll, how specific it is, how clearly it leads to buying the service, and how fresh it is.
 
-Return JSON: {"ideas":[{"service":"exact service name","angle":"angle key","idea":"the post in one sentence, as specific as possible","why":"why this will work with this audience, 1 short sentence","score":8}]}`;
-  const r = await geminiJson<{ ideas?: PlannedIdea[] }>(prompt, { timeoutMs: 180_000, temperature: 0.9, model: textModel() });
+Return JSON: {"ideas":[{"slot":1,"service":"exact service name","angle":"angle key","idea":"the post in one sentence, as specific as possible","why":"why this will work with this audience, 1 short sentence","score":8}]}`;
+  const r = await geminiJson<{ ideas?: PlannedIdea[] }>(prompt, { timeoutMs: 200_000, temperature: 0.9, model: textModel() });
   const ideas = (r.ideas ?? [])
-    .map((i) => ({ ...i, service: p.services.find((s) => s.toLowerCase() === String(i.service ?? "").toLowerCase()) ?? "", angle: angleOf(String(i.angle)).key, idea: String(i.idea ?? "").trim(), why: String(i.why ?? "").trim(), score: Math.max(1, Math.min(10, Number(i.score) || 5)) }))
-    .filter((i) => i.service && i.idea);
+    .map((i) => ({ ...i, slot: Number(i.slot), service: p.services.find((s) => s.toLowerCase() === String(i.service ?? "").toLowerCase()) ?? p.services[0], angle: angleOf(String(i.angle)).key, idea: String(i.idea ?? "").trim(), why: String(i.why ?? "").trim(), score: Math.max(1, Math.min(10, Number(i.score) || 5)) }))
+    .filter((i) => i.idea);
   if (!ideas.length) throw new Error(`${p.client.name}: the AI returned no usable ideas, try again`);
-
-  // Pick the best ideas while keeping services balanced and no angle overused.
-  const picked: PlannedIdea[] = [];
-  const pool = [...ideas].sort((a, b) => b.score - a.score);
-  const perService = Math.ceil(slots.length / p.services.length);
-  const perAngle = Math.max(2, Math.ceil(slots.length / 5));
-  const count = (k: "service" | "angle", v: string) => picked.filter((x) => x[k] === v).length;
-  for (const pass of [0, 1]) {
-    for (const i of pool) {
-      if (picked.length >= slots.length) break;
-      if (picked.includes(i)) continue;
-      if (pass === 0 && (count("service", i.service) >= perService || count("angle", i.angle) >= perAngle)) continue;
-      picked.push(i);
-    }
-  }
-  // Order so neighbouring posts differ in service and angle.
-  const ordered: PlannedIdea[] = [];
-  const left = [...picked];
-  while (left.length) {
-    const prev = ordered[ordered.length - 1];
-    let idx = left.findIndex((x) => !prev || (x.service !== prev.service && x.angle !== prev.angle));
-    if (idx < 0) idx = left.findIndex((x) => !prev || x.angle !== prev.angle);
-    if (idx < 0) idx = 0;
-    ordered.push(left.splice(idx, 1)[0]);
-  }
-  await db.socialPost.createMany({
-    data: ordered.map((i, n) => ({ projectId, month, service: i.service, angle: i.angle, idea: i.idea, why: i.why, score: i.score, scheduledAt: slots[n], imageLayout: angleOf(i.angle).layout })),
+  const used = new Set<PlannedIdea>();
+  const rows = plan.flatMap((x, n) => {
+    const i = ideas.find((y) => y.slot === n + 1 && !used.has(y)) ?? ideas.find((y) => !used.has(y) && !(y.slot >= 1 && y.slot <= plan.length));
+    if (!i) return [];
+    used.add(i);
+    const angle = x.pillar === "event" ? "moment" : i.angle;
+    return [{ projectId, month, service: i.service, angle, idea: i.idea, why: i.why, score: i.score, scheduledAt: x.at, kind: x.kind, pillar: x.pillar, imageLayout: angleOf(angle).layout }];
   });
-  return ordered.length;
+  await db.socialPost.createMany({ data: rows });
+  return rows.length;
 }
 
 /** One replacement idea for a rejected post (same date, same service), using what was just learned. */
@@ -214,6 +290,7 @@ export async function planReplacement(rejectedId: string) {
   const research = researchText(p.research, "ideas");
   const prompt = `Hamza rejected this social post idea for ${p.client.name}: "${old.idea}" (angle: ${old.angle}). Reason: ${old.rejectionReason || "not given"}.
 Write ONE better idea for the same service "${old.service}", taking the reason into account. Use a different angle unless the reason says the angle was fine.
+It is a ${old.kind === "video" ? "short animated Reel" : old.kind === "carousel" ? "carousel" : "single image post"}${pillarOf(old.pillar) ? ` in the "${pillarOf(old.pillar)!.label}" pillar (${pillarOf(old.pillar)!.hint})` : ""}.
 
 BUSINESS: ${businessLine(p.client)}
 SERVICE CARDS:
@@ -228,7 +305,7 @@ Return JSON: {"angle":"angle key","idea":"one specific sentence","why":"1 short 
   const r = await geminiJson<Partial<PlannedIdea>>(prompt, { timeoutMs: 90_000, temperature: 0.9, model: textModel() });
   const angle = angleOf(String(r.angle)).key;
   return db.socialPost.create({
-    data: { projectId: old.projectId, month: old.month, service: old.service, angle, idea: String(r.idea ?? old.idea), why: String(r.why ?? ""), score: Number(r.score) || 5, scheduledAt: old.scheduledAt, imageLayout: angleOf(angle).layout },
+    data: { projectId: old.projectId, month: old.month, service: old.service, angle, idea: String(r.idea ?? old.idea), why: String(r.why ?? ""), score: Number(r.score) || 5, scheduledAt: old.scheduledAt, kind: old.kind, pillar: old.pillar, imageLayout: angleOf(angle).layout },
   });
 }
 
@@ -247,6 +324,9 @@ type Written = {
   design?: DesignOut;
   photoId?: string;
   imageBrief?: string;
+  slides?: { title?: string; body?: string }[];
+  end?: string;
+  scenes?: string[];
 };
 
 const one = (s: unknown) => String(s ?? "").replace(/—/g, ",").replace(/\s+/g, " ").trim();
@@ -311,7 +391,12 @@ ALSO, for every post:
 - headline: the words on the image (see above), always filled in.
 - photoId: for format "photo" only, the id of the library photo that fits best; otherwise "".
 - imageBrief: the visual for a concept image, always filled in (one or two sentences). Start with the recognisable subject, then its state.
-- altText: one sentence describing the finished image for screen readers.`;
+- altText: one sentence describing the finished image for screen readers.
+
+POST TYPES (given per post):
+- image: everything above.
+- carousel: the image above is the COVER slide (it must make people swipe). Also write slides: 3-5 slides that come after the cover, each {"title": 2-6 words, "body": 1-2 short sentences, max 28 words}. One idea per slide, building step by step, the most useful one last. Then end: one short closing line for the last slide (what to do now, e.g. "Save this for your next launch" or a call to action). Captions say there is more to swipe through.
+- reel: a short, silent, animated video: the visual above with words that appear one line at a time. Write scenes: exactly 3 lines, each 2-7 words: 1 = the hook that stops the scroll, 2 = the point or the twist, 3 = the payoff or call to action. They must read as one flowing message. headline.main is the cover text (can match scene 1). Captions are written for a Reel (hook first, short).`;
   const prompt = `BUSINESS: ${businessLine(p.client)}
 Main call to action: ${p.client.ctaText || "get in touch"} (${link})
 
@@ -334,12 +419,14 @@ ${posts
   .map((x) => {
     const fmt = formatOf(x.imageLayout);
     const fixed = x.imageVersion > 0;
-    return `- id ${x.id}: service "${x.service}", angle "${angleOf(x.angle).label}" (${angleOf(x.angle).hint}). Idea: ${x.idea}
+    const kind = x.kind === "video" ? "reel" : x.kind === "carousel" ? "carousel" : "image";
+    const pillar = pillarOf(x.pillar);
+    return `- id ${x.id}: ${kind.toUpperCase()}, service "${x.service}", angle "${angleOf(x.angle).label}" (${angleOf(x.angle).hint})${pillar ? `, pillar "${pillar.label}" (${pillar.hint})` : ""}. Idea: ${x.idea}
   ${fixed ? `Format: ${fmt} (Hamza's choice, keep it)` : `Suggested format: ${fmt === "photo" && !library.length ? "type" : fmt}`}${x.textNote ? `\n  Hamza's note for this rewrite (most important): ${x.textNote}` : ""}${x.captionInstagram || x.captionFacebook || x.captionLinkedin ? `\n  Previous version (do better, don't copy): ${(x.captionLinkedin || x.captionInstagram || x.captionFacebook).slice(0, 500)}` : ""}`;
   })
   .join("\n")}
 
-Return JSON: {"posts":[{"id":"...","hooks":["","",""],"instagram":"","facebook":"","linkedin":"","firstComment":"","format":"type","design":{"kicker":"","big":""},"photoId":"","headline":{"top":"","main":"","bottom":""},"imageBrief":"","altText":""}]}`;
+Return JSON: {"posts":[{"id":"...","hooks":["","",""],"instagram":"","facebook":"","linkedin":"","firstComment":"","format":"type","design":{"kicker":"","big":""},"photoId":"","headline":{"top":"","main":"","bottom":""},"imageBrief":"","altText":"","slides":[{"title":"","body":""}],"end":"","scenes":["","",""]}]} (slides and end only for a carousel, scenes only for a reel)`;
   const r = await geminiJson<{ posts?: Written[] }>(prompt, { system, timeoutMs: 200_000, temperature: 0.8, model: textModel() });
   const out = r.posts ?? [];
   const clean = (s: unknown, max: number) => String(s ?? "").replace(/—/g, ",").trim().slice(0, max);
@@ -357,6 +444,15 @@ Return JSON: {"posts":[{"id":"...","hooks":["","",""],"instagram":"","facebook":
       texts[format] = designToText(format, w.design) || designToText("type", { kicker: w.headline?.top, big: w.headline?.main || x.idea });
     }
     const design: DesignData = { ...old, texts };
+    if (x.kind === "carousel") {
+      const slides: Slide[] = (w.slides ?? []).map((v) => ({ title: clean(v?.title, 80), body: clean(v?.body, 320) })).filter((v) => v.title || v.body).slice(0, 6);
+      if (slides.length) design.slides = slides;
+      if (w.end) design.end = clean(w.end, 120);
+    }
+    if (x.kind === "video") {
+      const scenes = (w.scenes ?? []).map((v) => clean(v, 80)).filter(Boolean).slice(0, 4);
+      if (scenes.length) design.scenes = scenes;
+    }
     await db.socialPost.update({
       where: { id: x.id },
       data: {

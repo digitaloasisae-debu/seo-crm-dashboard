@@ -3,7 +3,7 @@
   "nodes": [
     {
       "parameters": {
-        "content": "## Social Publisher (Rankflow Social Studio)\nEvery 15 minutes: asks the dashboard for approved posts that are due, posts each one to Facebook, Instagram and LinkedIn, and reports the result back. The same call also keeps the dashboard making drafts (captions and images) in the background.\n\n**Setup (once):**\n1. **Dashboard API** credential on the 2 green-header HTTP nodes (Get Due Posts, Report ...): same Header Auth you use for WF1/WF2.\n2. **Facebook Graph account** on the 2 *Get Page Token* nodes (already set if you imported flow 4 on this n8n).\n3. **LinkedIn** credential on *Post to LinkedIn* and *LinkedIn First Comment*: LinkedIn OAuth2 with **Organization Support** on, signed in as an admin of the company pages.\n4. Activate.\n\nPage IDs and the LinkedIn company ID come from each project's settings in the dashboard.",
+        "content": "## Social Publisher (Rankflow Social Studio)\nEvery 15 minutes: asks the dashboard for approved posts that are due, posts each one to Facebook, Instagram and LinkedIn (images, carousels and Reels; LinkedIn gets the cover image), and reports the result back. The same call also keeps the dashboard making drafts (captions and images) in the background.\n\n**Setup (once):**\n1. **Dashboard API** credential on the 2 green-header HTTP nodes (Get Due Posts, Report ...): same Header Auth you use for WF1/WF2.\n2. **Facebook Graph account** on the 2 *Get Page Token* nodes (already set if you imported flow 4 on this n8n).\n3. **LinkedIn** credential on *Post to LinkedIn* and *LinkedIn First Comment*: LinkedIn OAuth2 with **Organization Support** on, signed in as an admin of the company pages.\n4. Activate.\n\nPage IDs and the LinkedIn company ID come from each project's settings in the dashboard.",
         "height": 420,
         "width": 560
       },
@@ -196,58 +196,6 @@
     },
     {
       "parameters": {
-        "method": "POST",
-        "url": "=https://graph.facebook.com/v26.0/{{ ($('Get Page Token (FB)').item.json.data ? $('Get Page Token (FB)').item.json.data[0] : $('Get Page Token (FB)').item.json).id }}/photos",
-        "sendBody": true,
-        "contentType": "form-urlencoded",
-        "bodyParameters": {
-          "parameters": [
-            {
-              "name": "url",
-              "value": "={{ $('One Item Per Platform').item.json.image_url }}"
-            },
-            {
-              "name": "message",
-              "value": "={{ $('One Item Per Platform').item.json.caption }}"
-            },
-            {
-              "name": "alt_text_custom",
-              "value": "={{ $('One Item Per Platform').item.json.alt_text }}"
-            },
-            {
-              "name": "access_token",
-              "value": "={{ ($('Get Page Token (FB)').item.json.data ? $('Get Page Token (FB)').item.json.data[0] : $('Get Page Token (FB)').item.json).access_token }}"
-            }
-          ]
-        },
-        "options": {}
-      },
-      "id": "f3f748c3-c86e-4e3f-99c5-9c2bff033338",
-      "name": "Post to Facebook",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [
-        1120,
-        -260
-      ],
-      "onError": "continueRegularOutput"
-    },
-    {
-      "parameters": {
-        "mode": "runOnceForEachItem",
-        "jsCode": "const p = $('One Item Per Platform').item.json;\nconst r = $json || {};\nconst id = r.post_id || r.id || '';\nconst err = r.error ? (r.error.message || JSON.stringify(r.error)) : ($('Get Page Token (FB)').item.json.error ? 'Page token: ' + ($('Get Page Token (FB)').item.json.error.message || 'failed') : '');\nreturn { json: { post_id: p.post_id, platform: 'facebook', id: err ? '' : id, url: id && !err ? 'https://www.facebook.com/' + id : '', error: err || (id ? '' : 'No post id returned') } };"
-      },
-      "id": "281f6e36-2e3a-4c71-a732-437049c9f69b",
-      "name": "FB Result",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [
-        1340,
-        -260
-      ]
-    },
-    {
-      "parameters": {
         "url": "=https://graph.facebook.com/v26.0/{{ $('One Item Per Platform').item.json.fb_page_id || 'me/accounts' }}",
         "authentication": "predefinedCredentialType",
         "nodeCredentialType": "facebookGraphApi",
@@ -281,130 +229,6 @@
         }
       },
       "onError": "continueRegularOutput"
-    },
-    {
-      "parameters": {
-        "method": "POST",
-        "url": "=https://graph.facebook.com/v26.0/{{ $('One Item Per Platform').item.json.ig_user_id || (($('Get Page Token (IG)').item.json.data ? $('Get Page Token (IG)').item.json.data[0] : $('Get Page Token (IG)').item.json).instagram_business_account || {}).id }}/media",
-        "sendBody": true,
-        "contentType": "form-urlencoded",
-        "bodyParameters": {
-          "parameters": [
-            {
-              "name": "image_url",
-              "value": "={{ $('One Item Per Platform').item.json.image_url }}"
-            },
-            {
-              "name": "caption",
-              "value": "={{ $('One Item Per Platform').item.json.caption }}"
-            },
-            {
-              "name": "alt_text",
-              "value": "={{ $('One Item Per Platform').item.json.alt_text }}"
-            },
-            {
-              "name": "access_token",
-              "value": "={{ ($('Get Page Token (IG)').item.json.data ? $('Get Page Token (IG)').item.json.data[0] : $('Get Page Token (IG)').item.json).access_token }}"
-            }
-          ]
-        },
-        "options": {}
-      },
-      "id": "7dc38f71-f1d3-4dd7-9a11-1091c5410ef4",
-      "name": "IG Create Container",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [
-        1120,
-        0
-      ],
-      "onError": "continueRegularOutput"
-    },
-    {
-      "parameters": {
-        "amount": 20
-      },
-      "id": "7c196e3e-5874-4b83-ac23-baf10113bcf7",
-      "name": "Wait for Instagram",
-      "type": "n8n-nodes-base.wait",
-      "typeVersion": 1.1,
-      "position": [
-        1340,
-        0
-      ],
-      "webhookId": "dabb0844-7859-4d5d-b15a-d51cf1ac5618"
-    },
-    {
-      "parameters": {
-        "method": "POST",
-        "url": "=https://graph.facebook.com/v26.0/{{ $('One Item Per Platform').item.json.ig_user_id || (($('Get Page Token (IG)').item.json.data ? $('Get Page Token (IG)').item.json.data[0] : $('Get Page Token (IG)').item.json).instagram_business_account || {}).id }}/media_publish",
-        "sendBody": true,
-        "contentType": "form-urlencoded",
-        "bodyParameters": {
-          "parameters": [
-            {
-              "name": "creation_id",
-              "value": "={{ $('IG Create Container').item.json.id }}"
-            },
-            {
-              "name": "access_token",
-              "value": "={{ ($('Get Page Token (IG)').item.json.data ? $('Get Page Token (IG)').item.json.data[0] : $('Get Page Token (IG)').item.json).access_token }}"
-            }
-          ]
-        },
-        "options": {}
-      },
-      "id": "371212fb-a15d-475d-97be-97ba13e62ae0",
-      "name": "IG Publish",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [
-        1560,
-        0
-      ],
-      "onError": "continueRegularOutput"
-    },
-    {
-      "parameters": {
-        "url": "=https://graph.facebook.com/v26.0/{{ $json.id }}",
-        "sendQuery": true,
-        "queryParameters": {
-          "parameters": [
-            {
-              "name": "fields",
-              "value": "permalink"
-            },
-            {
-              "name": "access_token",
-              "value": "={{ ($('Get Page Token (IG)').item.json.data ? $('Get Page Token (IG)').item.json.data[0] : $('Get Page Token (IG)').item.json).access_token }}"
-            }
-          ]
-        },
-        "options": {}
-      },
-      "id": "5ba618a4-faf1-484a-a764-5993b2ddd6c2",
-      "name": "IG Permalink",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [
-        1780,
-        0
-      ],
-      "onError": "continueRegularOutput"
-    },
-    {
-      "parameters": {
-        "mode": "runOnceForEachItem",
-        "jsCode": "const p = $('One Item Per Platform').item.json;\nconst c = $('IG Create Container').item.json || {};\nconst pub = $('IG Publish').item.json || {};\nconst e = c.error || pub.error;\nconst err = e ? (e.message || JSON.stringify(e)) : (!c.id ? 'Instagram did not accept the image' : '');\nreturn { json: { post_id: p.post_id, platform: 'instagram', id: err ? '' : (pub.id || ''), url: ($json && $json.permalink) || '', error: err || (pub.id ? '' : 'No media id returned') } };"
-      },
-      "id": "ac64546a-8752-4517-8336-79dd68044242",
-      "name": "IG Result",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [
-        2000,
-        0
-      ]
     },
     {
       "parameters": {
@@ -500,10 +324,38 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        2240,
+        1560,
         0
       ],
       "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Posts one item to the Facebook Page: a photo, a carousel (several photos in one post) or a video.\nconst p = $('One Item Per Platform').item.json;\nconst t = $('Get Page Token (FB)').item.json || {};\nconst page = t.data ? t.data[0] : t;\nconst done = (id, url, error) => ({ json: { post_id: p.post_id, platform: 'facebook', id: error ? '' : id || '', url: error ? '' : url || '', error: error || (id ? '' : 'No post id returned') } });\nif (t.error || !page || !page.access_token) return done('', '', 'Page token: ' + ((t.error && t.error.message) || 'no page found'));\nconst G = 'https://graph.facebook.com/v26.0/';\nconst post = async (path, fields) => {\n  const r = await this.helpers.httpRequest({ method: 'POST', url: G + path, body: new URLSearchParams({ ...fields, access_token: page.access_token }).toString(), headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, json: true, ignoreHttpStatusErrors: true });\n  const j = typeof r === 'string' ? JSON.parse(r) : r || {};\n  if (j.error) throw new Error(j.error.error_user_msg || j.error.message || JSON.stringify(j.error));\n  return j;\n};\ntry {\n  if (p.kind === 'video' && p.video_url) {\n    const r = await post(page.id + '/videos', { file_url: p.video_url, description: p.caption });\n    return done(r.id, 'https://www.facebook.com/' + page.id + '/videos/' + r.id);\n  }\n  if (p.kind === 'carousel' && (p.media_urls || []).length > 1) {\n    const ids = [];\n    for (const url of p.media_urls) ids.push((await post(page.id + '/photos', { url, published: 'false' })).id);\n    const fields = { message: p.caption };\n    ids.forEach((id, i) => (fields['attached_media[' + i + ']'] = JSON.stringify({ media_fbid: id })));\n    const r = await post(page.id + '/feed', fields);\n    return done(r.id, 'https://www.facebook.com/' + r.id);\n  }\n  const r = await post(page.id + '/photos', { url: p.image_url, message: p.caption, alt_text_custom: p.alt_text || '' });\n  const id = r.post_id || r.id;\n  return done(id, 'https://www.facebook.com/' + id);\n} catch (e) {\n  return done('', '', e.message || String(e));\n}\n"
+      },
+      "id": "6b0f6a4e-3c1d-4f7e-9a51-1f0b2c7d8e01",
+      "name": "Publish to Facebook",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1120,
+        -260
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Posts one item to Instagram: a photo, a carousel or a Reel. Waits until Instagram has processed it.\nconst p = $('One Item Per Platform').item.json;\nconst t = $('Get Page Token (IG)').item.json || {};\nconst page = t.data ? t.data[0] : t;\nconst done = (id, url, error) => ({ json: { post_id: p.post_id, platform: 'instagram', id: error ? '' : id || '', url: error ? '' : url || '', error: error || (id ? '' : 'No media id returned') } });\nif (t.error || !page || !page.access_token) return done('', '', 'Page token: ' + ((t.error && t.error.message) || 'no page found'));\nconst ig = p.ig_user_id || (page.instagram_business_account || {}).id;\nif (!ig) return done('', '', 'No Instagram account linked to this Facebook Page');\nconst G = 'https://graph.facebook.com/v26.0/';\nconst token = page.access_token;\nconst call = async (method, path, fields) => {\n  const qs = new URLSearchParams({ ...fields, access_token: token }).toString();\n  const r = await this.helpers.httpRequest(method === 'GET' ? { method, url: G + path + '?' + qs, json: true, ignoreHttpStatusErrors: true } : { method, url: G + path, body: qs, headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, json: true, ignoreHttpStatusErrors: true });\n  const j = typeof r === 'string' ? JSON.parse(r) : r || {};\n  if (j.error) throw new Error(j.error.error_user_msg || j.error.message || JSON.stringify(j.error));\n  return j;\n};\nconst sleep = (ms) => new Promise((r) => setTimeout(r, ms));\n// Containers must be FINISHED before they can be published (videos take a while).\nconst ready = async (id, maxSeconds) => {\n  for (let waited = 0; waited <= maxSeconds; waited += 5) {\n    const s = await call('GET', id, { fields: 'status_code,status' });\n    if (s.status_code === 'FINISHED') return;\n    if (s.status_code === 'ERROR' || s.status_code === 'EXPIRED') throw new Error('Instagram could not process it: ' + (s.status || s.status_code));\n    await sleep(5000);\n  }\n  throw new Error('Instagram is still processing it, it will be retried');\n};\ntry {\n  let container;\n  if (p.kind === 'video' && p.video_url) {\n    container = (await call('POST', ig + '/media', { media_type: 'REELS', video_url: p.video_url, caption: p.caption, share_to_feed: 'true' })).id;\n    await ready(container, 300);\n  } else if (p.kind === 'carousel' && (p.media_urls || []).length > 1) {\n    const kids = [];\n    for (const url of p.media_urls.slice(0, 10)) kids.push((await call('POST', ig + '/media', { image_url: url, is_carousel_item: 'true' })).id);\n    for (const k of kids) await ready(k, 60);\n    container = (await call('POST', ig + '/media', { media_type: 'CAROUSEL', children: kids.join(','), caption: p.caption })).id;\n    await ready(container, 60);\n  } else {\n    container = (await call('POST', ig + '/media', { image_url: p.image_url, caption: p.caption, alt_text: p.alt_text || '' })).id;\n    await ready(container, 60);\n  }\n  const pub = await call('POST', ig + '/media_publish', { creation_id: container });\n  let url = '';\n  try { url = (await call('GET', pub.id, { fields: 'permalink' })).permalink || ''; } catch (e) {}\n  return done(pub.id, url);\n} catch (e) {\n  return done('', '', e.message || String(e));\n}\n"
+      },
+      "id": "7c1e7b5f-4d2e-4a8f-8b62-2a1c3d8e9f02",
+      "name": "Publish to Instagram",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1120,
+        0
+      ]
     }
   ],
   "connections": {
@@ -569,18 +421,7 @@
       "main": [
         [
           {
-            "node": "Post to Facebook",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Post to Facebook": {
-      "main": [
-        [
-          {
-            "node": "FB Result",
+            "node": "Publish to Facebook",
             "type": "main",
             "index": 0
           }
@@ -591,51 +432,7 @@
       "main": [
         [
           {
-            "node": "IG Create Container",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "IG Create Container": {
-      "main": [
-        [
-          {
-            "node": "Wait for Instagram",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Wait for Instagram": {
-      "main": [
-        [
-          {
-            "node": "IG Publish",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "IG Publish": {
-      "main": [
-        [
-          {
-            "node": "IG Permalink",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "IG Permalink": {
-      "main": [
-        [
-          {
-            "node": "IG Result",
+            "node": "Publish to Instagram",
             "type": "main",
             "index": 0
           }
@@ -675,29 +472,29 @@
         ]
       ]
     },
-    "FB Result": {
-      "main": [
-        [
-          {
-            "node": "Report to Dashboard",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "IG Result": {
-      "main": [
-        [
-          {
-            "node": "Report to Dashboard",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
     "LI Result": {
+      "main": [
+        [
+          {
+            "node": "Report to Dashboard",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Publish to Facebook": {
+      "main": [
+        [
+          {
+            "node": "Report to Dashboard",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Publish to Instagram": {
       "main": [
         [
           {

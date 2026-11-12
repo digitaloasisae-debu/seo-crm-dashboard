@@ -6,7 +6,8 @@
 import type { SocialPost } from "@prisma/client";
 import { db } from "../db";
 import { writePosts } from "./ai";
-import { designImage, designOf, drawConcept, drawPhoto, fitPhoto, formatOf } from "./image";
+import { designInput, designOf, drawConcept, drawPhoto, fitPhoto, formatOf, reelLayers, renderDesign, renderSlides } from "./image";
+import { renderReel } from "./video";
 
 const MAX_TRIES = 3;
 const STALE_MS = 6 * 60_000;
@@ -71,10 +72,21 @@ export async function drawOne(postId: string) {
       const kept = post.photo && (d.pic ?? "photo") === format ? Buffer.from(post.photo) : null;
       photo = kept ?? (fresh = format === "concept" ? await drawConcept(post, project) : await drawPhoto(post, project));
     }
-    const image = await designImage(post, project, photo);
+    const input = await designInput(post, project, photo);
+    const image = await renderDesign(input);
+    // Carousels: the slides after the cover. Reels: the animated video. Both share the cover's look.
+    let slides: Uint8Array<ArrayBuffer>[] = [];
+    let video: Uint8Array<ArrayBuffer> | null = null;
+    if (post.kind === "carousel") {
+      const list = d.slides?.length ? d.slides : [{ title: post.headlineMain || post.idea, body: post.idea }];
+      slides = (await renderSlides(input, list, d.end ?? "")).map((b) => new Uint8Array(b));
+    } else if (post.kind === "video") {
+      const scenes = d.scenes?.length ? d.scenes : [post.headlineMain || post.idea];
+      video = new Uint8Array(await renderReel(await reelLayers(input, scenes)));
+    }
     await db.socialPost.update({
       where: { id: post.id },
-      data: { ...(fresh ? { photo: new Uint8Array(fresh), design: { ...d, pic: format } } : {}), image: new Uint8Array(image), imageVersion: { increment: 1 }, stage: "ready", stageError: null, imageNote: null },
+      data: { ...(fresh ? { photo: new Uint8Array(fresh), design: { ...d, pic: format } } : {}), image: new Uint8Array(image), slides, video, imageVersion: { increment: 1 }, stage: "ready", stageError: null, imageNote: null },
     });
   } catch (e) {
     await fail([post], "written", e);

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { SubmitButton } from "@/components/submit-button";
-import { FORMATS, FORMAT_HELP, PICTURE_FORMATS } from "@/lib/social/formats";
+import { FORMATS, FORMAT_HELP, PICTURE_FORMATS, kindLabel } from "@/lib/social/formats";
 import { anotherLookAction, approvePostAction, deletePostAction, regenerateImageAction, regenerateTextAction, rejectPostAction, relayoutAction, restorePostAction, savePostAction, unapprovePostAction } from "./actions";
 
 export type CardPost = {
@@ -31,6 +31,16 @@ export type CardPost = {
   /** The text on the image for text-first formats */
   designText: string;
   hasMedia: boolean;
+  /** static, carousel or video */
+  kind: string;
+  pillar: string;
+  /** Carousel slides after the cover, as text (see parseSlides) */
+  slidesText: string;
+  endText: string;
+  /** The Reel's lines, one per line */
+  scenesText: string;
+  slideCount: number;
+  hasVideo: boolean;
   hasImage: boolean;
   hasPhoto: boolean;
   imageVersion: number;
@@ -61,8 +71,10 @@ export function PostCard({ p }: { p: CardPost }) {
   return (
     <article className={`card grid gap-5 border-2 p-4 lg:grid-cols-[360px_1fr] ${tone}`}>
       <div className="space-y-2">
-        <div className="relative aspect-[4/5] overflow-hidden rounded-xl bg-slate-100">
-          {p.hasImage ? (
+        <div className={`relative overflow-hidden rounded-xl bg-slate-100 ${p.kind === "video" && p.hasVideo ? "aspect-[9/16]" : "aspect-[4/5]"}`}>
+          {p.kind === "video" && p.hasVideo ? (
+            <video key={p.imageVersion} src={`/api/social/video/${p.id}.mp4?v=${p.imageVersion}`} poster={`/api/social/image/${p.id}.jpg?v=${p.imageVersion}`} controls muted loop playsInline className="h-full w-full bg-black object-contain" />
+          ) : p.hasImage ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img src={`/api/social/image/${p.id}.jpg?v=${p.imageVersion}`} alt={p.headlineMain} className="h-full w-full object-cover" />
           ) : (
@@ -70,8 +82,18 @@ export function PostCard({ p }: { p: CardPost }) {
               {p.stage === "error" ? <span className="text-red-700">Couldn&apos;t make this one: {p.stageError}</span> : p.stage === "idea" || p.stage === "writing" ? "Writing captions…" : "Designing the image…"}
             </div>
           )}
-          {busy && p.hasImage && <div className="absolute inset-0 flex items-center justify-center bg-white/60 text-sm font-medium">Updating…</div>}
+          {busy && p.hasImage && <div className="absolute inset-0 flex items-center justify-center bg-white/60 text-sm font-medium">{p.kind === "video" ? "Making the Reel…" : "Updating…"}</div>}
         </div>
+        {p.kind === "carousel" && p.slideCount > 0 && (
+          <div className="flex gap-1.5 overflow-x-auto pb-1">
+            {Array.from({ length: p.slideCount }, (_, i) => (
+              <a key={i} href={`/api/social/image/${p.id}-${i + 2}.jpg?v=${p.imageVersion}`} target="_blank" rel="noreferrer" className="shrink-0">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={`/api/social/image/${p.id}-${i + 2}.jpg?v=${p.imageVersion}&w=240`} alt={`Slide ${i + 2}`} className="h-28 w-[90px] rounded-md object-cover ring-1 ring-slate-200" />
+              </a>
+            ))}
+          </div>
+        )}
         {!locked && p.hasImage && (
           <>
             <div className="flex flex-wrap gap-1">
@@ -119,6 +141,8 @@ export function PostCard({ p }: { p: CardPost }) {
       <div className="min-w-0 space-y-3">
         <div className="flex flex-wrap items-center gap-2 text-xs">
           <b className="text-sm text-slate-900">{p.project}</b>
+          <span className={`rounded-md px-2 py-0.5 font-semibold ${p.kind === "video" ? "bg-fuchsia-100 text-fuchsia-800" : p.kind === "carousel" ? "bg-amber-100 text-amber-800" : "bg-sky-100 text-sky-800"}`}>{kindLabel(p.kind)}</span>
+          {p.pillar && <span className="rounded-md bg-emerald-50 px-2 py-0.5 text-emerald-800">{p.pillar}</span>}
           <span className="rounded-md bg-slate-100 px-2 py-0.5 text-slate-700">{p.service}</span>
           <span className="rounded-md bg-indigo-50 px-2 py-0.5 text-indigo-700">{p.angle}</span>
           <span className="text-slate-400">score {p.score}/10</span>
@@ -176,6 +200,26 @@ export function PostCard({ p }: { p: CardPost }) {
                 <span className="label">Text on the image</span>
                 <textarea name="designText" defaultValue={p.designText} rows={p.format === "type" ? 3 : 6} className="input text-sm leading-5" disabled={locked} />
                 <span className="mt-1 block text-xs text-slate-500">{FORMAT_HELP[p.format]}</span>
+              </label>
+            )}
+            {p.kind === "carousel" && (
+              <div className="grid gap-2 sm:grid-cols-[2fr_1fr]">
+                <label className="block">
+                  <span className="label">Slides after the cover</span>
+                  <textarea name="slidesText" defaultValue={p.slidesText} rows={8} className="input text-sm leading-5" disabled={locked} />
+                  <span className="mt-1 block text-xs text-slate-500">One slide per block: the title on the first line, its text below. Leave a blank line between slides.</span>
+                </label>
+                <label className="block">
+                  <span className="label">Last slide</span>
+                  <textarea name="endText" defaultValue={p.endText} rows={3} className="input text-sm leading-5" disabled={locked} />
+                </label>
+              </div>
+            )}
+            {p.kind === "video" && (
+              <label className="block">
+                <span className="label">Words in the Reel</span>
+                <textarea name="scenesText" defaultValue={p.scenesText} rows={3} className="input text-sm leading-5" disabled={locked} />
+                <span className="mt-1 block text-xs text-slate-500">One line per scene. They appear one after another over the visual (about 3 seconds each).</span>
               </label>
             )}
             <div className="grid gap-3 xl:grid-cols-2">

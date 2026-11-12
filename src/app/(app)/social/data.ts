@@ -1,6 +1,6 @@
 import type { Client, SocialPost, SocialProject } from "@prisma/client";
 import { angleOf } from "@/lib/social/ai";
-import { PICTURE_FORMATS, designOf, fallbackText, formatOf } from "@/lib/social/formats";
+import { PICTURE_FORMATS, designOf, fallbackText, formatOf, pillarOf, scenesText, slidesText } from "@/lib/social/formats";
 import { fmtLocal, toLocalInput } from "@/lib/social/schedule";
 import type { CardPost } from "./post-card";
 
@@ -8,10 +8,10 @@ import type { CardPost } from "./post-card";
 export const POST_SELECT = {
   id: true, projectId: true, month: true, service: true, angle: true, idea: true, why: true, score: true, stage: true, stageError: true, status: true, rejectionReason: true,
   hooks: true, captionFacebook: true, captionInstagram: true, captionLinkedin: true, firstComment: true, headlineTop: true, headlineMain: true, headlineBottom: true,
-  imageLayout: true, design: true, mediaId: true, imageVersion: true, scheduledAt: true, results: true, publishedAt: true, updatedAt: true,
+  imageLayout: true, design: true, mediaId: true, imageVersion: true, kind: true, pillar: true, scheduledAt: true, results: true, publishedAt: true, updatedAt: true,
 } as const;
 
-type Row = Pick<SocialPost, keyof typeof POST_SELECT> & { hasImage: boolean; hasPhoto: boolean };
+type Row = Pick<SocialPost, keyof typeof POST_SELECT> & { hasImage: boolean; hasPhoto: boolean; slideCount: number; hasVideo: boolean };
 
 export function toCard(p: Row, project: SocialProject & { client: Pick<Client, "name"> }): CardPost {
   const format = formatOf(p.imageLayout);
@@ -39,6 +39,13 @@ export function toCard(p: Row, project: SocialProject & { client: Pick<Client, "
     format,
     designText: PICTURE_FORMATS.includes(format) ? "" : designOf(p.design).texts?.[format] ?? fallbackText(format, p),
     hasMedia: Boolean(p.mediaId),
+    kind: p.kind,
+    pillar: pillarOf(p.pillar)?.label ?? "",
+    slidesText: p.kind === "carousel" ? slidesText(designOf(p.design)) : "",
+    endText: designOf(p.design).end ?? "",
+    scenesText: p.kind === "video" ? scenesText(designOf(p.design)) : "",
+    slideCount: p.slideCount,
+    hasVideo: p.hasVideo,
     hasImage: p.hasImage,
     hasPhoto: p.hasPhoto,
     imageVersion: p.imageVersion,

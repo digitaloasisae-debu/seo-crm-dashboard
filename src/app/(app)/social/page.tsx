@@ -34,7 +34,7 @@ export default async function SocialReviewPage({ searchParams }: { searchParams:
   ]);
   // Which posts have an image / photo, without loading the bytes.
   const flags = rows.length
-    ? await db.$queryRaw<{ id: string; has_image: boolean; has_photo: boolean }[]>`SELECT id, image IS NOT NULL AS has_image, photo IS NOT NULL AS has_photo FROM "SocialPost" WHERE id = ANY(${rows.map((r) => r.id)})`
+    ? await db.$queryRaw<{ id: string; has_image: boolean; has_photo: boolean; slides: number; has_video: boolean }[]>`SELECT id, image IS NOT NULL AS has_image, photo IS NOT NULL AS has_photo, coalesce(array_length(slides, 1), 0)::int AS slides, video IS NOT NULL AS has_video FROM "SocialPost" WHERE id = ANY(${rows.map((r) => r.id)})`
     : [];
   const flag = new Map(flags.map((f) => [f.id, f]));
   const byId = new Map(projects.map((p) => [p.id, p]));
@@ -78,12 +78,12 @@ export default async function SocialReviewPage({ searchParams }: { searchParams:
               </label>
               <fieldset className="flex flex-wrap gap-3 pb-2 text-sm">
                 {projects.filter((p) => p.active).map((p) => (
-                  <label key={p.id} className="flex items-center gap-1.5"><input type="checkbox" name="project" value={p.id} defaultChecked /> {p.client.name} <span className="text-xs text-slate-400">({p.postsPerMonth})</span></label>
+                  <label key={p.id} className="flex items-center gap-1.5"><input type="checkbox" name="project" value={p.id} defaultChecked /> {p.client.name} </label>
                 ))}
               </fieldset>
               <SubmitButton className="btn-primary" disabled={!geminiConfigured()}>Generate the whole month</SubmitButton>
             </form>
-            <p className="text-xs text-slate-500">Plans every post for the month at once, from each project&apos;s targeted services only. Months that already have posts are only topped up. Planning takes about a minute; then captions and images are made one by one.</p>
+            <p className="text-xs text-slate-500">Plans every post for the month at once, from each project&apos;s targeted services only: every week Monday to Saturday (no Sundays) gets 1 carousel, 2 Reels and 2 images, balanced across informative, hidden promo, client journey and promotional posts, with holidays and events on their day. Days that already have a post are kept. Planning takes about a minute; then captions and images are made one by one.</p>
           </section>
 
           <div className="flex flex-wrap items-center gap-2 text-sm">
@@ -112,7 +112,7 @@ export default async function SocialReviewPage({ searchParams }: { searchParams:
                   <span className="text-sky-700">{count(p.id, "PUBLISHED")} live</span>
                   <span className="text-red-600">{count(p.id, "REJECTED")} rejected</span>
                 </div>
-                <div className="mt-1 text-[11px] text-slate-400">{p.platforms.join(" · ")} · {p.postsPerMonth}/month</div>
+                <div className="mt-1 text-[11px] text-slate-400">{p.platforms.join(" · ")}</div>
               </Link>
             ))}
           </div>
@@ -125,7 +125,7 @@ export default async function SocialReviewPage({ searchParams }: { searchParams:
             <div className="space-y-4">
               {rows.map((r) => {
                 const f = flag.get(r.id);
-                return <PostCard key={`${r.id}-${r.updatedAt.getTime()}`} p={toCard({ ...r, hasImage: !!f?.has_image, hasPhoto: !!f?.has_photo }, byId.get(r.projectId)!)} />;
+                return <PostCard key={`${r.id}-${r.updatedAt.getTime()}`} p={toCard({ ...r, hasImage: !!f?.has_image, hasPhoto: !!f?.has_photo, slideCount: f?.slides ?? 0, hasVideo: !!f?.has_video }, byId.get(r.projectId)!)} />;
               })}
             </div>
           )}
