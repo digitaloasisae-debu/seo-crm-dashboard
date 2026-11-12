@@ -2,6 +2,7 @@
 import type { SocialPost } from "@prisma/client";
 
 export const FORMATS: [string, string][] = [
+  ["concept", "Concept"],
   ["photo", "Photo"],
   ["type", "Big type"],
   ["note", "Note"],
@@ -10,6 +11,8 @@ export const FORMATS: [string, string][] = [
 ];
 export const TEXT_FORMATS = ["type", "note", "list", "versus"];
 export const isFormat = (f: string) => FORMATS.some(([k]) => k === f);
+/** Formats whose picture is a photo or AI visual with a short headline (edited in the headline fields). */
+export const PICTURE_FORMATS = ["concept", "photo"];
 /** Older posts used banner/split/statement. */
 export function formatOf(layout: string) {
   if (isFormat(layout)) return layout;
@@ -25,7 +28,8 @@ export const FORMAT_HELP: Record<string, string> = {
 };
 
 /** design JSON on a post: the image text per format (so switching back keeps edits) and the look variant. */
-export type DesignData = { texts?: Record<string, string>; variant?: number };
+/** pic = what the stored AI picture is ("concept" visual or "photo"), so switching formats never reuses the wrong one. */
+export type DesignData = { texts?: Record<string, string>; variant?: number; pic?: string };
 export const designOf = (d: unknown): DesignData => (d && typeof d === "object" && !Array.isArray(d) ? (d as DesignData) : {});
 
 /** The text a format shows when the AI hasn't written design text for it (e.g. after switching format). */

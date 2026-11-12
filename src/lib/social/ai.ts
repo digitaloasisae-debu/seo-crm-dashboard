@@ -8,7 +8,7 @@ import { geminiJson } from "../gemini";
 import { brandProfileText } from "../brand-profile";
 import { postingSlots } from "./schedule";
 import { ensureResearch, researchText } from "./research";
-import { FORMATS, designOf, formatOf, type DesignData } from "./image";
+import { PICTURE_FORMATS, designOf, formatOf, type DesignData } from "./formats";
 
 export const PLATFORMS = ["facebook", "instagram", "linkedin"] as const;
 export type Platform = (typeof PLATFORMS)[number];
@@ -16,16 +16,16 @@ export const PLATFORM_LABEL: Record<Platform, string> = { facebook: "Facebook", 
 
 /** Proven post angles. Each idea uses one; layout = the image format it starts with (the copywriter may pick another). */
 export const ANGLES = [
-  { key: "myth", label: "Myth bust", layout: "type", hint: "Name a belief buyers of this service hold that is wrong, and show what is true instead." },
-  { key: "mistake", label: "Costly mistake", layout: "note", hint: "A specific mistake people make before or while buying this service, and what it costs them." },
-  { key: "question", label: "Buyer question", layout: "note", hint: "A real question people ask before buying (cost, time, how to choose, is it worth it), answered straight." },
-  { key: "versus", label: "This vs that", layout: "versus", hint: "Compare two options the buyer is choosing between, and say who each one suits." },
+  { key: "myth", label: "Myth bust", layout: "concept", hint: "Name a belief buyers of this service hold that is wrong, and show what is true instead." },
+  { key: "mistake", label: "Costly mistake", layout: "concept", hint: "A specific mistake people make before or while buying this service, and what it costs them." },
+  { key: "question", label: "Buyer question", layout: "concept", hint: "A real question people ask before buying (cost, time, how to choose, is it worth it), answered straight." },
+  { key: "versus", label: "This vs that", layout: "concept", hint: "Compare two options the buyer is choosing between, and say who each one suits." },
   { key: "behind", label: "Behind the scenes", layout: "photo", hint: "How the work is really done: a step, a tool, a check most providers skip." },
   { key: "proof", label: "Proof", layout: "photo", hint: "A result, a before/after or a client situation, using only facts from the service card." },
-  { key: "checklist", label: "Checklist", layout: "list", hint: "A short checklist or framework the reader will save (3-5 points)." },
-  { key: "moment", label: "Local moment", layout: "type", hint: "Tie the service to a real season, event or moment for this audience and location (e.g. a sale season, Ramadan, summer heat, year end, a holiday)." },
+  { key: "checklist", label: "Checklist", layout: "type", hint: "A short checklist or framework the reader will save (3-5 points)." },
+  { key: "moment", label: "Local moment", layout: "concept", hint: "Tie the service to a real season, event or moment for this audience and location (e.g. a sale season, Ramadan, summer heat, year end, a holiday)." },
   { key: "opinion", label: "Bold opinion", layout: "type", hint: "A confident, slightly contrarian take an expert in this service would defend." },
-  { key: "offer", label: "Call to action", layout: "type", hint: "A direct reason to get in touch now, without inventing discounts or prices." },
+  { key: "offer", label: "Call to action", layout: "concept", hint: "A direct reason to get in touch now, without inventing discounts or prices." },
 ] as const;
 export type AngleKey = (typeof ANGLES)[number]["key"];
 export const angleOf = (k: string) => ANGLES.find((a) => a.key === k) ?? ANGLES[0];
@@ -265,13 +265,12 @@ export function designToText(format: string, d: DesignOut | undefined): string {
   return "";
 }
 
-const DESIGN_GUIDE = `IMAGE FORMATS (the image is designed in code from your text; it should look like a sharp human made it, never like an AI ad):
-- photo: one of OUR REAL PHOTOS (from the library below) with a short headline. Only when a library photo truly fits the post. Set photoId.
-- type: a typographic poster. design.kicker = 2-5 small words on top (who it is for, or the setup). design.big = ONE sharp line, 6-16 words, that makes the point on its own. Put *stars* around 1-3 words to highlight them.
-- note: reads like a short text post from the brand, in first person plural or as the team. design.note = 2-4 short paragraphs (blank line between), 25-60 words in total, plain and honest, like something an expert would actually type. *Stars* highlight 1-2 words. No hashtags, no emojis.
-- list: a checklist people save. design.title = 4-9 words. design.items = 3-5 points, each under 10 words, concrete.
-- versus: two columns. design.title = 3-8 words. design.left / design.right = the two column labels (1-3 words each, e.g. "Most agencies" / "What works"; never a competitor's name). design.rows = 3-5 pairs [left, right], each under 7 words.
-Keep image text short. It must add something the caption doesn't say in the same words. No invented numbers.`;
+const DESIGN_GUIDE = `THE IMAGE is the first thing people see, so it must stop the scroll on its own. One strong picture, very few words. Never fill the image with text.
+FORMATS:
+- concept (the default): ONE striking AI visual that shows the post's idea as a clever visual metaphor, on a flat colour background, with a few words above it. imageBrief = the visual: one main subject or object doing something unexpected that makes the point instantly (e.g. for "your Google profile is costing you calls": a ringing old phone sinking into sand; for "cheap SEO": a shiny trophy made of cardboard, peeling). Concrete, surprising, simple enough to read in one second. No people at desks, no laptops, no phones showing screens, no charts, no rockets, no lightbulbs, no handshakes, no magnifying glasses over graphs, no cliches.
+- photo: one of OUR REAL PHOTOS (from the library below) with a few words. Only when a library photo truly fits the post (behind the scenes, team, real work, proof). Set photoId.
+- type: big bold words only, for a sharp opinion or a line strong enough on its own. design.kicker = 1-4 small words on top. design.big = 3-8 words. Put *stars* around 1-2 words to highlight them.
+WORDS ON THE IMAGE: headline.main = 2-6 words, the punch (a twist, a warning, a bold claim, a question). headline.top = 0-4 small words of setup, or empty. headline.bottom = empty unless it is truly needed. The words must work with the picture, not describe it. No invented numbers.`;
 
 /** Write hooks, captions, headline and image design for up to ~4 posts of one project in one AI call. */
 export async function writePosts(posts: SocialPost[]) {
@@ -280,7 +279,8 @@ export async function writePosts(posts: SocialPost[]) {
   const link = p.client.ctaLink || p.client.siteUrl;
   const on = (x: Platform) => p.platforms.includes(x);
   const library = await db.socialMedia.findMany({ where: { projectId: p.id, description: { not: "" } }, select: { id: true, description: true, usedCount: true }, orderBy: [{ usedCount: "asc" }, { createdAt: "desc" }], take: 40 });
-  const formats = FORMATS.map(([k]) => k).filter((k) => k !== "photo" || library.length);
+  // The AI picks between these; note, list and versus are only used when Hamza switches to them.
+  const formats = ["concept", ...(library.length ? ["photo"] : []), "type"];
   const system = `You are a top social media copywriter and art director. You write scroll-stopping posts that sound like a sharp, friendly human expert, never like a brochure or an AI.
 
 VOICE
@@ -303,11 +303,11 @@ Platforms not listed: return an empty string.
 ${DESIGN_GUIDE}
 
 ALSO, for every post:
-- format: one of ${formats.join(", ")}. A suggested format is given per post; change it when another clearly fits better. Within this batch, use different formats where you can.
-- design: the fields for the chosen format (leave the others out).
-- headline: a short headline (also used if the format is switched to photo later): top = 1-5 words, main = the 2-5 word punch, bottom = 1-6 words. No invented numbers.
+- format: one of ${formats.join(", ")}. A suggested format is given per post; change it when another clearly fits better. Mostly concept${library.length ? ", photo when a real photo fits" : ""}; type at most 1 in 4.
+- design: only for format "type" (kicker, big); otherwise leave it out.
+- headline: the words on the image (see above), always filled in.
 - photoId: for format "photo" only, the id of the library photo that fits best; otherwise "".
-- imageBrief: one sentence describing a real, unposed scene that would suit this post (used only if Hamza asks for an AI photo).
+- imageBrief: the visual for a concept image, always filled in (one or two sentences).
 - altText: one sentence describing the finished image for screen readers.`;
   const prompt = `BUSINESS: ${businessLine(p.client)}
 Main call to action: ${p.client.ctaText || "get in touch"} (${link})
@@ -345,13 +345,15 @@ Return JSON: {"posts":[{"id":"...","hooks":["","",""],"instagram":"","facebook":
     if (!w) throw new Error("The AI skipped this post, it will be retried");
     // Format: Hamza's choice once the post has an image; otherwise the AI's pick (photo only with a real library photo).
     const current = formatOf(x.imageLayout);
-    let format = x.imageVersion > 0 ? current : formats.includes(String(w.format)) ? String(w.format) : current === "photo" ? "type" : current;
+    let format = x.imageVersion > 0 ? current : formats.includes(String(w.format)) ? String(w.format) : formats.includes(current) ? current : "concept";
     const media = format === "photo" ? (library.find((m) => m.id === String(w.photoId ?? "").trim()) ?? (x.imageVersion > 0 ? undefined : null)) : undefined;
-    if (media === null) format = angleOf(x.angle).layout === "photo" ? "type" : angleOf(x.angle).layout;
+    if (media === null) format = "concept";
     const old = designOf(x.design);
-    let text = designToText(format, w.design);
-    if (!text && format !== "photo") text = designToText("type", { big: w.headline?.main ? [w.headline.top, w.headline.main, w.headline.bottom].filter(Boolean).join(" ") : x.idea });
-    const design: DesignData = { variant: old.variant ?? 0, texts: format === "photo" ? {} : { [format]: text } };
+    const texts = { ...old.texts };
+    if (!PICTURE_FORMATS.includes(format)) {
+      texts[format] = designToText(format, w.design) || designToText("type", { kicker: w.headline?.top, big: w.headline?.main || x.idea });
+    }
+    const design: DesignData = { ...old, texts };
     await db.socialPost.update({
       where: { id: x.id },
       data: {

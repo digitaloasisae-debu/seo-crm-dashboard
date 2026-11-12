@@ -1,6 +1,6 @@
 import type { Client, SocialPost, SocialProject } from "@prisma/client";
 import { angleOf } from "@/lib/social/ai";
-import { designOf, fallbackText, formatOf } from "@/lib/social/formats";
+import { PICTURE_FORMATS, designOf, fallbackText, formatOf } from "@/lib/social/formats";
 import { fmtLocal, toLocalInput } from "@/lib/social/schedule";
 import type { CardPost } from "./post-card";
 
@@ -37,7 +37,7 @@ export function toCard(p: Row, project: SocialProject & { client: Pick<Client, "
     headlineMain: p.headlineMain,
     headlineBottom: p.headlineBottom,
     format,
-    designText: format === "photo" ? "" : designOf(p.design).texts?.[format] ?? fallbackText(format, p),
+    designText: PICTURE_FORMATS.includes(format) ? "" : designOf(p.design).texts?.[format] ?? fallbackText(format, p),
     hasMedia: Boolean(p.mediaId),
     hasImage: p.hasImage,
     hasPhoto: p.hasPhoto,

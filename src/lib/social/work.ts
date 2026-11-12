@@ -6,7 +6,7 @@
 import type { SocialPost } from "@prisma/client";
 import { db } from "../db";
 import { writePosts } from "./ai";
-import { designImage, drawPhoto, fitPhoto, formatOf } from "./image";
+import { designImage, designOf, drawConcept, drawPhoto, fitPhoto, formatOf } from "./image";
 
 const MAX_TRIES = 3;
 const STALE_MS = 6 * 60_000;
@@ -52,25 +52,29 @@ async function writeStep(only?: string[]) {
 }
 
 /**
- * Design one post. Text-first formats need no photo. Photo posts use the library photo when one is
- * set, otherwise the post's AI photo (made only when missing, i.e. when Hamza asked for one).
+ * Design one post. Text-first formats need no picture. Photo posts use the library photo when one is
+ * set, otherwise an AI photo. Concept posts use an AI concept visual. AI pictures are made only when missing.
  */
 export async function drawOne(postId: string) {
   const [post] = await claim([postId], "written", "drawing");
   if (!post) return false;
   try {
     const project = await db.socialProject.findUniqueOrThrow({ where: { id: post.projectId }, include: { client: true } });
+    const format = formatOf(post.imageLayout);
+    const d = designOf(post.design);
     let photo: Buffer | null = null;
-    let aiPhoto: Buffer | null = null;
-    if (formatOf(post.imageLayout) === "photo") {
-      const media = post.mediaId ? await db.socialMedia.findUnique({ where: { id: post.mediaId }, select: { data: true } }) : null;
-      if (media) photo = await fitPhoto(media.data);
-      else photo = aiPhoto = post.photo ? Buffer.from(post.photo) : await drawPhoto(post, project);
+    let fresh: Buffer | null = null;
+    const media = format === "photo" && post.mediaId ? await db.socialMedia.findUnique({ where: { id: post.mediaId }, select: { data: true } }) : null;
+    if (media) photo = await fitPhoto(media.data);
+    else if (format === "photo" || format === "concept") {
+      // Reuse the stored AI picture only if it was made for this format (older posts: photos).
+      const kept = post.photo && (d.pic ?? "photo") === format ? Buffer.from(post.photo) : null;
+      photo = kept ?? (fresh = format === "concept" ? await drawConcept(post, project) : await drawPhoto(post, project));
     }
     const image = await designImage(post, project, photo);
     await db.socialPost.update({
       where: { id: post.id },
-      data: { ...(aiPhoto ? { photo: new Uint8Array(aiPhoto) } : {}), image: new Uint8Array(image), imageVersion: { increment: 1 }, stage: "ready", stageError: null, imageNote: null },
+      data: { ...(fresh ? { photo: new Uint8Array(fresh), design: { ...d, pic: format } } : {}), image: new Uint8Array(image), imageVersion: { increment: 1 }, stage: "ready", stageError: null, imageNote: null },
     });
   } catch (e) {
     await fail([post], "written", e);

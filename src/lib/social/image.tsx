@@ -17,7 +17,7 @@ export const W = 1080;
 export const H = 1350;
 
 import { designOf, fallbackText, formatOf } from "./formats";
-export { FORMATS, FORMAT_HELP, TEXT_FORMATS, designOf, fallbackText, formatOf, isFormat, type DesignData } from "./formats";
+export { FORMATS, FORMAT_HELP, PICTURE_FORMATS, TEXT_FORMATS, designOf, fallbackText, formatOf, isFormat, type DesignData } from "./formats";
 
 // ---------- AI photo (only when asked) ----------
 
@@ -25,8 +25,6 @@ const imageModels = () => [process.env.GEMINI_IMAGE_MODEL, "gemini-3.1-flash-ima
 
 /** A text-free AI photo, shot to look like a phone snap from a real workplace rather than stock. */
 export async function drawPhoto(post: SocialPost, project: SocialProject & { client: Client }): Promise<Buffer> {
-  const key = process.env.GEMINI_API_KEY;
-  if (!key) throw new Error("GEMINI_API_KEY is not set in Vercel");
   const prompt = [
     `An unposed photo taken on a phone at ${project.client.name} (${project.client.businessType ?? "business"}, ${[project.client.primaryCity, project.client.targetCountry].filter(Boolean).join(", ")}).`,
     post.imageBrief || post.idea,
@@ -38,6 +36,49 @@ export async function drawPhoto(post: SocialPost, project: SocialProject & { cli
   ]
     .filter(Boolean)
     .join("\n");
+  return generateImage(prompt);
+}
+
+const CONCEPT_STYLES = [
+  "a clean, playful 3D render of real-looking materials with soft studio light and crisp shadows",
+  "a cut-paper diorama made of layered coloured card, photographed with soft light",
+  "a surreal still-life photograph of real everyday objects, arranged with wit, sharp and minimal",
+  "a minimal claymation-style sculpture scene with tactile textures",
+];
+
+/**
+ * The visual of a "concept" post: ONE striking visual metaphor on a flat background in the post's
+ * theme colour, with the top third left empty for the headline. Not a fake photo of people.
+ */
+export async function drawConcept(post: SocialPost, project: SocialProject & { client: Client }): Promise<Buffer> {
+  const bg = conceptTheme(post.id, project.client).bg;
+  const style = CONCEPT_STYLES[hash(`${post.id}:style:${designOf(post.design).variant ?? 0}`) % CONCEPT_STYLES.length];
+  const prompt = [
+    `One bold, eye-catching visual for a social media post by ${project.client.name} (${project.client.businessType ?? "business"}). It must make people stop scrolling.`,
+    `The visual idea (a clever visual metaphor, one main subject): ${post.imageBrief || post.idea}`,
+    `Style: ${style}.`,
+    `Background: one flat, solid colour, exactly ${bg}, edge to edge. No gradient, no vignette, no floor line, no scenery.`,
+    "Composition: the subject sits in the lower two thirds and is large and centred; the top third of the frame is completely empty background (a headline goes there).",
+    "Not stock photography: no people in offices, no handshakes, no laptops or phones with screens, no faces looking at the camera, no glowing holograms, no floating icons.",
+    "ABSOLUTELY NO text, letters, numbers, logos or symbols anywhere in the image.",
+    project.imageStyle ? `Owner's notes: ${project.imageStyle}` : "",
+    post.imageNote ? `Most important, the owner asked for this: ${post.imageNote}` : "",
+    "Portrait 4:5.",
+  ]
+    .filter(Boolean)
+    .join("\n");
+  return generateImage(prompt);
+}
+
+/** A library photo, cropped to the post size. */
+export function fitPhoto(data: Uint8Array | Buffer) {
+  return sharp(Buffer.from(data)).rotate().resize(W, H, { fit: "cover", position: "attention" }).jpeg({ quality: 88 }).toBuffer();
+}
+
+/** Ask Gemini for an image; returns a 1080x1350 JPEG. */
+async function generateImage(prompt: string): Promise<Buffer> {
+  const key = process.env.GEMINI_API_KEY;
+  if (!key) throw new Error("GEMINI_API_KEY is not set in Vercel");
   let lastErr = "";
   for (const model of imageModels()) {
     const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
@@ -63,11 +104,6 @@ export async function drawPhoto(post: SocialPost, project: SocialProject & { cli
     return sharp(Buffer.from(b64, "base64")).resize(W, H, { fit: "cover", position: "attention" }).jpeg({ quality: 88 }).toBuffer();
   }
   throw new Error(`No image model available: ${lastErr}`);
-}
-
-/** A library photo, cropped to the post size. */
-export function fitPhoto(data: Uint8Array | Buffer) {
-  return sharp(Buffer.from(data)).rotate().resize(W, H, { fit: "cover", position: "attention" }).jpeg({ quality: 88 }).toBuffer();
 }
 
 // ---------- fonts ----------
@@ -375,6 +411,41 @@ function PhotoPost({ c, photoUrl, top, main, bottom }: { c: Ctx; photoUrl: strin
   );
 }
 
+/** The concept visual is drawn on this theme's background, so it depends on the post only (not the look variant). */
+function conceptTheme(id: string, colors: Pick<Client, "brandPrimaryColor" | "brandSecondaryColor" | "brandAccentColor">) {
+  const ts = themes(colors);
+  return ts[hash(`${id}:concept`) % ts.length];
+}
+
+/** Match the text colours to the real top of the AI visual (the model doesn't always hit the exact background). */
+async function fitTheme(t: Theme, photo: Buffer): Promise<Theme> {
+  const { channels } = await sharp(photo).extract({ left: 0, top: 0, width: W, height: 420 }).stats();
+  const bg = `#${channels.slice(0, 3).map((c) => Math.round(c.mean).toString(16).padStart(2, "0")).join("")}`;
+  const light = lum(bg) > 0.35;
+  const fg = light ? "#151515" : "#ffffff";
+  return { bg, fg, muted: light ? "#000000a6" : "#ffffffb3", accent: readable(t.accent, bg, 3.2), line: t.line, dark: !light };
+}
+
+/** Concept: the visual fills the frame; a few words sit in the empty top third. */
+function ConceptPost({ c, photoUrl, top, main }: { c: Ctx; photoUrl: string; top: string; main: string }) {
+  const size = fit(plain(main), INNER - 120, 300, c.f.w, c.f.lh, 64, 128);
+  return (
+    <div style={{ display: "flex", width: W, height: H, background: c.t.bg }}>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src={photoUrl} width={W} height={H} style={{ position: "absolute", top: 0, left: 0, width: W, height: H, objectFit: "cover" }} alt="" />
+      <div style={{ position: "absolute", top: PAD, left: PAD, right: PAD, display: "flex", flexDirection: "column", gap: 14 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <div style={{ display: "flex", fontFamily: "Inter", fontWeight: 600, fontSize: 30, color: c.t.muted }}>{top}</div>
+          <Logo c={c} size={38} />
+        </div>
+        <div style={{ display: "flex", fontFamily: c.f.family, fontWeight: c.f.weight, fontSize: size, lineHeight: c.f.lh, letterSpacing: c.f.ls, color: c.t.fg }}>
+          <Rich text={main} accent={c.t.accent} italic={c.f.italic} size={size} lh={c.f.lh} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function hash(s: string) {
   let h = 2166136261;
   for (let i = 0; i < s.length; i++) h = Math.imul(h ^ s.charCodeAt(i), 16777619);
@@ -400,7 +471,8 @@ export async function renderDesign(d: DesignInput): Promise<Buffer> {
   const ts = themes(d.colors);
   // Photo posts never sit on the brand-colour theme (too loud next to a photo).
   const pool = d.format === "photo" ? [ts[0], ts[1], ts[3]] : ts;
-  const t = pool[seed % pool.length];
+  let t = d.format === "concept" ? conceptTheme(d.id, d.colors) : pool[seed % pool.length];
+  if (d.format === "concept" && d.photo) t = await fitTheme(t, d.photo);
   const f = DISPLAYS[Math.floor(seed / 7) % DISPLAYS.length];
   const c: Ctx = { t, f, brand: d.brand, seed: Math.floor(seed / 31) };
   const [disp, dispItalic, inter4, inter6, inter7] = await Promise.all([
@@ -412,7 +484,10 @@ export async function renderDesign(d: DesignInput): Promise<Buffer> {
   ]);
   if (!inter4 || !disp) throw new Error("Could not load fonts, try again");
   let el;
-  if (d.format === "photo") {
+  if (d.format === "concept") {
+    if (!d.photo) throw new Error("This post has no visual yet");
+    el = <ConceptPost c={c} photoUrl={`data:image/jpeg;base64,${d.photo.toString("base64")}`} top={d.top} main={d.main} />;
+  } else if (d.format === "photo") {
     if (!d.photo) throw new Error("This post has no photo yet");
     el = <PhotoPost c={c} photoUrl={`data:image/jpeg;base64,${d.photo.toString("base64")}`} top={d.top} main={d.main} bottom={d.bottom} />;
   } else if (d.format === "note") el = <Note c={c} text={d.text} />;

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { SubmitButton } from "@/components/submit-button";
-import { FORMATS, FORMAT_HELP } from "@/lib/social/formats";
+import { FORMATS, FORMAT_HELP, PICTURE_FORMATS } from "@/lib/social/formats";
 import { anotherLookAction, approvePostAction, deletePostAction, regenerateImageAction, regenerateTextAction, rejectPostAction, relayoutAction, restorePostAction, savePostAction, unapprovePostAction } from "./actions";
 
 export type CardPost = {
@@ -26,7 +26,7 @@ export type CardPost = {
   headlineTop: string;
   headlineMain: string;
   headlineBottom: string;
-  /** photo, type, note, list or versus */
+  /** concept, photo, type, note, list or versus */
   format: string;
   /** The text on the image for text-first formats */
   designText: string;
@@ -78,7 +78,7 @@ export function PostCard({ p }: { p: CardPost }) {
               {FORMATS.map(([k, label]) => (
                 <form key={k} action={relayoutAction.bind(null, p.id, k)}>
                   <SubmitButton
-                    title={k === "photo" ? "Uses a real photo from this project's library (or an AI photo if the library is empty)" : undefined}
+                    title={k === "photo" ? "Uses a real photo from this project's library (or an AI photo if the library is empty)" : k === "concept" ? "One striking AI visual with a few words" : undefined}
                     className={`rounded-md px-2 py-1 text-xs ${p.format === k ? "bg-indigo-600 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"}`}
                   >
                     {label}
@@ -90,24 +90,26 @@ export function PostCard({ p }: { p: CardPost }) {
               <form action={anotherLookAction.bind(null, p.id)} className="flex-1">
                 <SubmitButton className="btn-secondary w-full text-xs">Another look</SubmitButton>
               </form>
-              {p.format === "photo" && (
+              {PICTURE_FORMATS.includes(p.format) && (
                 <button type="button" onClick={() => setPanel(panel === "image" ? "" : "image")} className="btn-secondary flex-1 text-xs">
-                  Change photo
+                  {p.format === "concept" ? "New visual" : "Change photo"}
                 </button>
               )}
             </div>
           </>
         )}
-        {panel === "image" && p.format === "photo" && (
+        {panel === "image" && PICTURE_FORMATS.includes(p.format) && (
           <div className="space-y-3 rounded-md bg-slate-50 p-3">
-            <form action={regenerateImageAction.bind(null, p.id)}>
-              <input type="hidden" name="mode" value="library" />
-              <SubmitButton className="btn-secondary w-full text-xs">Next photo from the library</SubmitButton>
-            </form>
+            {p.format === "photo" && (
+              <form action={regenerateImageAction.bind(null, p.id)}>
+                <input type="hidden" name="mode" value="library" />
+                <SubmitButton className="btn-secondary w-full text-xs">Next photo from the library</SubmitButton>
+              </form>
+            )}
             <form action={regenerateImageAction.bind(null, p.id)} className="space-y-2">
               <input type="hidden" name="mode" value="ai" />
-              <textarea name="note" rows={2} className="input text-sm" placeholder="Optional: what to show (e.g. a real shop floor, no people in suits)" />
-              <SubmitButton className="btn-secondary w-full text-xs">Make an AI photo instead</SubmitButton>
+              <textarea name="note" rows={2} className="input text-sm" placeholder={p.format === "concept" ? "Optional: what to show (e.g. a melting price tag, brighter, more playful)" : "Optional: what to show (e.g. a real shop floor, no people in suits)"} />
+              <SubmitButton className="btn-secondary w-full text-xs">{p.format === "concept" ? "Make a new visual" : "Make an AI photo instead"}</SubmitButton>
               <p className="text-xs text-slate-500">Takes about 30 seconds. Your note also teaches the AI for next time.</p>
             </form>
           </div>
@@ -160,13 +162,13 @@ export function PostCard({ p }: { p: CardPost }) {
                 </div>
               </div>
             )}
-            {p.format === "photo" ? (
+            {PICTURE_FORMATS.includes(p.format) ? (
               <div>
-                <div className="label">Image headline (small / big / small). *Stars* highlight words.</div>
-                <div className="grid gap-2 sm:grid-cols-3">
+                <div className="label">Words on the image ({p.format === "concept" ? "small / big" : "small / big / small"}). Keep it short. *Stars* highlight words.</div>
+                <div className={`grid gap-2 ${p.format === "concept" ? "sm:grid-cols-[1fr_2fr]" : "sm:grid-cols-3"}`}>
                   <input name="headlineTop" defaultValue={p.headlineTop} className="input text-sm" disabled={locked} />
                   <input name="headlineMain" defaultValue={p.headlineMain} className="input text-sm font-semibold" disabled={locked} />
-                  <input name="headlineBottom" defaultValue={p.headlineBottom} className="input text-sm" disabled={locked} />
+                  {p.format !== "concept" && <input name="headlineBottom" defaultValue={p.headlineBottom} className="input text-sm" disabled={locked} />}
                 </div>
               </div>
             ) : (
@@ -224,7 +226,7 @@ export function PostCard({ p }: { p: CardPost }) {
           <form action={regenerateTextAction.bind(null, p.id)} className="space-y-2 rounded-xl bg-slate-50 p-3">
             <textarea name="note" rows={2} className="input text-sm" placeholder="Optional: what to change (e.g. shorter, less salesy, open with a story, mention free audit)" />
             <SubmitButton className="btn-primary text-xs">Write new captions</SubmitButton>
-            <span className="ml-2 text-xs text-slate-500">Keeps the photo. Your note teaches the AI.</span>
+            <span className="ml-2 text-xs text-slate-500">Keeps the picture. Your note teaches the AI.</span>
           </form>
         )}
         {panel === "reject" && (

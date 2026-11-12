@@ -6,7 +6,7 @@ import { db } from "@/lib/db";
 import { requireSuperAdmin } from "@/lib/session";
 import type { Prisma } from "@prisma/client";
 import { PLATFORMS, draftServiceCard, planMonth, planReplacement, updateBrain, writeDesignText } from "@/lib/social/ai";
-import { designOf, formatOf, isFormat } from "@/lib/social/image";
+import { PICTURE_FORMATS, designOf, formatOf, isFormat } from "@/lib/social/formats";
 import { addMedia, describeMedia, nextMedia } from "@/lib/social/media";
 import { cleanHandles, runResearch } from "@/lib/social/research";
 import { finishPost, socialWork } from "@/lib/social/work";
@@ -194,7 +194,7 @@ async function saveEdits(postId: string, f: FormData) {
   const design = designOf(post.design);
   const designText = f.get("designText");
   let designChanged = false;
-  if (designText !== null && format !== "photo" && String(designText).trim() !== (design.texts?.[format] ?? "").trim()) {
+  if (designText !== null && !PICTURE_FORMATS.includes(format) && String(designText).trim() !== (design.texts?.[format] ?? "").trim()) {
     designChanged = true;
     await db.socialPost.update({ where: { id: postId }, data: { design: { ...design, texts: { ...design.texts, [format]: String(designText).trim().slice(0, 2000) } } as Prisma.InputJsonValue } });
   }
@@ -266,21 +266,23 @@ export async function regenerateTextAction(postId: string, formData: FormData) {
 }
 
 /**
- * A new photo for a photo post. mode "library" = the next photo from the project's library,
- * mode "ai" = an AI photo (with Hamza's note). Keeps the captions.
+ * A new picture. mode "library" = the next photo from the project's library (photo format),
+ * mode "ai" = a new AI picture for the post's format, concept visual or photo (with Hamza's note).
+ * Keeps the captions.
  */
 export async function regenerateImageAction(postId: string, formData: FormData) {
   await requireSuperAdmin();
   const note = String(formData.get("note") ?? "").trim().slice(0, 1000);
   const mode = String(formData.get("mode") ?? "ai");
-  const cur = await db.socialPost.findUniqueOrThrow({ where: { id: postId }, select: { projectId: true, mediaId: true } });
+  const cur = await db.socialPost.findUniqueOrThrow({ where: { id: postId }, select: { projectId: true, mediaId: true, imageLayout: true } });
+  const pictureFormat = formatOf(cur.imageLayout) === "concept" ? "concept" : "photo";
   if (mode === "library") {
     const m = await nextMedia(cur.projectId, cur.mediaId);
     if (!m) return;
     await db.socialPost.update({ where: { id: postId }, data: { mediaId: m.id, imageLayout: "photo", stage: "written", attempts: 0, stageError: null, status: "DRAFT" } });
     await db.socialMedia.update({ where: { id: m.id }, data: { usedCount: { increment: 1 } } });
   } else {
-    await db.socialPost.update({ where: { id: postId }, data: { imageNote: note || null, photo: null, mediaId: null, imageLayout: "photo", stage: "written", attempts: 0, stageError: null, status: "DRAFT" } });
+    await db.socialPost.update({ where: { id: postId }, data: { imageNote: note || null, photo: null, mediaId: null, imageLayout: pictureFormat, stage: "written", attempts: 0, stageError: null, status: "DRAFT" } });
     await db.socialFeedback.create({ data: { projectId: cur.projectId, postId, kind: "regenerate_image", note } });
     if (note) learn(cur.projectId);
   }
@@ -306,11 +308,13 @@ export async function relayoutAction(postId: string, format: string) {
   const d = designOf(post.design);
   const data: Prisma.SocialPostUpdateInput = { imageLayout: format };
   if (format === "photo") {
-    if (!post.mediaId && !post.photo) {
+    if (!post.mediaId) {
       const m = await nextMedia(post.projectId);
       if (m) data.media = { connect: { id: m.id } };
       // No library photo: the worker makes an AI photo.
     }
+  } else if (format === "concept") {
+    data.media = { disconnect: true };
   } else if (!d.texts?.[format]) {
     const text = await writeDesignText(post, format).catch(() => "");
     if (text) data.design = { ...d, texts: { ...d.texts, [format]: text } } as Prisma.InputJsonValue;
