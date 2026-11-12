@@ -55,11 +55,13 @@ export async function drawConcept(post: SocialPost, project: SocialProject & { c
   const style = CONCEPT_STYLES[hash(`${post.id}:style:${designOf(post.design).variant ?? 0}`) % CONCEPT_STYLES.length];
   const prompt = [
     `One bold, eye-catching visual for a social media post by ${project.client.name} (${project.client.businessType ?? "business"}). It must make people stop scrolling.`,
-    `The visual idea (a clever visual metaphor, one main subject): ${post.imageBrief || post.idea}`,
+    `What the post is about: ${post.idea} (service: ${post.service}).`,
+    `The visual: ${post.imageBrief || post.idea}`,
+    "It must be obviously about that topic: show the real, recognisable subject of the post (the actual object, place or result a customer would recognise), not an abstract symbol. Someone seeing only this image should be able to guess the topic.",
     `Style: ${style}.`,
     `Background: one flat, solid colour, exactly ${bg}, edge to edge. No gradient, no vignette, no floor line, no scenery.`,
     "Composition: the subject sits in the lower two thirds and is large and centred; the top third of the frame is completely empty background (a headline goes there).",
-    "Not stock photography: no people in offices, no handshakes, no laptops or phones with screens, no faces looking at the camera, no glowing holograms, no floating icons.",
+    "Not stock photography: no people in offices, no handshakes, no faces looking at the camera, no glowing holograms, no floating icons. Any screen shows only simple shapes and colours.",
     "ABSOLUTELY NO text, letters, numbers, logos or symbols anywhere in the image.",
     project.imageStyle ? `Owner's notes: ${project.imageStyle}` : "",
     post.imageNote ? `Most important, the owner asked for this: ${post.imageNote}` : "",
@@ -244,15 +246,25 @@ const lines = (text: string) => text.split("\n").map((s) => s.trim());
 
 // ---------- design ----------
 
-export type Brand = { name: string; site: string; logo: string | null };
+/** logo = the logo with its background removed; light / dark = one-colour versions for backgrounds it would vanish on. */
+export type BrandLogo = { src: string; light: string; dark: string; lum: number };
+export type Brand = { name: string; site: string; logo: BrandLogo | null };
+
+/** The logo version that reads on this background. */
+function logoFor(logo: BrandLogo, bg: string) {
+  const l = lum(bg);
+  if (l < 0.3 && logo.lum < 0.35) return logo.light;
+  if (l > 0.6 && logo.lum > 0.7) return logo.dark;
+  return logo.src;
+}
 type Ctx = { t: Theme; f: Display; brand: Brand; seed: number };
 
 function Logo({ c, size = 44 }: { c: Ctx; size?: number }) {
   if (!c.brand.logo) return <div style={{ display: "flex", fontFamily: "Inter", fontWeight: 700, fontSize: size * 0.62, color: c.t.fg }}>{c.brand.name}</div>;
   return (
-    <div style={{ display: "flex", background: c.t.dark ? "#ffffff" : "transparent", borderRadius: 10, padding: c.t.dark ? "8px 14px" : 0 }}>
+    <div style={{ display: "flex" }}>
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src={c.brand.logo} style={{ height: size }} alt="" />
+      <img src={logoFor(c.brand.logo, c.t.bg)} style={{ height: size }} alt="" />
     </div>
   );
 }
@@ -294,10 +306,10 @@ function Note({ c, text }: { c: Ctx; text: string }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", width: W, height: H, background: c.t.bg, padding: PAD, justifyContent: "center" }}>
       <div style={{ display: "flex", alignItems: "center", gap: 22, marginBottom: 46 }}>
-        <div style={{ display: "flex", width: 92, height: 92, borderRadius: 46, background: "#ffffff", border: `2px solid ${c.t.line}`, alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
+        <div style={{ display: "flex", width: 92, height: 92, borderRadius: 46, border: `2px solid ${c.t.line}`, alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
           {c.brand.logo ? (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={c.brand.logo} style={{ width: 70, height: 70, objectFit: "contain" }} alt="" />
+            <img src={logoFor(c.brand.logo, c.t.bg)} style={{ width: 70, height: 70, objectFit: "contain" }} alt="" />
           ) : (
             <div style={{ display: "flex", fontFamily: "Inter", fontWeight: 700, fontSize: 40, color: "#111111" }}>{c.brand.name.slice(0, 1)}</div>
           )}
@@ -510,16 +522,68 @@ export async function renderDesign(d: DesignInput): Promise<Buffer> {
   return sharp(png).jpeg({ quality: 90, mozjpeg: true }).toBuffer();
 }
 
-async function logoData(url: string | null | undefined): Promise<string | null> {
+/**
+ * Fetch the client's logo and make it sit cleanly on any background: the white (or near-white)
+ * background around it is made transparent (only where it touches the edge, so white parts inside
+ * the logo stay), the empty margin is trimmed, and one-colour light and dark versions are made.
+ */
+async function logoData(url: string | null | undefined): Promise<BrandLogo | null> {
   if (!url) return null;
   try {
     const r = await fetch(url, { signal: AbortSignal.timeout(10_000), headers: { "User-Agent": "Mozilla/5.0 (compatible; RankflowBot/1.0)" } });
     if (!r.ok) return null;
-    const png = await sharp(Buffer.from(await r.arrayBuffer()), { density: 300 }).resize({ height: 120, width: 420, fit: "inside" }).png().toBuffer();
-    return `data:image/png;base64,${png.toString("base64")}`;
+    return await cleanLogo(Buffer.from(await r.arrayBuffer()));
   } catch {
     return null;
   }
+}
+
+export async function cleanLogo(input: Buffer): Promise<BrandLogo> {
+  const { data, info } = await sharp(input, { density: 300 }).resize({ height: 240, width: 840, fit: "inside" }).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+  const { width: w, height: h } = info;
+  const px = (i: number) => i * 4;
+  const whiteish = (i: number) => data[px(i) + 3] < 16 || (data[px(i)] > 228 && data[px(i) + 1] > 228 && data[px(i) + 2] > 228);
+  // Flood fill from the edges through white / transparent pixels.
+  const seen = new Uint8Array(w * h);
+  const stack: number[] = [];
+  for (let x = 0; x < w; x++) stack.push(x, (h - 1) * w + x);
+  for (let y = 0; y < h; y++) stack.push(y * w, y * w + w - 1);
+  while (stack.length) {
+    const i = stack.pop()!;
+    if (seen[i] || !whiteish(i)) continue;
+    seen[i] = 1;
+    data[px(i) + 3] = 0;
+    const x = i % w;
+    if (x > 0) stack.push(i - 1);
+    if (x < w - 1) stack.push(i + 1);
+    if (i >= w) stack.push(i - w);
+    if (i < w * (h - 1)) stack.push(i + w);
+  }
+  // Average brightness of what is left (decides when the one-colour versions are needed).
+  let sum = 0;
+  let n = 0;
+  for (let i = 0; i < w * h; i++) {
+    const a = data[px(i) + 3];
+    if (a < 128) continue;
+    sum += lum(`#${[0, 1, 2].map((k) => data[px(i) + k].toString(16).padStart(2, "0")).join("")}`);
+    n++;
+  }
+  // One-colour version: the logo's dark parts in `v`, its light parts cut out (so a white letter
+  // inside a dark shape shows the background through, like a knockout).
+  const tint = (v: number, keepDark: boolean) => {
+    const out = Buffer.from(data);
+    for (let i = 0; i < w * h; i++) {
+      const l = (0.2126 * data[px(i)] + 0.7152 * data[px(i) + 1] + 0.0722 * data[px(i) + 2]) / 255;
+      out.fill(v, px(i), px(i) + 3);
+      if ((l < 0.55) !== keepDark) out[px(i) + 3] = 0;
+    }
+    return out;
+  };
+  const enc = async (buf: Buffer) => {
+    const png = await sharp(buf, { raw: { width: w, height: h, channels: 4 } }).trim({ threshold: 1 }).png().toBuffer().catch(() => sharp(buf, { raw: { width: w, height: h, channels: 4 } }).png().toBuffer());
+    return `data:image/png;base64,${png.toString("base64")}`;
+  };
+  return { src: await enc(Buffer.from(data)), light: await enc(tint(255, true)), dark: await enc(tint(21, false)), lum: n ? sum / n : 0.5 };
 }
 
 /** Design the image of a post (photo = the post's photo, or null for text-first formats). */

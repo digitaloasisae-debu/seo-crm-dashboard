@@ -267,7 +267,10 @@ export function designToText(format: string, d: DesignOut | undefined): string {
 
 const DESIGN_GUIDE = `THE IMAGE is the first thing people see, so it must stop the scroll on its own. One strong picture, very few words. Never fill the image with text.
 FORMATS:
-- concept (the default): ONE striking AI visual that shows the post's idea as a clever visual metaphor, on a flat colour background, with a few words above it. imageBrief = the visual: one main subject or object doing something unexpected that makes the point instantly (e.g. for "your Google profile is costing you calls": a ringing old phone sinking into sand; for "cheap SEO": a shiny trophy made of cardboard, peeling). Concrete, surprising, simple enough to read in one second. No people at desks, no laptops, no phones showing screens, no charts, no rockets, no lightbulbs, no handshakes, no magnifying glasses over graphs, no cliches.
+- concept (the default): ONE striking AI visual of the post's ACTUAL SUBJECT, on a flat colour background, with a few words above it. RELEVANCE FIRST: someone who sees only the image must be able to guess what the post is about. imageBrief = the visual, built in two steps:
+  1. Name the real, recognisable thing the post is about, from the service and the idea: the object, place or result the buyer knows (e.g. a Google Maps location pin, a shop's storefront, an online shopping cart and parcel, a property's front door and keys, a restaurant table, a delivery box, a phone ringing with a customer call, a website page on a laptop, a price tag).
+  2. Show that thing in a state that makes this post's point, with one twist at most (e.g. "your Google profile is costing you calls" -> a big red Google-Maps-style location pin, cracked and leaking coins; "abandoned carts" -> a full shopping cart left alone in an empty aisle, parcels spilling out; "cheap SEO" -> a website shaped like a house of cards, starting to tip).
+  Never an abstract metaphor whose link to the topic needs explaining (no sinking phones in sand for SEO, no trophies, no chess pieces, no mountains, no rockets, no lightbulbs, no puzzle pieces, no handshakes, no people at desks). Devices are fine when they ARE the subject, but screens show only simple shapes and colours, never readable text.
 - photo: one of OUR REAL PHOTOS (from the library below) with a few words. Only when a library photo truly fits the post (behind the scenes, team, real work, proof). Set photoId.
 - type: big bold words only, for a sharp opinion or a line strong enough on its own. design.kicker = 1-4 small words on top. design.big = 3-8 words. Put *stars* around 1-2 words to highlight them.
 WORDS ON THE IMAGE: headline.main = 2-6 words, the punch (a twist, a warning, a bold claim, a question). headline.top = 0-4 small words of setup, or empty. headline.bottom = empty unless it is truly needed. The words must work with the picture, not describe it. No invented numbers.`;
@@ -307,7 +310,7 @@ ALSO, for every post:
 - design: only for format "type" (kicker, big); otherwise leave it out.
 - headline: the words on the image (see above), always filled in.
 - photoId: for format "photo" only, the id of the library photo that fits best; otherwise "".
-- imageBrief: the visual for a concept image, always filled in (one or two sentences).
+- imageBrief: the visual for a concept image, always filled in (one or two sentences). Start with the recognisable subject, then its state.
 - altText: one sentence describing the finished image for screen readers.`;
   const prompt = `BUSINESS: ${businessLine(p.client)}
 Main call to action: ${p.client.ctaText || "get in touch"} (${link})
