@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import { SubmitButton } from "@/components/submit-button";
-import { approvePostAction, deletePostAction, regenerateImageAction, regenerateTextAction, rejectPostAction, relayoutAction, restorePostAction, savePostAction, unapprovePostAction } from "./actions";
+import { FORMATS, FORMAT_HELP, PICTURE_FORMATS } from "@/lib/social/formats";
+import { anotherLookAction, approvePostAction, deletePostAction, regenerateImageAction, regenerateTextAction, rejectPostAction, relayoutAction, restorePostAction, savePostAction, unapprovePostAction } from "./actions";
 
 export type CardPost = {
   id: string;
@@ -25,7 +26,11 @@ export type CardPost = {
   headlineTop: string;
   headlineMain: string;
   headlineBottom: string;
-  imageLayout: string;
+  /** concept, photo, type, note, list or versus */
+  format: string;
+  /** The text on the image for text-first formats */
+  designText: string;
+  hasMedia: boolean;
   hasImage: boolean;
   hasPhoto: boolean;
   imageVersion: number;
@@ -34,7 +39,6 @@ export type CardPost = {
   results: Record<string, { id?: string; url?: string; error?: string }> | null;
 };
 
-const LAYOUTS: [string, string][] = [["banner", "Banner"], ["split", "Split"], ["photo", "Photo"], ["statement", "Statement"]];
 const CAP: [keyof CardPost & `caption${string}`, string, number][] = [
   ["captionInstagram", "instagram", 2200],
   ["captionFacebook", "facebook", 3000],
@@ -68,26 +72,47 @@ export function PostCard({ p }: { p: CardPost }) {
           )}
           {busy && p.hasImage && <div className="absolute inset-0 flex items-center justify-center bg-white/60 text-sm font-medium">Updating…</div>}
         </div>
-        {!locked && p.hasPhoto && (
-          <div className="flex flex-wrap gap-1">
-            {LAYOUTS.map(([k, label]) => (
-              <form key={k} action={relayoutAction.bind(null, p.id, k)}>
-                <SubmitButton className={`rounded-md px-2 py-1 text-xs ${p.imageLayout === k ? "bg-indigo-600 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"}`}>{label}</SubmitButton>
+        {!locked && p.hasImage && (
+          <>
+            <div className="flex flex-wrap gap-1">
+              {FORMATS.map(([k, label]) => (
+                <form key={k} action={relayoutAction.bind(null, p.id, k)}>
+                  <SubmitButton
+                    title={k === "photo" ? "Uses a real photo from this project's library (or an AI photo if the library is empty)" : k === "concept" ? "One striking AI visual with a few words" : undefined}
+                    className={`rounded-md px-2 py-1 text-xs ${p.format === k ? "bg-indigo-600 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"}`}
+                  >
+                    {label}
+                  </SubmitButton>
+                </form>
+              ))}
+            </div>
+            <div className="flex gap-2">
+              <form action={anotherLookAction.bind(null, p.id)} className="flex-1">
+                <SubmitButton className="btn-secondary w-full text-xs">Another look</SubmitButton>
               </form>
-            ))}
+              {PICTURE_FORMATS.includes(p.format) && (
+                <button type="button" onClick={() => setPanel(panel === "image" ? "" : "image")} className="btn-secondary flex-1 text-xs">
+                  {p.format === "concept" ? "New visual" : "Change photo"}
+                </button>
+              )}
+            </div>
+          </>
+        )}
+        {panel === "image" && PICTURE_FORMATS.includes(p.format) && (
+          <div className="space-y-3 rounded-md bg-slate-50 p-3">
+            {p.format === "photo" && (
+              <form action={regenerateImageAction.bind(null, p.id)}>
+                <input type="hidden" name="mode" value="library" />
+                <SubmitButton className="btn-secondary w-full text-xs">Next photo from the library</SubmitButton>
+              </form>
+            )}
+            <form action={regenerateImageAction.bind(null, p.id)} className="space-y-2">
+              <input type="hidden" name="mode" value="ai" />
+              <textarea name="note" rows={2} className="input text-sm" placeholder={p.format === "concept" ? "Optional: what to show (e.g. a melting price tag, brighter, more playful)" : "Optional: what to show (e.g. a real shop floor, no people in suits)"} />
+              <SubmitButton className="btn-secondary w-full text-xs">{p.format === "concept" ? "Make a new visual" : "Make an AI photo instead"}</SubmitButton>
+              <p className="text-xs text-slate-500">Takes about 30 seconds. Your note also teaches the AI for next time.</p>
+            </form>
           </div>
-        )}
-        {!locked && (
-          <button type="button" onClick={() => setPanel(panel === "image" ? "" : "image")} className="btn-secondary w-full text-xs">
-            New image
-          </button>
-        )}
-        {panel === "image" && (
-          <form action={regenerateImageAction.bind(null, p.id)} className="space-y-2 rounded-xl bg-slate-50 p-3">
-            <textarea name="note" rows={2} className="input text-sm" placeholder="Optional: what to change (e.g. show a real shop floor, no people in suits, warmer light)" />
-            <SubmitButton className="btn-primary w-full text-xs">Make a new image</SubmitButton>
-            <p className="text-xs text-slate-500">Takes about 30 seconds. Your note also teaches the AI for next time.</p>
-          </form>
         )}
       </div>
 
@@ -137,14 +162,22 @@ export function PostCard({ p }: { p: CardPost }) {
                 </div>
               </div>
             )}
-            <div>
-              <div className="label">Image headline (small / big / small)</div>
-              <div className="grid gap-2 sm:grid-cols-3">
-                <input name="headlineTop" defaultValue={p.headlineTop} className="input text-sm" disabled={locked} />
-                <input name="headlineMain" defaultValue={p.headlineMain} className="input text-sm font-semibold" disabled={locked} />
-                <input name="headlineBottom" defaultValue={p.headlineBottom} className="input text-sm" disabled={locked} />
+            {PICTURE_FORMATS.includes(p.format) ? (
+              <div>
+                <div className="label">Words on the image ({p.format === "concept" ? "small / big" : "small / big / small"}). Keep it short. *Stars* highlight words.</div>
+                <div className={`grid gap-2 ${p.format === "concept" ? "sm:grid-cols-[1fr_2fr]" : "sm:grid-cols-3"}`}>
+                  <input name="headlineTop" defaultValue={p.headlineTop} className="input text-sm" disabled={locked} />
+                  <input name="headlineMain" defaultValue={p.headlineMain} className="input text-sm font-semibold" disabled={locked} />
+                  {p.format !== "concept" && <input name="headlineBottom" defaultValue={p.headlineBottom} className="input text-sm" disabled={locked} />}
+                </div>
               </div>
-            </div>
+            ) : (
+              <label className="block">
+                <span className="label">Text on the image</span>
+                <textarea name="designText" defaultValue={p.designText} rows={p.format === "type" ? 3 : 6} className="input text-sm leading-5" disabled={locked} />
+                <span className="mt-1 block text-xs text-slate-500">{FORMAT_HELP[p.format]}</span>
+              </label>
+            )}
             <div className="grid gap-3 xl:grid-cols-2">
               {CAP.filter(([, plat]) => p.platforms.includes(plat)).map(([key, plat, max]) => (
                 <label key={key} className="block">
@@ -193,7 +226,7 @@ export function PostCard({ p }: { p: CardPost }) {
           <form action={regenerateTextAction.bind(null, p.id)} className="space-y-2 rounded-xl bg-slate-50 p-3">
             <textarea name="note" rows={2} className="input text-sm" placeholder="Optional: what to change (e.g. shorter, less salesy, open with a story, mention free audit)" />
             <SubmitButton className="btn-primary text-xs">Write new captions</SubmitButton>
-            <span className="ml-2 text-xs text-slate-500">Keeps the photo. Your note teaches the AI.</span>
+            <span className="ml-2 text-xs text-slate-500">Keeps the picture. Your note teaches the AI.</span>
           </form>
         )}
         {panel === "reject" && (

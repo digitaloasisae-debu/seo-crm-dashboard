@@ -877,6 +877,14 @@ model SocialProject {
   /// Learned rules from approvals, rejections and edits (the learning agent rewrites this)
   brain          String    @default("")
   brainUpdatedAt DateTime?
+  /// Instagram usernames of competitors (business or creator accounts) to study
+  competitors     String[]
+  /// No longer used (pasted competitor posts were dropped). Kept so `db push` on deploy doesn't stop on dropping a column.
+  competitorNotes String    @default("")
+  /// The AI's findings from the competitor research (Research JSON in src/lib/social/research.ts)
+  research        Json?
+  researchAt      DateTime?
+  researchError   String?
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 
@@ -884,6 +892,52 @@ model SocialProject {
   serviceCards SocialServiceCard[]
   posts        SocialPost[]
   feedback     SocialFeedback[]
+  rivalPosts   SocialRivalPost[]
+  media        SocialMedia[]
+}
+
+/// A public Instagram post from a competitor, or one of our own (isOwn), with its numbers.
+model SocialRivalPost {
+  id         String   @id @default(cuid())
+  projectId  String
+  handle     String
+  isOwn      Boolean  @default(false)
+  postId     String
+  caption    String   @default("")
+  mediaType  String   @default("")
+  permalink  String   @default("")
+  mediaUrl   String?
+  likes      Int      @default(0)
+  comments   Int      @default(0)
+  /// Only known for our own posts (Instagram insights)
+  reach      Int?
+  saves      Int?
+  followers  Int      @default(0)
+  /// (likes + comments) / followers x 100
+  engagement Float    @default(0)
+  postedAt   DateTime
+  fetchedAt  DateTime @default(now())
+
+  project SocialProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, postId])
+  @@index([projectId, engagement])
+}
+
+/// Real photos uploaded for a project (team, office, work, results). Preferred over AI photos.
+model SocialMedia {
+  id          String   @id @default(cuid())
+  projectId   String
+  data        Bytes
+  width       Int      @default(0)
+  height      Int      @default(0)
+  /// What the photo shows (written by the AI after upload, editable)
+  description String   @default("")
+  usedCount   Int      @default(0)
+  createdAt   DateTime @default(now())
+
+  project SocialProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  posts   SocialPost[]
 }
 
 /// What the AI knows about one targeted service: facts, buyers, objections, questions, proof.
@@ -934,7 +988,12 @@ model SocialPost {
   headlineMain     String           @default("")
   headlineBottom   String           @default("")
   imageBrief       String           @default("")
-  imageLayout      String           @default("banner")
+  /// Image format: photo, type, note, list, versus (older posts: banner, split, statement)
+  imageLayout      String           @default("photo")
+  /// Text for the text-first formats: { kicker, title, items[], left{label,points[]}, right{label,points[]}, note[] }
+  design           Json?
+  /// A real photo from the project's library, when one fits
+  mediaId          String?
   /// Notes from the Super Admin for the next regeneration
   textNote         String?
   imageNote        String?
@@ -952,6 +1011,7 @@ model SocialPost {
   updatedAt        DateTime         @updatedAt
 
   project  SocialProject    @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  media    SocialMedia?     @relation(fields: [mediaId], references: [id], onDelete: SetNull)
   feedback SocialFeedback[]
 
   @@index([projectId, month])
