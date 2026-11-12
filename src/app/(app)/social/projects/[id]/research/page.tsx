@@ -43,20 +43,15 @@ export default async function SocialResearchPage({ params, searchParams }: { par
       {sp.err && <p className="mb-3 rounded-md bg-red-50 p-3 text-sm text-red-700">{sp.err}</p>}
       {sp.saved && <p className="mb-3 rounded-md bg-emerald-50 p-3 text-sm text-emerald-800">Saved.</p>}
       {sp.done && <p className="mb-3 rounded-md bg-emerald-50 p-3 text-sm text-emerald-800">Research updated. The next month you generate will use it.</p>}
-      {!metaConfigured() && <p className="mb-3 rounded-md bg-amber-50 p-3 text-sm text-amber-900">Add META_ACCESS_TOKEN (your long-lived Meta token) in Vercel so competitors&apos; Instagram posts can be read. Until then only pasted posts are studied.</p>}
+      {!metaConfigured() && <p className="mb-3 rounded-md bg-amber-50 p-3 text-sm text-amber-900">Add META_ACCESS_TOKEN (your long-lived Meta token) in Vercel so competitors&apos; Instagram posts can be read. Until then research can't run.</p>}
 
       <div className="space-y-6">
         <form action={saveCompetitorsAction.bind(null, id)} className="card space-y-4">
-          <div className="grid gap-4 md:grid-cols-2">
+          <div className="max-w-xl">
             <label className="block">
               <span className="label">Competitor Instagram accounts (one per line, @name or link)</span>
               <textarea name="competitors" rows={6} defaultValue={p.competitors.map((h) => `@${h}`).join("\n")} className="input text-sm" placeholder={"@competitor_one\n@competitor_two"} />
               <span className="mt-1 block text-xs text-slate-500">Business or creator accounts only (personal accounts can&apos;t be read). Up to 12.</span>
-            </label>
-            <label className="block">
-              <span className="label">Competitor posts from Facebook or LinkedIn (paste)</span>
-              <textarea name="competitorNotes" rows={6} defaultValue={p.competitorNotes} className="input text-sm" placeholder={"Paste a few of their posts with the reactions and comments count, e.g.\n\n[Competitor X, LinkedIn, 240 reactions, 31 comments]\nThe post text…"} />
-              <span className="mt-1 block text-xs text-slate-500">Facebook and LinkedIn don&apos;t let apps read other pages, so paste the ones worth learning from.</span>
             </label>
           </div>
           <div className="flex flex-wrap items-center gap-2">

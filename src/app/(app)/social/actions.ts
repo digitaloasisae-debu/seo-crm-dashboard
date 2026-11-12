@@ -96,7 +96,7 @@ export async function relearnAction(projectId: string) {
 export async function saveCompetitorsAction(projectId: string, formData: FormData) {
   await requireSuperAdmin();
   const competitors = cleanHandles(String(formData.get("competitors") ?? "").split(/[\s,]+/));
-  await db.socialProject.update({ where: { id: projectId }, data: { competitors, competitorNotes: String(formData.get("competitorNotes") ?? "").trim().slice(0, 20000) } });
+  await db.socialProject.update({ where: { id: projectId }, data: { competitors } });
   if (formData.get("run") === "1") {
     let err = "";
     try { await runResearch(projectId); } catch (e) { err = msg(e); }

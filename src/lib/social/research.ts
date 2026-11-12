@@ -5,7 +5,6 @@
  * (caption, likes, comments, type, date) using our own Instagram account and token. Other accounts'
  * reach is private, so posts are ranked by engagement = (likes + comments) / followers.
  * Our own posts also get reach and saves from Instagram insights.
- * Facebook and LinkedIn have no public API for other pages, so those posts can be pasted by hand.
  *
  * The AI then studies what competitors target, which posts and formats win, how their captions are
  * built and where the gaps are. Ideas and captions learn from it indirectly: never copied, never named.
@@ -178,8 +177,8 @@ export async function runResearch(projectId: string): Promise<Research> {
   const posts = await db.socialRivalPost.findMany({ where: { projectId, postedAt: { gte: since } }, orderBy: { engagement: "desc" } });
   const rivals = posts.filter((x) => !x.isOwn);
   const own = posts.filter((x) => x.isOwn);
-  if (!rivals.length && !own.length && !p.competitorNotes.trim()) {
-    const msg = problems.join(" · ") || "Add competitor Instagram accounts or paste competitor posts first";
+  if (!rivals.length && !own.length ) {
+    const msg = problems.join(" · ") || "Add competitor Instagram accounts first";
     await db.socialProject.update({ where: { id: projectId }, data: { researchError: msg } });
     throw new Error(msg);
   }
@@ -213,9 +212,6 @@ ${top.map(line).join("\n") || "(none)"}
 
 COMPETITORS' WEAKEST POSTS:
 ${bottom.map(line).join("\n") || "(none)"}
-
-COMPETITOR POSTS FROM FACEBOOK / LINKEDIN (pasted by hand):
-${p.competitorNotes.trim().slice(0, 6000) || "(none)"}
 
 OUR OWN RECENT POSTS:
 ${own.slice(0, 20).map(line).join("\n") || "(none yet)"}
@@ -261,8 +257,8 @@ const STALE_DAYS = 14;
 
 /** Make sure the research is fresh before planning (best effort: planning still runs if it fails). */
 export async function ensureResearch(projectId: string) {
-  const p = await db.socialProject.findUniqueOrThrow({ where: { id: projectId }, select: { competitors: true, competitorNotes: true, researchAt: true } });
-  if (!p.competitors.length && !p.competitorNotes.trim()) return;
+  const p = await db.socialProject.findUniqueOrThrow({ where: { id: projectId }, select: { competitors: true, researchAt: true } });
+  if (!p.competitors.length) return;
   if (p.researchAt && Date.now() - p.researchAt.getTime() < STALE_DAYS * 864e5) return;
   await runResearch(projectId).catch((e) => console.error("social.research_failed", projectId, e));
 }
