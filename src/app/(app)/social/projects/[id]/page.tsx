@@ -6,6 +6,7 @@ import { SubmitButton } from "@/components/submit-button";
 import { fmtDate } from "@/lib/utils";
 import { redraftCardAction, relearnAction, saveBrainAction, saveCardAction, saveProjectAction } from "../../actions";
 import { ProjectFields } from "../fields";
+import { ProjectTabs } from "./tabs";
 
 export const maxDuration = 120;
 
@@ -23,6 +24,7 @@ export default async function SocialProjectPage({ params, searchParams }: { para
   return (
     <>
       <PageHeader title={p.client.name} subtitle={p.client.siteUrl} />
+      <ProjectTabs id={p.id} active="settings" />
       {sp.err && <p className="mb-3 rounded-lg bg-red-50 p-3 text-sm text-red-700">{sp.err}</p>}
       {sp.saved && <p className="mb-3 rounded-lg bg-emerald-50 p-3 text-sm text-emerald-800">Saved.</p>}
       {sp.created && <p className="mb-3 rounded-lg bg-emerald-50 p-3 text-sm text-emerald-800">Project added. Service cards are being written from the website; refresh in a minute.</p>}

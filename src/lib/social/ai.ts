@@ -2,28 +2,30 @@
  * Social Studio AI: service cards, the monthly idea plan (targeted services x proven angles),
  * captions per platform, and the per-project learning agent.
  */
-import type { Client, SocialPost, SocialProject } from "@prisma/client";
+import type { Client, Prisma, SocialPost, SocialProject } from "@prisma/client";
 import { db } from "../db";
 import { geminiJson } from "../gemini";
 import { brandProfileText } from "../brand-profile";
 import { postingSlots } from "./schedule";
+import { ensureResearch, researchText } from "./research";
+import { FORMATS, designOf, formatOf, type DesignData } from "./image";
 
 export const PLATFORMS = ["facebook", "instagram", "linkedin"] as const;
 export type Platform = (typeof PLATFORMS)[number];
 export const PLATFORM_LABEL: Record<Platform, string> = { facebook: "Facebook", instagram: "Instagram", linkedin: "LinkedIn" };
 
-/** Proven post angles. Each idea uses one; layout = the image design used for it. */
+/** Proven post angles. Each idea uses one; layout = the image format it starts with (the copywriter may pick another). */
 export const ANGLES = [
-  { key: "myth", label: "Myth bust", layout: "banner", hint: "Name a belief buyers of this service hold that is wrong, and show what is true instead." },
-  { key: "mistake", label: "Costly mistake", layout: "banner", hint: "A specific mistake people make before or while buying this service, and what it costs them." },
-  { key: "question", label: "Buyer question", layout: "split", hint: "A real question people ask before buying (cost, time, how to choose, is it worth it), answered straight." },
-  { key: "versus", label: "This vs that", layout: "split", hint: "Compare two options the buyer is choosing between, and say who each one suits." },
+  { key: "myth", label: "Myth bust", layout: "type", hint: "Name a belief buyers of this service hold that is wrong, and show what is true instead." },
+  { key: "mistake", label: "Costly mistake", layout: "note", hint: "A specific mistake people make before or while buying this service, and what it costs them." },
+  { key: "question", label: "Buyer question", layout: "note", hint: "A real question people ask before buying (cost, time, how to choose, is it worth it), answered straight." },
+  { key: "versus", label: "This vs that", layout: "versus", hint: "Compare two options the buyer is choosing between, and say who each one suits." },
   { key: "behind", label: "Behind the scenes", layout: "photo", hint: "How the work is really done: a step, a tool, a check most providers skip." },
   { key: "proof", label: "Proof", layout: "photo", hint: "A result, a before/after or a client situation, using only facts from the service card." },
-  { key: "checklist", label: "Checklist", layout: "split", hint: "A short checklist or framework the reader will save (3-5 points)." },
-  { key: "moment", label: "Local moment", layout: "banner", hint: "Tie the service to a real season, event or moment for this audience and location (e.g. a sale season, Ramadan, summer heat, year end, a holiday)." },
-  { key: "opinion", label: "Bold opinion", layout: "statement", hint: "A confident, slightly contrarian take an expert in this service would defend." },
-  { key: "offer", label: "Call to action", layout: "banner", hint: "A direct reason to get in touch now, without inventing discounts or prices." },
+  { key: "checklist", label: "Checklist", layout: "list", hint: "A short checklist or framework the reader will save (3-5 points)." },
+  { key: "moment", label: "Local moment", layout: "type", hint: "Tie the service to a real season, event or moment for this audience and location (e.g. a sale season, Ramadan, summer heat, year end, a holiday)." },
+  { key: "opinion", label: "Bold opinion", layout: "type", hint: "A confident, slightly contrarian take an expert in this service would defend." },
+  { key: "offer", label: "Call to action", layout: "type", hint: "A direct reason to get in touch now, without inventing discounts or prices." },
 ] as const;
 export type AngleKey = (typeof ANGLES)[number]["key"];
 export const angleOf = (k: string) => ANGLES.find((a) => a.key === k) ?? ANGLES[0];
@@ -120,7 +122,9 @@ type PlannedIdea = { service: string; angle: string; idea: string; why: string; 
  */
 export async function planMonth(projectId: string, month: string): Promise<number> {
   await ensureServiceCards(projectId);
+  await ensureResearch(projectId);
   const { p, cards, brand, brain } = await projectContext(projectId);
+  const research = researchText(p.research, "ideas");
   if (!p.services.length) throw new Error(`${p.client.name}: add at least one targeted service first`);
   const existing = await db.socialPost.findMany({ where: { projectId, month, status: { not: "REJECTED" } }, select: { scheduledAt: true } });
   const need = p.postsPerMonth - existing.length;
@@ -147,12 +151,15 @@ ${brand}
 
 ${brain}
 
+${research}
+
 ANGLES (each idea uses one; use the key):
 ${ANGLES.map((a) => `- ${a.key}: ${a.label}. ${a.hint}`).join("\n")}
 
 RULES
 - An idea is one specific, concrete post, not a topic. Bad: "Benefits of SEO". Good: "Your Google Business Profile category is probably wrong, and it is costing you map calls".
 - Think like the buyer scrolling a feed: a fear, a surprise, a mistake they might be making, a decision they are stuck on, a moment in their week or season.
+- Use the competitor research indirectly: aim at the pains and buyers that win attention, borrow the shape of what works, and lean into the gaps they leave. Never copy a competitor's idea or wording, and never mention or hint at a competitor.
 - Spread ideas evenly across the services and use at least 6 different angles. At most 1 in 6 ideas may be the "offer" angle.
 - Use the season of ${month} for the audience's country when it fits (events, weather, sale seasons, religious holidays, financial year), without forcing it.
 - No invented numbers, prices, awards, client names or guarantees.
@@ -204,6 +211,7 @@ Return JSON: {"ideas":[{"service":"exact service name","angle":"angle key","idea
 export async function planReplacement(rejectedId: string) {
   const old = await db.socialPost.findUniqueOrThrow({ where: { id: rejectedId } });
   const { p, cards, brand, brain } = await projectContext(old.projectId);
+  const research = researchText(p.research, "ideas");
   const prompt = `Hamza rejected this social post idea for ${p.client.name}: "${old.idea}" (angle: ${old.angle}). Reason: ${old.rejectionReason || "not given"}.
 Write ONE better idea for the same service "${old.service}", taking the reason into account. Use a different angle unless the reason says the angle was fine.
 
@@ -212,6 +220,7 @@ SERVICE CARDS:
 ${cards}
 ${brand}
 ${brain}
+${research}
 
 ANGLES: ${ANGLES.map((a) => `${a.key} (${a.label})`).join(", ")}
 No invented numbers, prices, awards or guarantees.
@@ -223,6 +232,8 @@ Return JSON: {"angle":"angle key","idea":"one specific sentence","why":"1 short 
   });
 }
 
+type DesignOut = { kicker?: string; big?: string; note?: string; title?: string; items?: string[]; left?: string; right?: string; rows?: string[][] };
+
 type Written = {
   id: string;
   hooks?: string[];
@@ -232,15 +243,44 @@ type Written = {
   firstComment?: string;
   altText?: string;
   headline?: { top?: string; main?: string; bottom?: string };
+  format?: string;
+  design?: DesignOut;
+  photoId?: string;
   imageBrief?: string;
 };
 
-/** Write hooks, captions, headline and image brief for up to ~4 posts of one project in one AI call. */
+const one = (s: unknown) => String(s ?? "").replace(/—/g, ",").replace(/\s+/g, " ").trim();
+const flat = (s: unknown) => one(s).replace(/\|/g, "/");
+
+/** The AI's design fields as the plain text the image editor uses (see FORMAT_HELP). */
+export function designToText(format: string, d: DesignOut | undefined): string {
+  if (!d) return "";
+  if (format === "type") return [one(d.kicker), one(d.big)].filter(Boolean).join("\n");
+  if (format === "note") return String(d.note ?? "").replace(/—/g, ",").replace(/\n{3,}/g, "\n\n").trim();
+  if (format === "list") return [one(d.title), ...(d.items ?? []).map(one).filter(Boolean).slice(0, 6)].filter(Boolean).join("\n");
+  if (format === "versus") {
+    const rows = (d.rows ?? []).filter((r) => Array.isArray(r) && r.length >= 2).slice(0, 6).map((r) => `${flat(r[0])} | ${flat(r[1])}`);
+    return rows.length ? [one(d.title), `${flat(d.left) || "Usually"} | ${flat(d.right) || "Better"}`, ...rows].join("\n") : "";
+  }
+  return "";
+}
+
+const DESIGN_GUIDE = `IMAGE FORMATS (the image is designed in code from your text; it should look like a sharp human made it, never like an AI ad):
+- photo: one of OUR REAL PHOTOS (from the library below) with a short headline. Only when a library photo truly fits the post. Set photoId.
+- type: a typographic poster. design.kicker = 2-5 small words on top (who it is for, or the setup). design.big = ONE sharp line, 6-16 words, that makes the point on its own. Put *stars* around 1-3 words to highlight them.
+- note: reads like a short text post from the brand, in first person plural or as the team. design.note = 2-4 short paragraphs (blank line between), 25-60 words in total, plain and honest, like something an expert would actually type. *Stars* highlight 1-2 words. No hashtags, no emojis.
+- list: a checklist people save. design.title = 4-9 words. design.items = 3-5 points, each under 10 words, concrete.
+- versus: two columns. design.title = 3-8 words. design.left / design.right = the two column labels (1-3 words each, e.g. "Most agencies" / "What works"; never a competitor's name). design.rows = 3-5 pairs [left, right], each under 7 words.
+Keep image text short. It must add something the caption doesn't say in the same words. No invented numbers.`;
+
+/** Write hooks, captions, headline and image design for up to ~4 posts of one project in one AI call. */
 export async function writePosts(posts: SocialPost[]) {
   if (!posts.length) return;
   const { p, cards, brand, brain } = await projectContext(posts[0].projectId);
   const link = p.client.ctaLink || p.client.siteUrl;
   const on = (x: Platform) => p.platforms.includes(x);
+  const library = await db.socialMedia.findMany({ where: { projectId: p.id, description: { not: "" } }, select: { id: true, description: true, usedCount: true }, orderBy: [{ usedCount: "asc" }, { createdAt: "desc" }], take: 40 });
+  const formats = FORMATS.map(([k]) => k).filter((k) => k !== "photo" || library.length);
   const system = `You are a top social media copywriter and art director. You write scroll-stopping posts that sound like a sharp, friendly human expert, never like a brochure or an AI.
 
 VOICE
@@ -250,6 +290,7 @@ VOICE
 - Never invent statistics, prices, timelines, awards, reviews, client names or guarantees. Use only facts from the service card and brand profile.
 - Keywords must read like natural English, with the small words a person would say ("SEO services in Dubai", not "seo services dubai").
 - Spelling of the client's country.
+- Competitor research is for learning patterns only: never copy their lines, never mention or hint at a competitor.
 
 HOOKS: write 3 different opening lines for the post (one sentence each, under 110 characters): a myth bust, a mistake callout, a curiosity gap, a painfully relatable moment, a bold opinion, or a direct question the buyer has really asked. Specific to this idea, never generic. Hamza picks one, so make all 3 strong and different.
 
@@ -259,10 +300,15 @@ ${on("facebook") ? `- facebook: hook, then 2-4 short lines that make people reac
 ${on("linkedin") ? `- linkedin: first 2 lines must make people click "see more" (sharp observation, contrarian take or mini story). Then 60-130 words, one sentence per paragraph, lots of white space, one sharp insight or 3 short points. End with a genuine question, then the call to action. NO links in the post. 0-2 emojis, 3-4 hashtags at the end. Also write firstComment: one line with the link ${link}.` : ""}
 Platforms not listed: return an empty string.
 
-IMAGE (one designed image used on every platform: a real-looking photo with our headline set on top in code)
-- headline: the text on the image. Never the keyword as a label. Turn the idea into something people stop for: a bold outcome, a warning, a twist, a sharp question. top = 1-4 words, main = the 1-3 word punch (shown biggest, in the brand colour), bottom = 1-5 words. Max 10 short words in total, reads as one line. No invented numbers.
-- imageBrief: the photo only, described for a photographer: the real place, people, objects and action that show THIS idea's exact point, the season and location, the mood. No text, signs, screens with words, logos or UI in the photo. Prefer people, hands, objects and places over laptops and phones. Leave calm space ${"in the lower third"} for the headline. Photorealistic, natural light, real textures.
-- altText: one sentence describing the image for screen readers.`;
+${DESIGN_GUIDE}
+
+ALSO, for every post:
+- format: one of ${formats.join(", ")}. A suggested format is given per post; change it when another clearly fits better. Within this batch, use different formats where you can.
+- design: the fields for the chosen format (leave the others out).
+- headline: a short headline (also used if the format is switched to photo later): top = 1-5 words, main = the 2-5 word punch, bottom = 1-6 words. No invented numbers.
+- photoId: for format "photo" only, the id of the library photo that fits best; otherwise "".
+- imageBrief: one sentence describing a real, unposed scene that would suit this post (used only if Hamza asks for an AI photo).
+- altText: one sentence describing the finished image for screen readers.`;
   const prompt = `BUSINESS: ${businessLine(p.client)}
 Main call to action: ${p.client.ctaText || "get in touch"} (${link})
 
@@ -273,18 +319,39 @@ ${brand}
 
 ${brain}
 
+${researchText(p.research, "captions")}
+
+${researchText(p.research, "visuals")}
+
+OUR REAL PHOTO LIBRARY (id: what it shows; least used first):
+${library.map((m) => `- ${m.id}: ${m.description.slice(0, 220)}${m.usedCount ? ` (used ${m.usedCount}x)` : ""}`).join("\n") || "(empty, so do not use the photo format)"}
+
 POSTS TO WRITE:
 ${posts
-  .map((x) => `- id ${x.id}: service "${x.service}", angle "${angleOf(x.angle).label}" (${angleOf(x.angle).hint}). Idea: ${x.idea}${x.textNote ? `\n  Hamza's note for this rewrite (most important): ${x.textNote}` : ""}${x.captionInstagram || x.captionFacebook || x.captionLinkedin ? `\n  Previous version (do better, don't copy): ${(x.captionLinkedin || x.captionInstagram || x.captionFacebook).slice(0, 500)}` : ""}`)
+  .map((x) => {
+    const fmt = formatOf(x.imageLayout);
+    const fixed = x.imageVersion > 0;
+    return `- id ${x.id}: service "${x.service}", angle "${angleOf(x.angle).label}" (${angleOf(x.angle).hint}). Idea: ${x.idea}
+  ${fixed ? `Format: ${fmt} (Hamza's choice, keep it)` : `Suggested format: ${fmt === "photo" && !library.length ? "type" : fmt}`}${x.textNote ? `\n  Hamza's note for this rewrite (most important): ${x.textNote}` : ""}${x.captionInstagram || x.captionFacebook || x.captionLinkedin ? `\n  Previous version (do better, don't copy): ${(x.captionLinkedin || x.captionInstagram || x.captionFacebook).slice(0, 500)}` : ""}`;
+  })
   .join("\n")}
 
-Return JSON: {"posts":[{"id":"...","hooks":["","",""],"instagram":"","facebook":"","linkedin":"","firstComment":"","altText":"","headline":{"top":"","main":"","bottom":""},"imageBrief":""}]}`;
+Return JSON: {"posts":[{"id":"...","hooks":["","",""],"instagram":"","facebook":"","linkedin":"","firstComment":"","format":"type","design":{"kicker":"","big":""},"photoId":"","headline":{"top":"","main":"","bottom":""},"imageBrief":"","altText":""}]}`;
   const r = await geminiJson<{ posts?: Written[] }>(prompt, { system, timeoutMs: 200_000, temperature: 0.8, model: textModel() });
   const out = r.posts ?? [];
   const clean = (s: unknown, max: number) => String(s ?? "").replace(/—/g, ",").trim().slice(0, max);
   for (const x of posts) {
     const w = out.find((o) => o.id === x.id) ?? (out.length === posts.length ? out[posts.indexOf(x)] : undefined);
     if (!w) throw new Error("The AI skipped this post, it will be retried");
+    // Format: Hamza's choice once the post has an image; otherwise the AI's pick (photo only with a real library photo).
+    const current = formatOf(x.imageLayout);
+    let format = x.imageVersion > 0 ? current : formats.includes(String(w.format)) ? String(w.format) : current === "photo" ? "type" : current;
+    const media = format === "photo" ? (library.find((m) => m.id === String(w.photoId ?? "").trim()) ?? (x.imageVersion > 0 ? undefined : null)) : undefined;
+    if (media === null) format = angleOf(x.angle).layout === "photo" ? "type" : angleOf(x.angle).layout;
+    const old = designOf(x.design);
+    let text = designToText(format, w.design);
+    if (!text && format !== "photo") text = designToText("type", { big: w.headline?.main ? [w.headline.top, w.headline.main, w.headline.bottom].filter(Boolean).join(" ") : x.idea });
+    const design: DesignData = { variant: old.variant ?? 0, texts: format === "photo" ? {} : { [format]: text } };
     await db.socialPost.update({
       where: { id: x.id },
       data: {
@@ -295,13 +362,33 @@ Return JSON: {"posts":[{"id":"...","hooks":["","",""],"instagram":"","facebook":
         firstComment: on("linkedin") ? clean(w.firstComment, 500) : "",
         altText: clean(w.altText, 400),
         headlineTop: clean(w.headline?.top, 60),
-        headlineMain: clean(w.headline?.main, 40),
-        headlineBottom: clean(w.headline?.bottom, 60),
+        headlineMain: clean(w.headline?.main, 60),
+        headlineBottom: clean(w.headline?.bottom, 80),
         imageBrief: clean(w.imageBrief, 1500),
+        imageLayout: format,
+        design: design as Prisma.InputJsonValue,
+        ...(media ? { mediaId: media.id } : {}),
         textNote: null,
       },
     });
+    if (media && media.id !== x.mediaId) await db.socialMedia.update({ where: { id: media.id }, data: { usedCount: { increment: 1 } } });
   }
+}
+
+/** Image text for one format, when Hamza switches a post to a format it has no text for yet. */
+export async function writeDesignText(post: SocialPost, format: string): Promise<string> {
+  const { p, brain } = await projectContext(post.projectId);
+  const prompt = `${DESIGN_GUIDE}
+
+${brain}
+
+Write the image text for this social post of ${p.client.name} in the "${format}" format.
+Idea: ${post.idea}
+Caption: ${(post.captionInstagram || post.captionLinkedin || post.captionFacebook).slice(0, 1200)}
+
+Return JSON: {"design":{...the fields for ${format}...}}`;
+  const r = await geminiJson<{ design?: DesignOut }>(prompt, { timeoutMs: 60_000, temperature: 0.7, model: textModel() });
+  return designToText(format, r.design);
 }
 
 /**

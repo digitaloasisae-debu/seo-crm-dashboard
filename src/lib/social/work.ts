@@ -6,7 +6,7 @@
 import type { SocialPost } from "@prisma/client";
 import { db } from "../db";
 import { writePosts } from "./ai";
-import { designImage, drawPhoto } from "./image";
+import { designImage, drawPhoto, fitPhoto, formatOf } from "./image";
 
 const MAX_TRIES = 3;
 const STALE_MS = 6 * 60_000;
@@ -51,17 +51,26 @@ async function writeStep(only?: string[]) {
   return posts.length;
 }
 
-/** Photo (only when missing) + design for one post. */
+/**
+ * Design one post. Text-first formats need no photo. Photo posts use the library photo when one is
+ * set, otherwise the post's AI photo (made only when missing, i.e. when Hamza asked for one).
+ */
 export async function drawOne(postId: string) {
   const [post] = await claim([postId], "written", "drawing");
   if (!post) return false;
   try {
     const project = await db.socialProject.findUniqueOrThrow({ where: { id: post.projectId }, include: { client: true } });
-    const photo = post.photo ? Buffer.from(post.photo) : await drawPhoto(post, project);
+    let photo: Buffer | null = null;
+    let aiPhoto: Buffer | null = null;
+    if (formatOf(post.imageLayout) === "photo") {
+      const media = post.mediaId ? await db.socialMedia.findUnique({ where: { id: post.mediaId }, select: { data: true } }) : null;
+      if (media) photo = await fitPhoto(media.data);
+      else photo = aiPhoto = post.photo ? Buffer.from(post.photo) : await drawPhoto(post, project);
+    }
     const image = await designImage(post, project, photo);
     await db.socialPost.update({
       where: { id: post.id },
-      data: { photo: new Uint8Array(photo), image: new Uint8Array(image), imageVersion: { increment: 1 }, stage: "ready", stageError: null, imageNote: null },
+      data: { ...(aiPhoto ? { photo: new Uint8Array(aiPhoto) } : {}), image: new Uint8Array(image), imageVersion: { increment: 1 }, stage: "ready", stageError: null, imageNote: null },
     });
   } catch (e) {
     await fail([post], "written", e);

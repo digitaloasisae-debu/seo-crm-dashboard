@@ -4,7 +4,11 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { requireSuperAdmin } from "@/lib/session";
-import { PLATFORMS, draftServiceCard, planMonth, planReplacement, updateBrain } from "@/lib/social/ai";
+import type { Prisma } from "@prisma/client";
+import { PLATFORMS, draftServiceCard, planMonth, planReplacement, updateBrain, writeDesignText } from "@/lib/social/ai";
+import { designOf, formatOf, isFormat } from "@/lib/social/image";
+import { addMedia, describeMedia, nextMedia } from "@/lib/social/media";
+import { cleanHandles, runResearch } from "@/lib/social/research";
 import { finishPost, socialWork } from "@/lib/social/work";
 import { fromLocalInput } from "@/lib/social/schedule";
 
@@ -87,6 +91,51 @@ export async function relearnAction(projectId: string) {
   redirect(`/social/projects/${projectId}${err ? `?err=${encodeURIComponent(err)}` : ""}#brain`);
 }
 
+// ---------- competitor research ----------
+
+export async function saveCompetitorsAction(projectId: string, formData: FormData) {
+  await requireSuperAdmin();
+  const competitors = cleanHandles(String(formData.get("competitors") ?? "").split(/[\s,]+/));
+  await db.socialProject.update({ where: { id: projectId }, data: { competitors, competitorNotes: String(formData.get("competitorNotes") ?? "").trim().slice(0, 20000) } });
+  if (formData.get("run") === "1") {
+    let err = "";
+    try { await runResearch(projectId); } catch (e) { err = msg(e); }
+    redirect(`/social/projects/${projectId}/research${err ? `?err=${encodeURIComponent(err)}` : "?done=1"}`);
+  }
+  redirect(`/social/projects/${projectId}/research?saved=1`);
+}
+
+// ---------- photo library ----------
+
+/** One photo per call (the browser resizes and sends them one by one). */
+export async function uploadMediaAction(projectId: string, formData: FormData) {
+  await requireSuperAdmin();
+  const file = formData.get("photo");
+  if (!(file instanceof Blob) || !file.size) return { ok: false, error: "No photo" };
+  if (file.size > 4_500_000) return { ok: false, error: "Photo too large" };
+  try {
+    const m = await addMedia(projectId, Buffer.from(await file.arrayBuffer()));
+    after(() => describeMedia(m.id));
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: msg(e) };
+  } finally {
+    revalidatePath(`/social/projects/${projectId}/photos`);
+  }
+}
+
+export async function saveMediaAction(mediaId: string, formData: FormData) {
+  await requireSuperAdmin();
+  const m = await db.socialMedia.update({ where: { id: mediaId }, data: { description: String(formData.get("description") ?? "").trim().slice(0, 600) } });
+  revalidatePath(`/social/projects/${m.projectId}/photos`);
+}
+
+export async function deleteMediaAction(mediaId: string) {
+  await requireSuperAdmin();
+  const m = await db.socialMedia.delete({ where: { id: mediaId } });
+  revalidatePath(`/social/projects/${m.projectId}/photos`);
+}
+
 // ---------- generating ----------
 
 /** Plan the whole month for the chosen projects at once. Captions and images are then made by the worker. */
@@ -121,6 +170,12 @@ export async function retryFailedAction() {
 
 // ---------- reviewing ----------
 
+/** Re-render a ready post's image now (after a text, format or look change). */
+async function redraw(postId: string) {
+  await db.socialPost.updateMany({ where: { id: postId, stage: "ready" }, data: { stage: "written" } });
+  await finishPost(postId);
+}
+
 type Fields = { captionFacebook: string; captionInstagram: string; captionLinkedin: string; firstComment: string; headlineTop: string; headlineMain: string; headlineBottom: string };
 const FIELD_KEYS: (keyof Fields)[] = ["captionFacebook", "captionInstagram", "captionLinkedin", "firstComment", "headlineTop", "headlineMain", "headlineBottom"];
 
@@ -134,23 +189,29 @@ async function saveEdits(postId: string, f: FormData) {
   }
   const when = fromLocalInput(String(f.get("scheduledAt") ?? ""), post.project.timezone);
   if (when && Math.abs(when.getTime() - post.scheduledAt.getTime()) > 60_000) data.scheduledAt = when;
-  if (!Object.keys(data).length) return { post, headline: false };
+  // Image text of a text-first format.
+  const format = formatOf(post.imageLayout);
+  const design = designOf(post.design);
+  const designText = f.get("designText");
+  let designChanged = false;
+  if (designText !== null && format !== "photo" && String(designText).trim() !== (design.texts?.[format] ?? "").trim()) {
+    designChanged = true;
+    await db.socialPost.update({ where: { id: postId }, data: { design: { ...design, texts: { ...design.texts, [format]: String(designText).trim().slice(0, 2000) } } as Prisma.InputJsonValue } });
+  }
+  if (!Object.keys(data).length) return { post, headline: designChanged };
   await db.socialPost.update({ where: { id: postId }, data });
   const edits = FIELD_KEYS.filter((k) => k in data && k.startsWith("caption"));
   if (edits.length) {
     await db.socialFeedback.createMany({ data: edits.map((k) => ({ projectId: post.projectId, postId, kind: "edit", note: k.replace("caption", "").toLowerCase() + " caption", before: post[k], after: data[k] ?? "" })) });
   }
-  const headline = (["headlineTop", "headlineMain", "headlineBottom"] as const).some((k) => k in data);
+  const headline = designChanged || (["headlineTop", "headlineMain", "headlineBottom"] as const).some((k) => k in data);
   return { post, headline, learned: edits.length > 0 };
 }
 
 export async function savePostAction(postId: string, formData: FormData) {
   await requireSuperAdmin();
   const { post, headline, learned } = await saveEdits(postId, formData);
-  if (headline && post.photo) {
-    await db.socialPost.update({ where: { id: postId }, data: { stage: "written" } });
-    await finishPost(postId);
-  }
+  if (headline) await redraw(postId);
   if (learned) learn(post.projectId);
   refresh();
 }
@@ -158,10 +219,7 @@ export async function savePostAction(postId: string, formData: FormData) {
 export async function approvePostAction(postId: string, formData: FormData) {
   await requireSuperAdmin();
   const { post, headline, learned } = await saveEdits(postId, formData);
-  if (headline && post.photo) {
-    await db.socialPost.update({ where: { id: postId }, data: { stage: "written" } });
-    await finishPost(postId);
-  }
+  if (headline) await redraw(postId);
   await db.socialPost.update({ where: { id: postId }, data: { status: "APPROVED", reviewedAt: new Date(), rejectionReason: null } });
   await db.socialFeedback.create({ data: { projectId: post.projectId, postId, kind: "approve", note: learned ? "approved after edits" : "" } });
   if (learned) learn(post.projectId);
@@ -207,27 +265,58 @@ export async function regenerateTextAction(postId: string, formData: FormData) {
   refresh();
 }
 
-/** A new photo with an optional note. Keeps the captions. */
+/**
+ * A new photo for a photo post. mode "library" = the next photo from the project's library,
+ * mode "ai" = an AI photo (with Hamza's note). Keeps the captions.
+ */
 export async function regenerateImageAction(postId: string, formData: FormData) {
   await requireSuperAdmin();
   const note = String(formData.get("note") ?? "").trim().slice(0, 1000);
-  const layout = String(formData.get("layout") ?? "");
-  const post = await db.socialPost.update({
-    where: { id: postId },
-    data: { imageNote: note || null, photo: null, stage: "written", attempts: 0, stageError: null, status: "DRAFT", ...(["banner", "split", "photo", "statement"].includes(layout) ? { imageLayout: layout } : {}) },
-  });
-  await db.socialFeedback.create({ data: { projectId: post.projectId, postId, kind: "regenerate_image", note } });
+  const mode = String(formData.get("mode") ?? "ai");
+  const cur = await db.socialPost.findUniqueOrThrow({ where: { id: postId }, select: { projectId: true, mediaId: true } });
+  if (mode === "library") {
+    const m = await nextMedia(cur.projectId, cur.mediaId);
+    if (!m) return;
+    await db.socialPost.update({ where: { id: postId }, data: { mediaId: m.id, imageLayout: "photo", stage: "written", attempts: 0, stageError: null, status: "DRAFT" } });
+    await db.socialMedia.update({ where: { id: m.id }, data: { usedCount: { increment: 1 } } });
+  } else {
+    await db.socialPost.update({ where: { id: postId }, data: { imageNote: note || null, photo: null, mediaId: null, imageLayout: "photo", stage: "written", attempts: 0, stageError: null, status: "DRAFT" } });
+    await db.socialFeedback.create({ data: { projectId: cur.projectId, postId, kind: "regenerate_image", note } });
+    if (note) learn(cur.projectId);
+  }
   await finishPost(postId);
-  if (note) learn(post.projectId);
   refresh();
 }
 
-/** Same photo, another design (no AI cost). */
-export async function relayoutAction(postId: string, layout: string) {
+/** Same words, a different look (colours and fonts). No AI cost. */
+export async function anotherLookAction(postId: string) {
   await requireSuperAdmin();
-  if (!["banner", "split", "photo", "statement"].includes(layout)) return;
-  await db.socialPost.updateMany({ where: { id: postId, photo: { not: null } }, data: { imageLayout: layout, stage: "written" } });
-  await finishPost(postId);
+  const post = await db.socialPost.findUniqueOrThrow({ where: { id: postId }, select: { design: true } });
+  const d = designOf(post.design);
+  await db.socialPost.update({ where: { id: postId }, data: { design: { ...d, variant: (d.variant ?? 0) + 1 } as Prisma.InputJsonValue } });
+  await redraw(postId);
+  refresh();
+}
+
+/** Switch the image format. Writes the image text for a format the post has none for yet. */
+export async function relayoutAction(postId: string, format: string) {
+  await requireSuperAdmin();
+  if (!isFormat(format)) return;
+  const post = await db.socialPost.findUniqueOrThrow({ where: { id: postId } });
+  const d = designOf(post.design);
+  const data: Prisma.SocialPostUpdateInput = { imageLayout: format };
+  if (format === "photo") {
+    if (!post.mediaId && !post.photo) {
+      const m = await nextMedia(post.projectId);
+      if (m) data.media = { connect: { id: m.id } };
+      // No library photo: the worker makes an AI photo.
+    }
+  } else if (!d.texts?.[format]) {
+    const text = await writeDesignText(post, format).catch(() => "");
+    if (text) data.design = { ...d, texts: { ...d.texts, [format]: text } } as Prisma.InputJsonValue;
+  }
+  await db.socialPost.update({ where: { id: postId }, data });
+  await redraw(postId);
   refresh();
 }
 
