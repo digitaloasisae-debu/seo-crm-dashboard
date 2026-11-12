@@ -55,11 +55,13 @@ export async function drawConcept(post: SocialPost, project: SocialProject & { c
   const style = CONCEPT_STYLES[hash(`${post.id}:style:${designOf(post.design).variant ?? 0}`) % CONCEPT_STYLES.length];
   const prompt = [
     `One bold, eye-catching visual for a social media post by ${project.client.name} (${project.client.businessType ?? "business"}). It must make people stop scrolling.`,
-    `The visual idea (a clever visual metaphor, one main subject): ${post.imageBrief || post.idea}`,
+    `What the post is about: ${post.idea} (service: ${post.service}).`,
+    `The visual: ${post.imageBrief || post.idea}`,
+    "It must be obviously about that topic: show the real, recognisable subject of the post (the actual object, place or result a customer would recognise), not an abstract symbol. Someone seeing only this image should be able to guess the topic.",
     `Style: ${style}.`,
     `Background: one flat, solid colour, exactly ${bg}, edge to edge. No gradient, no vignette, no floor line, no scenery.`,
     "Composition: the subject sits in the lower two thirds and is large and centred; the top third of the frame is completely empty background (a headline goes there).",
-    "Not stock photography: no people in offices, no handshakes, no laptops or phones with screens, no faces looking at the camera, no glowing holograms, no floating icons.",
+    "Not stock photography: no people in offices, no handshakes, no faces looking at the camera, no glowing holograms, no floating icons. Any screen shows only simple shapes and colours.",
     "ABSOLUTELY NO text, letters, numbers, logos or symbols anywhere in the image.",
     project.imageStyle ? `Owner's notes: ${project.imageStyle}` : "",
     post.imageNote ? `Most important, the owner asked for this: ${post.imageNote}` : "",
