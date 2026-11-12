@@ -879,6 +879,8 @@ model SocialProject {
   brainUpdatedAt DateTime?
   /// Instagram usernames of competitors (business or creator accounts) to study
   competitors     String[]
+  /// No longer used (pasted competitor posts were dropped). Kept so `db push` on deploy doesn't stop on dropping a column.
+  competitorNotes String    @default("")
   /// The AI's findings from the competitor research (Research JSON in src/lib/social/research.ts)
   research        Json?
   researchAt      DateTime?
