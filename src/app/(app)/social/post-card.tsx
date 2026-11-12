@@ -214,7 +214,7 @@ export function PostCard({ p }: { p: CardPost }) {
                 )}
                 <button type="button" onClick={() => setPanel(panel === "text" ? "" : "text")} className="btn-secondary text-xs">↻ New captions</button>
                 {p.status !== "REJECTED" && <button type="button" onClick={() => setPanel(panel === "reject" ? "" : "reject")} className="btn-danger text-xs">Reject</button>}
-                {p.status === "REJECTED" && <SubmitButton formAction={deletePostAction.bind(null, p.id)} className="ml-auto text-xs text-slate-400 hover:text-red-600">Delete</SubmitButton>}
+                <SubmitButton formAction={deletePostAction.bind(null, p.id)} onClick={(e) => { if (!confirm("Delete this post for good?")) e.preventDefault(); }} className="ml-auto text-xs text-slate-400 hover:text-red-600">Delete</SubmitButton>
               </div>
             )}
           </form>

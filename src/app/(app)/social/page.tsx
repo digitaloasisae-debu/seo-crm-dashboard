@@ -6,7 +6,8 @@ import { SubmitButton } from "@/components/submit-button";
 import { geminiConfigured } from "@/lib/gemini";
 import { socialBacklog } from "@/lib/social/work";
 import { monthKey, monthLabel, nextMonthKey } from "@/lib/social/schedule";
-import { generateMonthAction, retryFailedAction } from "./actions";
+import { deleteUnapprovedAction, generateMonthAction, retryFailedAction } from "./actions";
+import { ConfirmButton } from "@/components/confirm-button";
 import { PostCard } from "./post-card";
 import { SocialWorker } from "./worker";
 import { POST_SELECT, toCard } from "./data";
@@ -38,6 +39,8 @@ export default async function SocialReviewPage({ searchParams }: { searchParams:
   const flag = new Map(flags.map((f) => [f.id, f]));
   const byId = new Map(projects.map((p) => [p.id, p]));
   const count = (pid: string, s: string) => counts.find((c) => c.projectId === pid && c.status === s)?._count ?? 0;
+  const pickedProject = sp.project ? byId.get(sp.project) : undefined;
+  const unapproved = counts.filter((c) => (!pickedProject || c.projectId === pickedProject.id) && ["DRAFT", "REJECTED", "FAILED"].includes(c.status)).reduce((n, c) => n + c._count, 0);
   const monthOptions = [...new Set([thisMonth, nextMonthKey(thisMonth), ...months.map((m) => m.month)])].sort();
   const q = (o: Record<string, string | undefined>) => {
     const u = new URLSearchParams({ month, show, ...(sp.project ? { project: sp.project } : {}), ...o } as Record<string, string>);
@@ -86,6 +89,18 @@ export default async function SocialReviewPage({ searchParams }: { searchParams:
           <div className="flex flex-wrap items-center gap-2 text-sm">
             <span className="text-xs text-slate-500">Showing:</span>
             {monthOptions.map((m) => <Link key={m} href={q({ month: m })} className={`rounded-md px-3 py-1 text-xs ${m === month ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-600"}`}>{monthLabel(m)}</Link>)}
+            {unapproved > 0 && (
+              <form action={deleteUnapprovedAction} className="ml-auto">
+                <input type="hidden" name="month" value={month} />
+                {pickedProject && <input type="hidden" name="project" value={pickedProject.id} />}
+                <ConfirmButton
+                  message={`Delete ${unapproved} unapproved post${unapproved > 1 ? "s" : ""} in ${monthLabel(month)}${pickedProject ? ` for ${pickedProject.client.name}` : ""}? Approved and live posts are kept. This can't be undone.`}
+                  className="text-xs text-slate-500 hover:text-red-600"
+                >
+                  Delete {unapproved} unapproved{pickedProject ? ` (${pickedProject.client.name})` : ""}
+                </ConfirmButton>
+              </form>
+            )}
           </div>
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
             {projects.map((p) => (

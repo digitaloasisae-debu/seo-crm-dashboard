@@ -329,3 +329,13 @@ export async function deletePostAction(postId: string) {
   await db.socialPost.deleteMany({ where: { id: postId, status: { notIn: ["PUBLISHED", "PUBLISHING"] } } });
   refresh();
 }
+
+/** Deletes a month's posts that aren't approved or live (to review, rejected, failed). Optionally one project only. */
+export async function deleteUnapprovedAction(formData: FormData) {
+  await requireSuperAdmin();
+  const month = String(formData.get("month") ?? "");
+  if (!/^\d{4}-\d{2}$/.test(month)) return;
+  const project = String(formData.get("project") ?? "");
+  await db.socialPost.deleteMany({ where: { month, ...(project ? { projectId: project } : {}), status: { in: ["DRAFT", "REJECTED", "FAILED"] } } });
+  refresh();
+}
