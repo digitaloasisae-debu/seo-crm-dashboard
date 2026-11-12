@@ -6,7 +6,7 @@ import { db } from "@/lib/db";
 import { requireSuperAdmin } from "@/lib/session";
 import type { Prisma } from "@prisma/client";
 import { PLATFORMS, draftServiceCard, planMonth, planReplacement, updateBrain, writeDesignText } from "@/lib/social/ai";
-import { PICTURE_FORMATS, designOf, formatOf, isFormat } from "@/lib/social/formats";
+import { PICTURE_FORMATS, designOf, formatOf, isFormat, parseSlides, scenesText, slidesText, type DesignData } from "@/lib/social/formats";
 import { addMedia, describeMedia, nextMedia } from "@/lib/social/media";
 import { cleanHandles, runResearch } from "@/lib/social/research";
 import { finishPost, socialWork } from "@/lib/social/work";
@@ -26,8 +26,6 @@ function projectData(f: FormData) {
     active: f.get("active") === "on",
     services: [...new Set(list("services"))].slice(0, 20),
     platforms: PLATFORMS.filter((p) => f.get(`platform_${p}`) === "on"),
-    postsPerMonth: int("postsPerMonth", 15, 1, 60),
-    postingDays: String(f.get("postingDays") ?? "Random").trim() || "Random",
     postFromHour: int("postFromHour", 10, 0, 23),
     postToHour: int("postToHour", 19, 1, 24),
     timezone: String(f.get("timezone") ?? "Asia/Dubai").trim() || "Asia/Dubai",
@@ -197,6 +195,19 @@ async function saveEdits(postId: string, f: FormData) {
   if (designText !== null && !PICTURE_FORMATS.includes(format) && String(designText).trim() !== (design.texts?.[format] ?? "").trim()) {
     designChanged = true;
     await db.socialPost.update({ where: { id: postId }, data: { design: { ...design, texts: { ...design.texts, [format]: String(designText).trim().slice(0, 2000) } } as Prisma.InputJsonValue } });
+  }
+  // Carousel slides and the Reel's words.
+  const slidesIn = f.get("slidesText");
+  const endIn = f.get("endText");
+  const scenesIn = f.get("scenesText");
+  const next: DesignData = { ...designOf((await db.socialPost.findUniqueOrThrow({ where: { id: postId }, select: { design: true } })).design) };
+  let mediaChanged = false;
+  if (post.kind === "carousel" && slidesIn !== null && String(slidesIn).trim() !== slidesText(next).trim()) { next.slides = parseSlides(String(slidesIn)); mediaChanged = true; }
+  if (post.kind === "carousel" && endIn !== null && String(endIn).trim() !== (next.end ?? "").trim()) { next.end = String(endIn).trim().slice(0, 120); mediaChanged = true; }
+  if (post.kind === "video" && scenesIn !== null && String(scenesIn).trim() !== scenesText(next).trim()) { next.scenes = String(scenesIn).split("\n").map((x) => x.trim()).filter(Boolean).slice(0, 5); mediaChanged = true; }
+  if (mediaChanged) {
+    designChanged = true;
+    await db.socialPost.update({ where: { id: postId }, data: { design: next as Prisma.InputJsonValue } });
   }
   if (!Object.keys(data).length) return { post, headline: designChanged };
   await db.socialPost.update({ where: { id: postId }, data });

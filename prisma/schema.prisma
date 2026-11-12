@@ -1000,6 +1000,14 @@ model SocialPost {
   photo            Bytes?
   image            Bytes?
   imageVersion     Int              @default(0)
+  /// What goes out: static (one image), carousel (slides) or video (an animated Reel)
+  kind             String           @default("static")
+  /// Content pillar: informative, event, promo, journey, soft (see PILLARS in src/lib/social/formats.ts)
+  pillar           String           @default("")
+  /// Carousel slides after the cover (JPEGs, 1080x1350)
+  slides           Bytes[]
+  /// The animated Reel (MP4, 1080x1920)
+  video            Bytes?
   scheduledAt      DateTime
   status           SocialPostStatus @default(DRAFT)
   rejectionReason  String?

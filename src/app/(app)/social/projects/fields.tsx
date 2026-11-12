@@ -18,14 +18,9 @@ export function ProjectFields({ p }: { p?: Partial<SocialProject> }) {
           ))}
         </div>
       </fieldset>
-      <label>
-        <span className="label">Posts per month</span>
-        <input type="number" name="postsPerMonth" min={1} max={60} defaultValue={p?.postsPerMonth ?? 15} className="input" />
-      </label>
-      <label>
-        <span className="label">Posting days (&quot;Random&quot; = spread over the month, or e.g. Mon, Wed, Fri)</span>
-        <input name="postingDays" defaultValue={p?.postingDays ?? "Random"} className="input" />
-      </label>
+      <div className="rounded-lg bg-slate-50 p-3 text-sm text-slate-600 md:col-span-2">
+        <b>Posting plan:</b> Monday to Saturday, never Sunday. Each week: 1 carousel, 2 Reels and 2 images (about 21 posts a month), balanced across informative, hidden promo, client journey and promotional posts, plus holidays and events on their day.
+      </div>
       <div className="grid grid-cols-3 gap-2">
         <label><span className="label">From hour</span><input type="number" name="postFromHour" min={0} max={23} defaultValue={p?.postFromHour ?? 10} className="input" /></label>
         <label><span className="label">To hour</span><input type="number" name="postToHour" min={1} max={24} defaultValue={p?.postToHour ?? 19} className="input" /></label>
