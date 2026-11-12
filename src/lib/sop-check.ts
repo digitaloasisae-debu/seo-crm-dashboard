@@ -1,6 +1,6 @@
 /**
  * Rule-based SOP checks for an article (everything that can be measured without AI).
- * Mirrors Hamza's SOP 1 (general) and SOP 2 (local, applied when the client has a primary city).
+ * Mirrors Hamza's SOP 1 (general, updated 12 Nov 2026 with the Blog Writing SOP) and SOP 2 (local, when the client has a primary city).
  */
 import { parse, type HTMLElement } from "node-html-parser";
 
@@ -71,7 +71,7 @@ export function checkArticle(a: ArticleInput, c: ClientInput) {
   const mdStatus: CheckStatus = !md ? "fail" : md.length >= 150 && md.length <= 160 && hasKeyword(md, kw) ? "pass" : md.length >= 120 && md.length <= 175 ? "warn" : "fail";
   items.push(item("meta_desc", "Title & meta", "Meta description 150–160 characters with the keyword", mdStatus, md ? `${md.length} characters${hasKeyword(md, kw) ? "" : ", keyword missing"}` : "Missing"));
   const oldYears = [...new Set((`${a.metaTitle} ${text}`.match(/\b(2019|2020|2021|2022|2023|2024|2025)\b/g) ?? []))];
-  items.push(item("year_rule", "Title & meta", "Uses 2026 as the current year (no 2024/2025)", oldYears.length === 0 ? "pass" : "warn", oldYears.length ? `Mentions ${oldYears.join(", ")}. Fine only if it's historical data.` : "No outdated years"));
+  items.push(item("year_rule", "Title & meta", "Uses 2026 as the current year (older years only for comparisons)", oldYears.length === 0 ? "pass" : "warn", oldYears.length ? `Mentions ${oldYears.join(", ")}. Fine only if it's historical data.` : "No outdated years"));
 
   // --- Body ---
   items.push(item("word_count", "Content", "At least 1,000 words", wc >= 1000 ? "pass" : wc >= 800 ? "warn" : "fail", `${wc.toLocaleString()} words`, 2));
@@ -81,11 +81,33 @@ export function checkArticle(a: ArticleInput, c: ClientInput) {
   const density = wc ? (countPhrase(text, kw) * kwLen * 100) / wc : 0;
   items.push(item("kw_density", "Content", "Keyword density 1%–1.5%", band(Number(density.toFixed(2)), 1, 1.5, 0.6, 2.2), `${density.toFixed(2)}% (${countPhrase(text, kw)} uses)`));
   const sentences = text.split(/(?<=[.!?])\s+/).filter((s) => words(s).length > 2);
-  const longS = sentences.filter((s) => words(s).length > 22).length;
-  const longShare = sentences.length ? longS / sentences.length : 0;
-  items.push(item("sentences", "Content", "Short sentences (15–20 words)", longShare <= 0.15 ? "pass" : longShare <= 0.3 ? "warn" : "fail", `${Math.round(longShare * 100)}% of sentences are over 22 words`));
-  const longP = paras.filter((p) => words(p).length > 100).length;
-  items.push(item("paragraphs", "Content", "Short paragraphs (under 100 words)", longP === 0 ? "pass" : longP <= 2 ? "warn" : "fail", longP ? `${longP} paragraph${longP > 1 ? "s" : ""} over 100 words` : "All paragraphs are short"));
+  // SOP: mix short and long sentences (no fixed length), and avoid rambling ones.
+  const lens = sentences.map((x) => words(x).length);
+  const shortShare = lens.length ? lens.filter((l) => l <= 12).length / lens.length : 0;
+  const longShare = lens.length ? lens.filter((l) => l >= 20).length / lens.length : 0;
+  const rambling = lens.filter((l) => l > 35).length;
+  const mixed = shortShare >= 0.15 && longShare >= 0.15;
+  items.push(item("sentences", "Content", "Mix of short and long sentences", mixed && rambling <= 2 ? "pass" : mixed || rambling <= 2 ? "warn" : "fail", `${Math.round(shortShare * 100)}% short, ${Math.round(longShare * 100)}% long${rambling ? `, ${rambling} over 35 words` : ""}`));
+  // SOP: paragraphs at least 4–5 lines (about 50+ words), except the bold answer, lists and FAQ answers.
+  const faqStart = root.querySelectorAll("h1,h2,h3,h4,h5,h6").find((h) => /faq|frequently asked/i.test(h.textContent));
+  const bodyParas = root.querySelectorAll("p").filter((p) => {
+    if (p.closest("li") || p.closest("table")) return false;
+    if (faqStart && faqStart.range[0] < p.range[0]) return false;
+    return !!p.textContent.trim();
+  }).slice(1);
+  const shortP = bodyParas.filter((p) => words(p.textContent).length < 50).length;
+  items.push(item("paragraphs", "Content", "Paragraphs at least 4–5 lines (except the bold answer, lists and FAQ)", shortP <= 1 ? "pass" : shortP <= 3 ? "warn" : "fail", shortP ? `${shortP} paragraph${shortP > 1 ? "s" : ""} under about 4 lines` : "All paragraphs are full length", 1.5));
+  // SOP: bold 1–1.5 line direct answer right under the title.
+  const firstP = root.querySelectorAll("p").find((p) => p.textContent.trim());
+  const firstBold = firstP?.querySelector("strong, b");
+  const boldWords = firstBold ? words(firstBold.textContent).length : 0;
+  const startsBold = !!firstBold && norm(firstP!.textContent).startsWith(norm(firstBold.textContent).slice(0, 20));
+  items.push(item("bold_answer", "Content", "Bold 1–1.5 line direct answer under the title", startsBold && boldWords >= 8 && boldWords <= 40 ? "pass" : firstBold ? "warn" : "fail", !firstBold ? "First paragraph has no bold answer" : !startsBold ? "Bold text isn't at the start of the first paragraph" : `${boldWords} words in bold`, 2));
+  // SOP: no AI-sounding phrases.
+  const AI_PHRASES = ["in today's fast-paced world", "in todays fast paced world", "delve into", "delves into", "it's important to note", "its important to note", "unlock", "elevate", "in conclusion", "not just", "game-changer", "game changer", "navigate the complexities", "in the ever-evolving", "look no further"];
+  const low = ` ${text.toLowerCase()} `;
+  const hits = [...new Set(AI_PHRASES.filter((ph) => low.includes(ph.replace(/[’]/g, "'"))))];
+  items.push(item("ai_phrases", "Content", "No AI-sounding phrases", hits.length === 0 ? "pass" : hits.length <= 2 ? "warn" : "fail", hits.length ? `Found: ${hits.map((h) => `"${h}"`).join(", ")}` : "None found", 1.5));
   const lists = root.querySelectorAll("ul,ol").length;
   const tables = root.querySelectorAll("table").length;
   items.push(item("lists", "Content", "Bullet points or lists to break up text", lists >= 2 ? "pass" : lists === 1 ? "warn" : "fail", `${lists} list${lists === 1 ? "" : "s"}${tables ? `, ${tables} table${tables > 1 ? "s" : ""}` : ""}`));
@@ -145,6 +167,10 @@ export function checkArticle(a: ArticleInput, c: ClientInput) {
   }
   const faqCount = questions.size;
   items.push(item("faq", "Structure", "FAQ section with at least 5 questions", faqCount >= 5 ? "pass" : faqHead ? "warn" : "fail", faqHead ? `${faqCount} questions found` : "No FAQ section", 1.5));
+  if (faqHead) {
+    const h3q = new Set(root.querySelectorAll("h3").filter((h) => faqHead.range[0] < h.range[0] && h.textContent.trim().endsWith("?")).map((h) => norm(h.textContent)));
+    items.push(item("faq_h3", "Structure", "FAQ questions written as H3 headings", faqCount && h3q.size >= Math.min(5, faqCount) ? "pass" : h3q.size ? "warn" : "fail", `${h3q.size} of ${faqCount} questions are H3`));
+  }
   const slugWords = a.slug.split("-").filter(Boolean);
   items.push(item("slug", "Structure", "Short, keyword-rich URL slug", a.slug.length <= 60 && slugWords.length <= 7 && hasKeyword(a.slug.replace(/-/g, " "), kw) ? "pass" : a.slug.length <= 75 ? "warn" : "fail", `/${a.slug}`));
   const ctaHost = c.ctaLink ? c.ctaLink.replace(/\/$/, "") : "";
