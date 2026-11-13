@@ -40,7 +40,16 @@ export function ClientPulse({ c }: { c: Pulse }) {
   const lastV = c.trend.at(-1) ?? 0;
   const up = c.why ? c.why.now >= c.why.before : lastV >= first;
   const pct = c.why ? c.why.pct : first ? Math.round((lastV / first - 1) * 100) : null;
-  const tone = c.health == null ? "bg-slate-100 text-slate-500" : c.health >= 80 ? "bg-emerald-50 text-emerald-700" : c.health >= 65 ? "bg-amber-50 text-amber-700" : "bg-red-50 text-red-700";
+  // Same numbers as the hover card: average of the last 4 complete weeks, vs the first 4 weeks of the 12.
+  const clicksNow = c.why ? c.why.now : c.clicks;
+  const clicksBefore = c.why ? c.why.before : first || null;
+  const pos = c.why?.metrics.find((m) => m.label === "Average position");
+  const posNow = pos && pos.now !== "—" ? Number(pos.now) : c.position;
+  const posBefore = pos && pos.before !== "—" ? Number(pos.before) : null;
+  const posBetter = posNow != null && posBefore != null ? (Math.abs(posNow - posBefore) < 0.5 ? null : posNow < posBefore) : null;
+  const healthTone = c.health == null ? "bg-slate-100 text-slate-500" : c.health >= 80 ? "bg-emerald-50 text-emerald-700" : c.health >= 65 ? "bg-amber-50 text-amber-700" : "bg-red-50 text-red-700";
+  const flat = pct != null && Math.abs(pct) < 5;
+  const chip = pct == null ? "bg-slate-100 text-slate-500" : flat ? "bg-slate-100 text-slate-600" : up ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-700";
   return (
     <div className="group/why relative min-w-0 hover:z-30 focus-within:z-30">
     <Link href={`/clients/${c.id}`} className="card rf-lift block min-w-0 p-4.5 hover:border-indigo-200">
@@ -52,79 +61,81 @@ export function ClientPulse({ c }: { c: Pulse }) {
           <span className="block truncate leading-tight font-semibold">{c.name}</span>
           <span className="block truncate text-xs text-slate-400">{host(c.site)}</span>
         </span>
-        <span title="Site health from the latest audit" className={`num shrink-0 rounded-md px-2 py-0.5 text-xs font-medium ${tone}`}>{c.health ?? "—"}</span>
+        {c.health != null && <span data-tip="Site health score from the latest SEO audit, out of 100" className={`shrink-0 rounded-md px-2 py-0.5 text-[11px] font-medium ${healthTone}`}>Health <b className="num">{c.health}</b></span>}
       </div>
-      <div className="mt-4 mb-2 flex justify-between gap-2 text-xs text-slate-500">
-        <div>Clicks / wk<b className="num block text-lg font-medium text-slate-900">{c.clicks == null ? "—" : c.clicks.toLocaleString()}</b></div>
-        <div>Avg. position<b className="num block text-lg font-medium text-slate-900">{c.position == null ? "—" : c.position.toFixed(1)}</b></div>
-        <div data-why className="text-right">12 weeks<b className={`num block text-lg font-medium ${pct == null ? "text-slate-400" : up ? "text-emerald-600" : "text-red-600"}`}>{pct == null ? "—" : `${up ? "▲" : "▼"} ${Math.abs(pct)}%`}</b></div>
-      </div>
-      <Spark values={c.trend} up={up} />
-      <div className="mt-3 flex justify-between gap-2 text-xs text-slate-500">
-        <span>{c.waiting ? <span className="font-medium text-indigo-600">{c.waiting} waiting on you</span> : "Next post"}</span>
+
+      {clicksNow == null ? (
+        <p className="mt-4 text-sm text-slate-400">No Google data yet. Link Search Console in the client&apos;s settings.</p>
+      ) : (
+        <>
+          <div className="mt-4 flex items-end justify-between gap-3">
+            <div className="min-w-0">
+              <div className="text-xs text-slate-500">Visits from Google</div>
+              <div className="leading-none"><b className="num text-3xl font-semibold text-slate-900">{fmt(clicksNow)}</b> <span className="text-sm text-slate-500">a week</span></div>
+            </div>
+            {pct != null && (
+              <span data-why className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold ${chip}`}>
+                {flat ? "No real change" : `${up ? "▲ Up" : "▼ Down"} ${Math.abs(pct)}%`}
+              </span>
+            )}
+          </div>
+          {clicksBefore != null && <p className="mt-1 text-xs text-slate-500">{fmt(clicksBefore)} a week 3 months ago</p>}
+          <div className="mt-3"><Spark values={c.trend} up={up || flat} /></div>
+          <div className="mt-1 flex justify-between text-[10.5px] text-slate-400"><span>12 weeks ago</span><span>last week</span></div>
+          {posNow != null && (
+            <p className="mt-2.5 text-xs text-slate-600">
+              Usually ranks around <b className="num text-slate-900">#{Math.round(posNow)}</b> on Google
+              {posBetter != null && <span className={posBetter ? " text-emerald-600" : " text-red-600"}> ({posBetter ? "better" : "worse"} than #{Math.round(posBefore!)})</span>}
+            </p>
+          )}
+        </>
+      )}
+
+      <div className="mt-3 flex justify-between gap-2 border-t border-slate-100 pt-2.5 text-xs text-slate-500">
+        <span>{c.waiting ? <span className="font-medium text-indigo-600">{c.waiting} waiting for your review</span> : "Next blog post"}</span>
         <span className="truncate">{c.next}</span>
       </div>
     </Link>
-    {c.why && <Why c={c} up={up} pct={pct} />}
+    {c.why && <Why c={c} pct={pct} />}
     </div>
   );
 }
 
 const fmt = (v: number) => (v >= 10 ? Math.round(v) : Math.round(v * 10) / 10).toLocaleString();
 
-function Why({ c, pct }: { c: Pulse; up: boolean; pct: number | null }) {
+/** Short hover card: the 3 key numbers, the biggest page change, and the top thing to do. */
+function Why({ c, pct }: { c: Pulse; pct: number | null }) {
   const w = c.why!;
   const tone = (b: boolean | null) => (b == null ? "text-slate-700" : b ? "text-emerald-600" : "text-red-600");
-  const Movers = ({ title, rows }: { title: string; rows: PulseWhy["movers"] }) =>
-    rows.length ? (
-      <>
-        <div className="mt-3 mb-1 text-xs font-medium text-slate-500">{title}</div>
-        <ul className="space-y-1">
-          {rows.map((m) => (
-            <li key={m.label} className="flex items-center gap-2 text-xs">
-              <span className="min-w-0 flex-1 truncate text-slate-700" title={m.label}>{m.label}</span>
-              <span className={`num shrink-0 font-medium ${m.now > m.before ? "text-emerald-600" : "text-red-600"}`}>{fmt(m.before)} → {fmt(m.now)}</span>
-              {m.posBefore != null && m.posNow != null && <span className="num w-16 shrink-0 text-right text-slate-400">pos {m.posBefore.toFixed(0)} → {m.posNow.toFixed(0)}</span>}
-            </li>
-          ))}
-        </ul>
-      </>
-    ) : null;
+  const rows = w.metrics.filter((m) => m.label !== "Click rate").map((m) => ({ ...m, label: m.label === "Clicks a week" ? "Visits from Google" : m.label === "Google views a week" ? "Times shown on Google" : "Google position" }));
+  const page = w.movers[0];
+  const tip = w.advice[0];
   return (
     <div className="pointer-events-none invisible absolute top-[calc(100%-10px)] right-2 left-2 z-30 translate-y-2 rounded-xl border border-slate-200 bg-white p-4 opacity-0 shadow-[var(--shadow-pop)] transition-all duration-200 group-hover/why:pointer-events-auto group-hover/why:visible group-hover/why:translate-y-0 group-hover/why:opacity-100">
-      <div className="flex items-baseline justify-between gap-2">
-        <span className="text-sm font-semibold">What changed{pct != null && <span className={pct >= 0 ? " text-emerald-600" : " text-red-600"}> {pct >= 0 ? "+" : "−"}{Math.abs(pct)}% clicks</span>}</span>
-      </div>
-      <p className="mt-0.5 text-[11px] text-slate-400">Search Console, first 4 weeks vs last 4 complete weeks</p>
+      <div className="text-sm font-semibold">{pct == null ? "What changed" : Math.abs(pct) < 5 ? "Visits about the same" : <>Visits {pct >= 0 ? "up" : "down"} <span className={pct >= 0 ? "text-emerald-600" : "text-red-600"}>{Math.abs(pct)}%</span></>}</div>
+      <p className="text-[11px] text-slate-400">Weekly average, 3 months ago → last 4 weeks (Search Console)</p>
       <table className="mt-2 w-full text-xs">
         <tbody>
-          {w.metrics.map((m) => (
+          {rows.map((m) => (
             <tr key={m.label}>
               <td className="py-0.5 text-slate-500">{m.label}</td>
               <td className="num py-0.5 text-right text-slate-500">{m.before}</td>
               <td className="px-1.5 py-0.5 text-center text-slate-300">→</td>
-              <td className={`num py-0.5 text-right font-medium ${tone(m.better)}`}>{m.now}</td>
+              <td className={`num py-0.5 text-right font-semibold ${tone(m.better)}`}>{m.now}</td>
             </tr>
           ))}
         </tbody>
       </table>
-      <Movers title="Searches with the biggest change (clicks a week)" rows={w.searches} />
-      <Movers title="Pages with the biggest change (clicks a week)" rows={w.movers} />
-      <ul className="mt-3 space-y-0.5 border-t border-slate-100 pt-2 text-xs text-slate-500">
-        {w.facts.map((f) => <li key={f}>{f}</li>)}
-      </ul>
-      {w.advice.length > 0 && (
-        <div className="mt-3 border-t border-slate-100 pt-2.5">
-          <div className="text-xs font-semibold text-slate-800">Likely reasons and what to do</div>
-          <p className="text-[11px] text-slate-400">Each one comes from the number shown in bold</p>
-          <ol className="mt-2 space-y-2">
-            {w.advice.map((a, i) => (
-              <li key={i} className="text-xs leading-snug">
-                <b className="font-semibold text-slate-800">{a.evidence}.</b> <span className="text-slate-600">{a.reason}</span>
-                <Link href={a.href} className="mt-0.5 flex items-start gap-1 font-medium text-indigo-600 hover:underline">→ {a.fix}</Link>
-              </li>
-            ))}
-          </ol>
+      {page && (
+        <p className="mt-2.5 border-t border-slate-100 pt-2 text-xs text-slate-600">
+          Biggest change: <span className="font-medium text-slate-800">{page.label}</span>{" "}
+          <span className={`num font-semibold ${page.now > page.before ? "text-emerald-600" : "text-red-600"}`}>{fmt(page.before)} → {fmt(page.now)} visits a week</span>
+        </p>
+      )}
+      {tip && (
+        <div className="mt-2.5 rounded-lg bg-indigo-50/70 p-2.5 text-xs">
+          <div className="font-semibold text-slate-800">{tip.evidence}</div>
+          <Link href={tip.href} className="mt-0.5 block font-medium text-indigo-600 hover:underline">→ {tip.fix}</Link>
         </div>
       )}
     </div>
