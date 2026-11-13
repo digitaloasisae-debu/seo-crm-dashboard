@@ -19,57 +19,29 @@ export const H = 1350;
 import { designOf, fallbackText, formatOf, type Slide } from "./formats";
 export { FORMATS, FORMAT_HELP, PICTURE_FORMATS, TEXT_FORMATS, designOf, fallbackText, formatOf, isFormat, type DesignData } from "./formats";
 
-// ---------- AI photo (only when asked) ----------
+// ---------- AI pictures ----------
 
-const imageModels = () => [process.env.GEMINI_IMAGE_MODEL, "gemini-3.1-flash-image", "gemini-2.5-flash-image"].filter((m, i, a): m is string => Boolean(m) && a.indexOf(m) === i);
-
-/** A text-free AI photo, shot to look like a phone snap from a real workplace rather than stock. */
-export async function drawPhoto(post: SocialPost, project: SocialProject & { client: Client }): Promise<Buffer> {
-  const prompt = [
-    `An unposed photo taken on a phone at ${project.client.name} (${project.client.businessType ?? "business"}, ${[project.client.primaryCity, project.client.targetCountry].filter(Boolean).join(", ")}).`,
-    post.imageBrief || post.idea,
-    "It must look like a real moment someone on the team snapped, not stock photography and not an ad: everyday clutter, ordinary people in ordinary clothes, mixed indoor light, slightly off-centre framing, natural grain, nothing too perfect or symmetrical. No glossy skin, no dramatic lighting, no bokeh, no lens flares, no glowing holograms, no floating icons, no people smiling at the camera, no suits and handshakes.",
-    "ABSOLUTELY NO text, letters, numbers, logos, watermarks, signs or user interfaces anywhere. Screens and papers are turned away or out of focus.",
-    project.imageStyle ? `Owner's notes: ${project.imageStyle}` : "",
-    post.imageNote ? `Most important, the owner asked for this: ${post.imageNote}` : "",
-    "Portrait 4:5.",
-  ]
-    .filter(Boolean)
-    .join("\n");
-  return generateImage(prompt);
-}
-
-const CONCEPT_STYLES = [
-  "a clean, playful 3D render of real-looking materials with soft studio light and crisp shadows",
-  "a cut-paper diorama made of layered coloured card, photographed with soft light",
-  "a surreal still-life photograph of real everyday objects, arranged with wit, sharp and minimal",
-  "a minimal claymation-style sculpture scene with tactile textures",
-];
+/** Google Imagen 4 first (best quality), then Gemini's own image models ("Nano Banana") as a fallback. */
+const imageModels = () =>
+  [process.env.GEMINI_IMAGE_MODEL, "imagen-4.0-generate-001", "gemini-3.1-flash-image", "gemini-2.5-flash-image"].filter((m, i, a): m is string => Boolean(m) && a.indexOf(m) === i);
 
 /**
- * The visual of a "concept" post: ONE striking visual metaphor on a flat background in the post's
- * theme colour, with the top third left empty for the headline. Not a fake photo of people.
+ * The exact prompt the image model gets (the post card shows it, and Hamza can edit it). The
+ * copywriter writes it as a plain, literal description of one scene that shows the post's topic.
  */
-export async function drawConcept(post: SocialPost, project: SocialProject & { client: Client }): Promise<Buffer> {
-  const bg = conceptTheme(post.id, project.client).bg;
-  const style = CONCEPT_STYLES[hash(`${post.id}:style:${designOf(post.design).variant ?? 0}`) % CONCEPT_STYLES.length];
-  const prompt = [
-    `One bold, eye-catching visual for a social media post by ${project.client.name} (${project.client.businessType ?? "business"}). It must make people stop scrolling.`,
-    `What the post is about: ${post.idea} (service: ${post.service}).`,
-    `The visual: ${post.imageBrief || post.idea}`,
-    "It must be obviously about that topic: show the real, recognisable subject of the post (the actual object, place or result a customer would recognise), not an abstract symbol. Someone seeing only this image should be able to guess the topic.",
-    `Style: ${style}.`,
-    `Background: one flat, solid colour, exactly ${bg}, edge to edge. No gradient, no vignette, no floor line, no scenery.`,
-    "Composition: the subject sits in the lower two thirds and is large and centred; the top third of the frame is completely empty background (a headline goes there).",
-    "Not stock photography: no people in offices, no handshakes, no faces looking at the camera, no glowing holograms, no floating icons. Any screen shows only simple shapes and colours.",
-    "ABSOLUTELY NO text, letters, numbers, logos or symbols anywhere in the image.",
-    project.imageStyle ? `Owner's notes: ${project.imageStyle}` : "",
-    post.imageNote ? `Most important, the owner asked for this: ${post.imageNote}` : "",
-    "Portrait 4:5.",
+export function imagePrompt(post: Pick<SocialPost, "imageBrief" | "idea">, project: Pick<SocialProject, "imageStyle">) {
+  return [
+    post.imageBrief.trim() || `A realistic, well-lit photo that clearly shows: ${post.idea}`,
+    "No text, letters, numbers, logos or watermarks anywhere in the image.",
+    project.imageStyle.trim() ? `Style notes: ${project.imageStyle.trim()}` : "",
   ]
     .filter(Boolean)
     .join("\n");
-  return generateImage(prompt);
+}
+
+/** A new AI picture for the post, from its prompt. */
+export function drawAI(post: SocialPost, project: SocialProject) {
+  return generateImage(imagePrompt(post, project));
 }
 
 /** A library photo, cropped to the post size. */
@@ -77,35 +49,48 @@ export function fitPhoto(data: Uint8Array | Buffer) {
   return sharp(Buffer.from(data)).rotate().resize(W, H, { fit: "cover", position: "attention" }).jpeg({ quality: 88 }).toBuffer();
 }
 
-/** Ask Gemini for an image; returns a 1080x1350 JPEG. */
+/** Ask Google's image models for a picture; returns a 1080x1350 JPEG. */
 async function generateImage(prompt: string): Promise<Buffer> {
   const key = process.env.GEMINI_API_KEY;
   if (!key) throw new Error("GEMINI_API_KEY is not set in Vercel");
   let lastErr = "";
   for (const model of imageModels()) {
-    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
+    const imagen = model.startsWith("imagen");
+    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:${imagen ? "predict" : "generateContent"}`, {
       method: "POST",
       headers: { "Content-Type": "application/json", "x-goog-api-key": key },
-      body: JSON.stringify({ contents: [{ role: "user", parts: [{ text: prompt }] }], generationConfig: { responseModalities: ["IMAGE"], imageConfig: { aspectRatio: "4:5" } } }),
+      body: JSON.stringify(
+        imagen
+          ? { instances: [{ prompt }], parameters: { sampleCount: 1, aspectRatio: "3:4", personGeneration: "allow_adult" } }
+          : { contents: [{ role: "user", parts: [{ text: prompt }] }], generationConfig: { responseModalities: ["IMAGE"], imageConfig: { aspectRatio: "4:5" } } },
+      ),
       signal: AbortSignal.timeout(150_000),
     });
     const j = await res.json().catch(() => ({}));
-    if (res.status === 404 || res.status === 400) {
-      lastErr = j?.error?.message || `HTTP ${res.status}`;
-      continue; // model name not available on this key: try the next one
+    if (res.status === 404 || res.status === 400 || res.status === 403) {
+      lastErr = `${model}: ${j?.error?.message || `HTTP ${res.status}`}`;
+      continue; // model not available on this key (or not for this request): try the next one
     }
     if (!res.ok) {
       const msg = j?.error?.message || `HTTP ${res.status}`;
       if (res.status === 402 || /prepayment|credits/i.test(msg)) throw new Error("Gemini has no credit left. Top up in Google AI Studio.");
       throw new Error(`Image model: ${msg}`);
     }
-    const parts: { inlineData?: { data: string }; inline_data?: { data: string } }[] = j?.candidates?.[0]?.content?.parts ?? [];
-    const data = parts.find((x) => x.inlineData || x.inline_data);
-    const b64 = data?.inlineData?.data ?? data?.inline_data?.data;
-    if (!b64) throw new Error(`Image model returned no image (${j?.candidates?.[0]?.finishReason ?? j?.promptFeedback?.blockReason ?? "no reason given"})`);
+    let b64: string | undefined;
+    if (imagen) b64 = j?.predictions?.[0]?.bytesBase64Encoded;
+    else {
+      const parts: { inlineData?: { data: string }; inline_data?: { data: string } }[] = j?.candidates?.[0]?.content?.parts ?? [];
+      const data = parts.find((x) => x.inlineData || x.inline_data);
+      b64 = data?.inlineData?.data ?? data?.inline_data?.data;
+    }
+    if (!b64) {
+      // Usually a safety filter on this prompt: let the next model try.
+      lastErr = `${model} returned no image (${j?.predictions?.[0]?.raiFilteredReason ?? j?.candidates?.[0]?.finishReason ?? j?.promptFeedback?.blockReason ?? "no reason given"})`;
+      continue;
+    }
     return sharp(Buffer.from(b64, "base64")).resize(W, H, { fit: "cover", position: "attention" }).jpeg({ quality: 88 }).toBuffer();
   }
-  throw new Error(`No image model available: ${lastErr}`);
+  throw new Error(`No image made: ${lastErr}`);
 }
 
 // ---------- fonts ----------
@@ -429,32 +414,23 @@ function conceptTheme(id: string, colors: Pick<Client, "brandPrimaryColor" | "br
   return ts[hash(`${id}:concept`) % ts.length];
 }
 
-/** Match the text colours to the real top of the AI visual (the model doesn't always hit the exact background). */
-async function fitTheme(t: Theme, photo: Buffer): Promise<Theme> {
-  // stats() reads the whole input, not the extracted part, so cut the top band out first.
-  const top = await sharp(photo).extract({ left: 0, top: 0, width: W, height: 420 }).toBuffer();
-  const { channels } = await sharp(top).stats();
-  const bg = `#${channels.slice(0, 3).map((c) => Math.round(c.mean).toString(16).padStart(2, "0")).join("")}`;
-  const light = lum(bg) > 0.35;
-  const fg = light ? "#151515" : "#ffffff";
-  return { bg, fg, muted: light ? "#000000a6" : "#ffffffb3", accent: readable(t.accent, bg, 3.2), line: t.line, dark: !light };
-}
-
-/** Concept: the visual fills the frame; a few words sit in the empty top third. */
+/** Concept: the headline on a solid band in the post's colours, the AI picture filling the rest. */
 function ConceptPost({ c, photoUrl, top, main }: { c: Ctx; photoUrl: string; top: string; main: string }) {
-  const size = fit(plain(main), INNER - 120, 300, c.f.w, c.f.lh, 64, 128);
+  const size = fit(plain(main), INNER, 250, c.f.w, c.f.lh, 60, 118);
   return (
-    <div style={{ display: "flex", width: W, height: H, background: c.t.bg }}>
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src={photoUrl} width={W} height={H} style={{ position: "absolute", top: 0, left: 0, width: W, height: H, objectFit: "cover" }} alt="" />
-      <div style={{ position: "absolute", top: PAD, left: PAD, right: PAD, display: "flex", flexDirection: "column", gap: 14 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+    <div style={{ display: "flex", flexDirection: "column", width: W, height: H, background: c.t.bg }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 16, padding: `${PAD - 20}px ${PAD}px 44px` }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", minHeight: 40 }}>
           <div style={{ display: "flex", fontFamily: "Inter", fontWeight: 600, fontSize: 30, color: c.t.muted }}>{top}</div>
           <Logo c={c} size={38} />
         </div>
         <div style={{ display: "flex", fontFamily: c.f.family, fontWeight: c.f.weight, fontSize: size, lineHeight: c.f.lh, letterSpacing: c.f.ls, color: c.t.fg }}>
           <Rich text={main} accent={c.t.accent} italic={c.f.italic} size={size} lh={c.f.lh} />
         </div>
+      </div>
+      <div style={{ display: "flex", flexGrow: 1, overflow: "hidden" }}>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={photoUrl} width={W} height={H} style={{ width: W, height: "100%", objectFit: "cover" }} alt="" />
       </div>
     </div>
   );
@@ -488,7 +464,6 @@ async function lookOf(d: Pick<DesignInput, "id" | "format" | "variant" | "photo"
   // Photo posts never sit on the brand-colour theme (too loud next to a photo).
   const pool = d.format === "photo" ? [ts[0], ts[1], ts[3]] : ts;
   let t = d.format === "concept" ? conceptTheme(d.id, d.colors) : pool[seed % pool.length];
-  if (d.format === "concept" && d.photo) t = await fitTheme(t, d.photo);
   const f = DISPLAYS[Math.floor(seed / 7) % DISPLAYS.length];
   const c: Ctx = { t, f, brand: d.brand, seed: Math.floor(seed / 31) };
   const [disp, dispItalic, inter4, inter6, inter7] = await Promise.all([
@@ -637,16 +612,11 @@ function ReelBrand({ c }: { c: Ctx }) {
  */
 export async function reelLayers(d: DesignInput, scenes: string[]): Promise<{ base: Buffer; lines: Buffer[]; brand: Buffer }> {
   const { c, fonts } = await lookOf(d);
-  let base: Buffer;
-  if (d.format === "concept" && d.photo) {
-    // The concept visual sits on a flat colour, so the frame is extended with that colour.
-    base = await sharp({ create: { width: RW, height: RH, channels: 3, background: c.t.bg } })
-      .composite([{ input: await sharp(d.photo).resize(RW, H).toBuffer(), top: RH - H - 290, left: 0 }])
-      .jpeg({ quality: 92 })
-      .toBuffer();
-  } else if (d.photo) base = await sharp(d.photo).resize(RW, RH, { fit: "cover", position: "attention" }).jpeg({ quality: 92 }).toBuffer();
-  else base = await sharp({ create: { width: RW, height: RH, channels: 3, background: c.t.bg } }).jpeg({ quality: 92 }).toBuffer();
-  const boxed = Boolean(d.photo) && d.format !== "concept";
+  // The picture fills the frame (the words sit on solid blocks), or just the theme colour.
+  const base = d.photo
+    ? await sharp(d.photo).resize(RW, RH, { fit: "cover", position: "attention" }).jpeg({ quality: 92 }).toBuffer()
+    : await sharp({ create: { width: RW, height: RH, channels: 3, background: c.t.bg } }).jpeg({ quality: 92 }).toBuffer();
+  const boxed = Boolean(d.photo);
   const lines = [];
   for (const s of scenes) lines.push(await png(<ReelText c={c} text={s} boxed={boxed} />, fonts, RW, RH));
   const brand = await png(<ReelBrand c={c} />, fonts, RW, RH);

@@ -6,7 +6,7 @@
 import type { SocialPost } from "@prisma/client";
 import { db } from "../db";
 import { writePosts } from "./ai";
-import { designInput, designOf, drawConcept, drawPhoto, fitPhoto, formatOf, reelLayers, renderDesign, renderSlides } from "./image";
+import { designInput, designOf, drawAI, fitPhoto, formatOf, reelLayers, renderDesign, renderSlides } from "./image";
 import { renderReel } from "./video";
 
 const MAX_TRIES = 3;
@@ -68,9 +68,8 @@ export async function drawOne(postId: string) {
     const media = format === "photo" && post.mediaId ? await db.socialMedia.findUnique({ where: { id: post.mediaId }, select: { data: true } }) : null;
     if (media) photo = await fitPhoto(media.data);
     else if (format === "photo" || format === "concept") {
-      // Reuse the stored AI picture only if it was made for this format (older posts: photos).
-      const kept = post.photo && (d.pic ?? "photo") === format ? Buffer.from(post.photo) : null;
-      photo = kept ?? (fresh = format === "concept" ? await drawConcept(post, project) : await drawPhoto(post, project));
+      // The stored AI picture is reused until a new one is asked for (it is cleared then).
+      photo = post.photo ? Buffer.from(post.photo) : (fresh = await drawAI(post, project));
     }
     const input = await designInput(post, project, photo);
     const image = await renderDesign(input);
@@ -86,7 +85,7 @@ export async function drawOne(postId: string) {
     }
     await db.socialPost.update({
       where: { id: post.id },
-      data: { ...(fresh ? { photo: new Uint8Array(fresh), design: { ...d, pic: format } } : {}), image: new Uint8Array(image), slides, video, imageVersion: { increment: 1 }, stage: "ready", stageError: null, imageNote: null },
+      data: { ...(fresh ? { photo: new Uint8Array(fresh), design: { ...d, pic: format } } : {}), image: new Uint8Array(image), slides, video, imageVersion: { increment: 1 }, stage: "ready", stageError: null },
     });
   } catch (e) {
     await fail([post], "written", e);
