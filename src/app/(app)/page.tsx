@@ -8,6 +8,8 @@ import { ReviewQueue, type QueueItem } from "@/components/review-queue";
 import { ClientPulse, type Pulse } from "@/components/client-pulse";
 import { Icon } from "@/components/icons";
 import { pulseReasons, pulseWindow } from "@/lib/pulse-reasons";
+import { teamOverview } from "@/lib/team";
+import { TeamOverview } from "@/components/team-overview";
 
 const ago = (d: Date) => {
   const s = (Date.now() - d.getTime()) / 1000;
@@ -38,8 +40,30 @@ const FEED: Record<string, { text: (n: number) => string; tone: string; icon: st
   "client.create": { text: () => "added a new client", tone: "bg-sky-50 text-sky-600", icon: "plus" },
 };
 
-export default async function Home() {
+/** Admins choose between the team view (everyone's progress) and their own projects. */
+function ViewTabs({ view }: { view: "team" | "mine" }) {
+  const tab = (v: "team" | "mine", label: string, icon: string) => (
+    <Link href={v === "team" ? "/?view=team" : "/?view=mine"} className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium transition ${view === v ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-800"}`}>
+      <Icon name={icon as never} className="h-4 w-4" />{label}
+    </Link>
+  );
+  return <div className="mb-6 inline-flex gap-1 rounded-xl bg-slate-100 p-1">{tab("team", "Team progress", "users")}{tab("mine", "My projects", "briefcase")}</div>;
+}
+
+export default async function Home({ searchParams }: { searchParams: Promise<{ view?: string }> }) {
   const user = await requireUser();
+  const isAdmin = user.role === "SUPER_ADMIN" || user.role === "ADMIN";
+  const view = isAdmin && (await searchParams).view !== "mine" ? "team" : "mine";
+  if (view === "team") {
+    const data = await teamOverview();
+    return (
+      <>
+        <Greeting name={user.name.split(" ")[0]} sub={`${data.totals.pending} item${data.totals.pending === 1 ? " is" : "s are"} waiting across the team, and ${data.totals.doneWeek} got done this week.`} />
+        <ViewTabs view="team" />
+        <TeamOverview data={data} />
+      </>
+    );
+  }
   const scope = { client: clientScope(user, "edit") };
   const today = new Date(new Date().toISOString().slice(0, 10));
 
@@ -190,6 +214,7 @@ export default async function Home() {
   return (
     <>
       <Greeting name={user.name.split(" ")[0]} sub={total ? `${total} decision${total === 1 ? " is" : "s are"} waiting on you. Start with step 1.` : "Nothing is waiting on you. Your clients are moving."} />
+      {isAdmin && <ViewTabs view="mine" />}
 
       <section className="mb-10 grid gap-4 lg:grid-cols-3">
         <ReviewQueue items={items} counts={{ keyword: nKw, topic: nTopic, article: nArt, review: nRev, post: nPost }} streak={wins.streak} />
