@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { pulseLabels, type PulseWhy } from "@/lib/pulse-reasons";
+import { PulseDialog } from "@/components/pulse-dialog";
 
 export type Pulse = {
   id: string;
@@ -52,8 +53,8 @@ export function ClientPulse({ c }: { c: Pulse }) {
   const flat = pct != null && Math.abs(pct) < 5;
   const chip = pct == null ? "bg-slate-100 text-slate-500" : flat ? "bg-slate-100 text-slate-600" : up ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-700";
   return (
-    <div className="group/why relative min-w-0 hover:z-30 focus-within:z-30">
-    <Link href={`/clients/${c.id}`} className="card rf-lift block min-w-0 p-4.5 hover:border-indigo-200">
+    <div className="card rf-lift min-w-0 overflow-hidden p-0 hover:border-indigo-200">
+    <Link href={`/clients/${c.id}`} className="block min-w-0 p-4.5">
       <div className="flex items-center gap-3">
         <span className="font-display grid h-9 w-9 shrink-0 place-items-center rounded-xl text-[13px] font-semibold text-white" style={{ background: c.color || "var(--color-indigo-600)" }}>
           {initials(c.name)}
@@ -98,49 +99,9 @@ export function ClientPulse({ c }: { c: Pulse }) {
         <span className="truncate">{c.next}</span>
       </div>
     </Link>
-    {c.why && <Why c={c} pct={pct} />}
+    {c.why && <PulseDialog clientId={c.id} name={c.name} site={c.site} why={c.why} labels={L} />}
     </div>
   );
 }
 
 const fmt = (v: number) => (v >= 10 ? Math.round(v) : Math.round(v * 10) / 10).toLocaleString();
-
-/** Short hover card: the 3 key numbers, the biggest page change, and the top thing to do. */
-function Why({ c, pct }: { c: Pulse; pct: number | null }) {
-  const w = c.why!;
-  const L = pulseLabels();
-  const tone = (b: boolean | null) => (b == null ? "text-slate-700" : b ? "text-emerald-600" : "text-red-600");
-  const rows = w.metrics.filter((m) => m.label !== "Click rate").map((m) => ({ ...m, label: m.label === "Clicks a week" ? "Visits from Google" : m.label === "Google views a week" ? "Times shown on Google" : "Google position" }));
-  const page = w.movers[0];
-  const tip = w.advice[0];
-  return (
-    <div className="pointer-events-none invisible absolute top-[calc(100%-10px)] right-2 left-2 z-30 translate-y-2 rounded-xl border border-slate-200 bg-white p-4 opacity-0 shadow-[var(--shadow-pop)] transition-all duration-200 group-hover/why:pointer-events-auto group-hover/why:visible group-hover/why:translate-y-0 group-hover/why:opacity-100">
-      <div className="text-sm font-semibold">{pct == null ? "What changed" : Math.abs(pct) < 5 ? "Visits about the same" : <>Visits {pct >= 0 ? "up" : "down"} <span className={pct >= 0 ? "text-emerald-600" : "text-red-600"}>{Math.abs(pct)}%</span></>}</div>
-      <p className="text-[11px] text-slate-400">A week, month before ({L.prev}) → last 4 weeks ({L.now})</p>
-      <table className="mt-2 w-full text-xs">
-        <tbody>
-          {rows.map((m) => (
-            <tr key={m.label}>
-              <td className="py-0.5 text-slate-500">{m.label}</td>
-              <td className="num py-0.5 text-right text-slate-500">{m.before}</td>
-              <td className="px-1.5 py-0.5 text-center text-slate-300">→</td>
-              <td className={`num py-0.5 text-right font-semibold ${tone(m.better)}`}>{m.now}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-      {page && (
-        <p className="mt-2.5 border-t border-slate-100 pt-2 text-xs text-slate-600">
-          Biggest change: <span className="font-medium text-slate-800">{page.label}</span>{" "}
-          <span className={`num font-semibold ${page.now > page.before ? "text-emerald-600" : "text-red-600"}`}>{fmt(page.before)} → {fmt(page.now)} visits a week</span>
-        </p>
-      )}
-      {tip && (
-        <div className="mt-2.5 rounded-lg bg-indigo-50/70 p-2.5 text-xs">
-          <div className="font-semibold text-slate-800">{tip.evidence}</div>
-          <Link href={tip.href} className="mt-0.5 block font-medium text-indigo-600 hover:underline">→ {tip.fix}</Link>
-        </div>
-      )}
-    </div>
-  );
-}
