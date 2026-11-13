@@ -31,6 +31,8 @@ export type CardPost = {
   /** The text on the image for text-first formats */
   designText: string;
   hasMedia: boolean;
+  /** The image model's prompt (editable) */
+  imageBrief: string;
   /** static, carousel or video */
   kind: string;
   pillar: string;
@@ -114,7 +116,7 @@ export function PostCard({ p }: { p: CardPost }) {
               </form>
               {PICTURE_FORMATS.includes(p.format) && (
                 <button type="button" onClick={() => setPanel(panel === "image" ? "" : "image")} className="btn-secondary flex-1 text-xs">
-                  {p.format === "concept" ? "New visual" : "Change photo"}
+                  {p.format === "concept" ? "Image prompt" : "Change photo"}
                 </button>
               )}
             </div>
@@ -130,9 +132,12 @@ export function PostCard({ p }: { p: CardPost }) {
             )}
             <form action={regenerateImageAction.bind(null, p.id)} className="space-y-2">
               <input type="hidden" name="mode" value="ai" />
-              <textarea name="note" rows={2} className="input text-sm" placeholder={p.format === "concept" ? "Optional: what to show (e.g. a melting price tag, brighter, more playful)" : "Optional: what to show (e.g. a real shop floor, no people in suits)"} />
-              <SubmitButton className="btn-secondary w-full text-xs">{p.format === "concept" ? "Make a new visual" : "Make an AI photo instead"}</SubmitButton>
-              <p className="text-xs text-slate-500">Takes about 30 seconds. Your note also teaches the AI for next time.</p>
+              <label className="block">
+                <span className="label">Image prompt (sent to Google Imagen exactly as written)</span>
+                <textarea name="prompt" rows={6} defaultValue={p.imageBrief} className="input text-sm leading-5" placeholder="Describe one real scene that shows the topic: subject, setting, camera, light. e.g. Close-up of a shop owner's phone showing a Google Maps listing, inside a Dubai bakery, morning light, realistic photo." />
+              </label>
+              <SubmitButton className="btn-secondary w-full text-xs">New image from this prompt</SubmitButton>
+              <p className="text-xs text-slate-500">Takes about 20 seconds and costs about $0.04. &quot;No text in the image&quot; and the project&apos;s style notes are added automatically. Your changes teach the AI for next time.</p>
             </form>
           </div>
         )}

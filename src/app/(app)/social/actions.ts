@@ -278,14 +278,14 @@ export async function regenerateTextAction(postId: string, formData: FormData) {
 
 /**
  * A new picture. mode "library" = the next photo from the project's library (photo format),
- * mode "ai" = a new AI picture for the post's format, concept visual or photo (with Hamza's note).
+ * mode "ai" = a new AI picture from the post's image prompt (Hamza may have edited it).
  * Keeps the captions.
  */
 export async function regenerateImageAction(postId: string, formData: FormData) {
   await requireSuperAdmin();
-  const note = String(formData.get("note") ?? "").trim().slice(0, 1000);
+  const prompt = String(formData.get("prompt") ?? "").trim().slice(0, 1500);
   const mode = String(formData.get("mode") ?? "ai");
-  const cur = await db.socialPost.findUniqueOrThrow({ where: { id: postId }, select: { projectId: true, mediaId: true, imageLayout: true } });
+  const cur = await db.socialPost.findUniqueOrThrow({ where: { id: postId }, select: { projectId: true, mediaId: true, imageLayout: true, imageBrief: true } });
   const pictureFormat = formatOf(cur.imageLayout) === "concept" ? "concept" : "photo";
   if (mode === "library") {
     const m = await nextMedia(cur.projectId, cur.mediaId);
@@ -293,9 +293,11 @@ export async function regenerateImageAction(postId: string, formData: FormData) 
     await db.socialPost.update({ where: { id: postId }, data: { mediaId: m.id, imageLayout: "photo", stage: "written", attempts: 0, stageError: null, status: "DRAFT" } });
     await db.socialMedia.update({ where: { id: m.id }, data: { usedCount: { increment: 1 } } });
   } else {
-    await db.socialPost.update({ where: { id: postId }, data: { imageNote: note || null, photo: null, mediaId: null, imageLayout: pictureFormat, stage: "written", attempts: 0, stageError: null, status: "DRAFT" } });
-    await db.socialFeedback.create({ data: { projectId: cur.projectId, postId, kind: "regenerate_image", note } });
-    if (note) learn(cur.projectId);
+    const changed = Boolean(prompt) && prompt !== cur.imageBrief.trim();
+    await db.socialPost.update({ where: { id: postId }, data: { ...(changed ? { imageBrief: prompt } : {}), photo: null, mediaId: null, imageLayout: pictureFormat, stage: "written", attempts: 0, stageError: null, status: "DRAFT" } });
+    // An edited prompt teaches the learning agent what kind of pictures Hamza wants.
+    await db.socialFeedback.create({ data: changed ? { projectId: cur.projectId, postId, kind: "edit", note: "image prompt", before: cur.imageBrief, after: prompt } : { projectId: cur.projectId, postId, kind: "regenerate_image", note: "" } });
+    if (changed) learn(cur.projectId);
   }
   await finishPost(postId);
   refresh();

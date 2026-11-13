@@ -347,10 +347,10 @@ export function designToText(format: string, d: DesignOut | undefined): string {
 
 const DESIGN_GUIDE = `THE IMAGE is the first thing people see, so it must stop the scroll on its own. One strong picture, very few words. Never fill the image with text.
 FORMATS:
-- concept (the default): ONE striking AI visual of the post's ACTUAL SUBJECT, on a flat colour background, with a few words above it. RELEVANCE FIRST: someone who sees only the image must be able to guess what the post is about. imageBrief = the visual, built in two steps:
-  1. Name the real, recognisable thing the post is about, from the service and the idea: the object, place or result the buyer knows (e.g. a Google Maps location pin, a shop's storefront, an online shopping cart and parcel, a property's front door and keys, a restaurant table, a delivery box, a phone ringing with a customer call, a website page on a laptop, a price tag).
-  2. Show that thing in a state that makes this post's point, with one twist at most (e.g. "your Google profile is costing you calls" -> a big red Google-Maps-style location pin, cracked and leaking coins; "abandoned carts" -> a full shopping cart left alone in an empty aisle, parcels spilling out; "cheap SEO" -> a website shaped like a house of cards, starting to tip).
-  Never an abstract metaphor whose link to the topic needs explaining (no sinking phones in sand for SEO, no trophies, no chess pieces, no mountains, no rockets, no lightbulbs, no puzzle pieces, no handshakes, no people at desks). Devices are fine when they ARE the subject, but screens show only simple shapes and colours, never readable text.
+- concept (the default): an AI picture with a few words on a solid band above it. imageBrief = the PROMPT for the image model (Google Imagen). It is sent exactly as you write it, so write it as a plain, literal description of ONE real scene that directly shows this post's topic, the way the buyer would recognise it in their own life or business. RELEVANCE FIRST: someone who sees only the picture must know what the post is about.
+  Write 2-4 sentences covering: the main subject and what is happening; the setting (a real place in the client's city or country when it fits); the composition and camera (e.g. close-up, eye level, shallow depth of field); the light and mood. Default style: a realistic, high-quality photograph with natural light. Use a clean 3D illustration only when the topic cannot be photographed.
+  Good examples: "Close-up of a shop owner's hand holding a smartphone showing a Google Maps business listing with a row of empty star ratings, inside a small bakery in Dubai, warm morning light, shallow depth of field, realistic photo." / "An online shopper's laptop on a sofa with a checkout page open and a full shopping basket icon, a cup of coffee beside it, evening lamp light, realistic photo."
+  Never: abstract metaphors (no rockets, lightbulbs, chess pieces, puzzle pieces, trophies, mountains, handshakes, glowing holograms, floating icons), stock-photo clichés (people in suits pointing at screens, smiling at the camera), or anything whose link to the topic needs explaining. Screens may show a recognisable layout (a map, a shop page, search results) but no readable words. No text in the image: the words go on the band.
 - photo: one of OUR REAL PHOTOS (from the library below) with a few words. Only when a library photo truly fits the post (behind the scenes, team, real work, proof). Set photoId.
 - type: big bold words only, for a sharp opinion or a line strong enough on its own. design.kicker = 1-4 small words on top. design.big = 3-8 words. Put *stars* around 1-2 words to highlight them.
 WORDS ON THE IMAGE: headline.main = 2-6 words, the punch (a twist, a warning, a bold claim, a question). headline.top = 0-4 small words of setup, or empty. headline.bottom = empty unless it is truly needed. The words must work with the picture, not describe it. No invented numbers.`;
@@ -390,7 +390,7 @@ ALSO, for every post:
 - design: only for format "type" (kicker, big); otherwise leave it out.
 - headline: the words on the image (see above), always filled in.
 - photoId: for format "photo" only, the id of the library photo that fits best; otherwise "".
-- imageBrief: the visual for a concept image, always filled in (one or two sentences). Start with the recognisable subject, then its state.
+- imageBrief: the image prompt (see concept above), always filled in, also for photo and type posts (it is used if Hamza switches to an AI picture).
 - altText: one sentence describing the finished image for screen readers.
 
 POST TYPES (given per post):
