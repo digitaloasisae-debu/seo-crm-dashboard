@@ -10,7 +10,7 @@ import { dataforseoConfigured } from "@/lib/dataforseo";
 import { compareIssues, pollCrawl, type CrawlIssue } from "@/lib/crawl";
 import { after } from "next/server";
 import { fixIssueAction, rerunDeepAction, saveAuditSettingsAction, startCrawlAction } from "./actions";
-import { claimDeep, DEEP_VERSION, runDeepSafe, type CrawlDeep } from "@/lib/crawl-deep";
+import { claimDeep, DEEP_VERSION, ensureShots, runDeepSafe, type CrawlDeep } from "@/lib/crawl-deep";
 import { DeepAudit } from "@/components/deep-audit";
 import { EmailReport } from "@/components/email-report";
 import { emailConfigured } from "@/lib/email";
@@ -60,6 +60,8 @@ export default async function AuditPage({ params, searchParams }: { params: Prom
     done.advancedAt = null;
     done.advancedStartedAt = new Date();
   }
+  // Reports made before page screenshots existed get them in the background.
+  if (done && oldDeep && done.advancedAt && !oldDeep.shots?.length) { const c = done; after(() => ensureShots(c).catch(() => null)); }
   const deep = oldDeep;
   const prev = done ? crawls.find((c) => c.status === "DONE" && c.id !== done.id && c.startedAt < done.startedAt) ?? null : null;
   const diff = prev ? compareIssues((prev.issues as unknown as CrawlIssue[] | null) ?? [], issues) : null;

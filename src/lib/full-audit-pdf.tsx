@@ -12,6 +12,8 @@ import { getAgency, logoForPdf } from "./report-brand";
 import { CoverHero, polishLogo, type PdfLogo } from "./report-cover";
 import type { CrawlIssue, Sev } from "./crawl";
 import type { CrawlDeep, Section, SectionKey } from "./crawl-deep";
+import { ensureShots } from "./crawl-deep";
+import type { Shot } from "./audit";
 import { grade } from "./crawl-market";
 import { directoryLinks, hoursText, type GbpAi, type GbpFinding, type GbpInfo } from "./gbp";
 
@@ -107,6 +109,41 @@ function DescFix({ sec }: { sec?: Section }) {
         <Text style={{ color: "#0f766e", fontFamily: "Helvetica-Bold", marginBottom: 3 }}>How to fix</Text>
         {sec.fix.map((d, i) => <Text key={i} style={{ marginBottom: 2 }}>{clean(d)}</Text>)}
       </View>
+    </View>
+  );
+}
+
+/** Page screenshots from Google PageSpeed, each with the problems the crawl found on that page. */
+function Screens({ shots, b }: { shots: Shot[]; b: B }) {
+  const mobile = shots.filter((x) => x.device === "mobile").slice(0, 4);
+  const desktop = shots.find((x) => x.device === "desktop");
+  const tone = (n: number | null) => (n == null ? "#4b5563" : n >= 90 ? "#047857" : n >= 50 ? "#b7791f" : "#c62828");
+  return (
+    <View style={{ marginTop: 6, marginBottom: 8 }}>
+      <View wrap={false}>
+        <Text style={{ fontFamily: "Helvetica-Bold", fontSize: 10, color: b.dark, marginBottom: 2 }}>What the pages look like</Text>
+        <Text style={{ fontSize: 7.5, color: "#6b7280", marginBottom: 6 }}>Screenshots taken by Google PageSpeed while loading each page on a phone, with the problems found on that page.</Text>
+        <View style={{ flexDirection: "row", gap: 8 }}>
+          {mobile.map((x) => (
+            <View key={x.url} style={{ width: "23.5%" }}>
+              <Image src={x.image} style={{ width: "100%", borderWidth: 0.5, borderColor: "#d1d5db", borderRadius: 4 }} />
+              <Text style={{ fontFamily: "Helvetica-Bold", fontSize: 7.5, marginTop: 3 }}>{clean(x.label).slice(0, 28)}</Text>
+              <Text style={{ fontSize: 7, color: tone(x.performance) }}>Mobile speed {x.performance ?? "-"}/100</Text>
+              {x.problems.slice(0, 4).map((p) => <Text key={p} style={{ fontSize: 6.5, color: "#c62828", marginTop: 1 }}>x {clean(p).slice(0, 60)}</Text>)}
+              {x.problems.length > 4 && <Text style={{ fontSize: 6.5, color: "#6b7280" }}>+{x.problems.length - 4} more</Text>}
+            </View>
+          ))}
+        </View>
+      </View>
+      {desktop && (
+        <View wrap={false} style={{ marginTop: 10, flexDirection: "row", gap: 10, alignItems: "flex-start" }}>
+          <Image src={desktop.image} style={{ width: "62%", borderWidth: 0.5, borderColor: "#d1d5db", borderRadius: 4 }} />
+          <View style={{ flex: 1 }}>
+            <Text style={{ fontFamily: "Helvetica-Bold", fontSize: 8 }}>Home page on desktop</Text>
+            <Text style={{ fontSize: 7.5, color: tone(desktop.performance) }}>Desktop speed {desktop.performance ?? "-"}/100</Text>
+          </View>
+        </View>
+      )}
     </View>
   );
 }
@@ -313,6 +350,7 @@ function Report({ crawl, deep, profiles, b, prevIssues }: { crawl: SiteCrawl; de
               rows={deep.speed.map((x) => [path(x.url).slice(0, 40), String(x.mobile.performance ?? "-"), String(x.desktop.performance ?? "-"), x.mobile.lcpMs != null ? `${(x.mobile.lcpMs / 1000).toFixed(1)}s` : "-", x.mobile.cls?.toFixed(2) ?? "-", x.mobile.field?.lcpMs != null ? `${(x.mobile.field.lcpMs / 1000).toFixed(1)}s` : "not enough data"])} />
           </>
         )}
+        {(deep?.shots?.length ?? 0) > 0 && <Screens shots={deep!.shots!} b={b} />}
         <DescFix sec={sec.speed} />
 
         <SectionBar b={b} title="Technical & Links" sub="Broken links, redirects and crawl problems waste crawl budget and hurt trust." rows={technical} />
@@ -457,7 +495,8 @@ export async function fullAuditPdf(crawl: SiteCrawl, client: { id?: string; name
   const color = /^#[0-9a-f]{6}$/i.test(client.brandPrimaryColor ?? "") ? client.brandPrimaryColor! : "#0f7a6c";
   const agency = await getAgency();
   const b: B = { color, dark: "#1f3a37", gold: "#c9a227", agency: agency.name, agencyWebsite: agency.website, logo: await polishLogo(logoForPdf(agency.logo) ?? (await loadLogo(client.logoUrl))), agencyLogo: null, client: client.name };
-  const deep = (crawl.advanced as unknown as CrawlDeep | null) ?? null;
+  // Older reports get their page screenshots now (Google PageSpeed, about 30 seconds).
+  const deep = (await ensureShots(crawl).catch(() => null)) ?? (crawl.advanced as unknown as CrawlDeep | null) ?? null;
   const [profiles, prev] = await Promise.all([
     db.gbpProfile.findMany({ where: { clientId: crawl.clientId }, orderBy: { createdAt: "asc" } }),
     db.siteCrawl.findFirst({ where: { clientId: crawl.clientId, status: "DONE", startedAt: { lt: crawl.startedAt } }, orderBy: { startedAt: "desc" }, select: { issues: true } }),

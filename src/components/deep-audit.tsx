@@ -1,6 +1,7 @@
 import type { CrawlDeep, DeepPage } from "@/lib/crawl-deep";
 import { SECURITY_LABELS } from "@/lib/crawl-deep";
 import { ScoreRing } from "@/components/ui";
+import { Screenshots } from "@/components/audit-report";
 
 const tone = (s: number) => (s >= 80 ? "bg-emerald-500" : s >= 50 ? "bg-amber-500" : "bg-red-500");
 const toneText = (s: number | null | undefined) => (s == null ? "text-slate-400" : s >= 90 ? "text-emerald-600" : s >= 50 ? "text-amber-600" : "text-red-600");
@@ -80,6 +81,7 @@ export function DeepAudit({ d }: { d: CrawlDeep }) {
         </section>
       )}
 
+      {(d.shots?.length ?? 0) > 0 && <Screenshots shots={d.shots!} />}
       {d.speed.length > 0 && (
         <section className="card p-0">
           <div className="p-4 pb-2"><h2 className="font-semibold">Speed and Core Web Vitals</h2><p className="text-xs text-slate-500">Google PageSpeed (lab test) plus real Chrome users where Google has enough data. Good: LCP ≤ 2.5s, INP ≤ 200ms, CLS ≤ 0.1.</p></div>
@@ -105,17 +107,6 @@ export function DeepAudit({ d }: { d: CrawlDeep }) {
               </tbody>
             </table>
           </div>
-          {d.speed.some((x) => x.mobile.screenshot) && (
-            <div className="grid grid-cols-2 gap-3 border-t border-slate-100 p-4 sm:grid-cols-3 lg:grid-cols-5">
-              {d.speed.filter((x) => x.mobile.screenshot).map((x) => (
-                <figure key={x.url} className="min-w-0 space-y-1">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={x.mobile.screenshot!} alt={`${path(x.url)} on mobile`} className="block w-full rounded-lg border border-slate-200" />
-                  <figcaption className="truncate text-xs text-slate-600">{path(x.url)} · mobile <b className={toneText(x.mobile.performance)}>{x.mobile.performance ?? "—"}</b></figcaption>
-                </figure>
-              ))}
-            </div>
-          )}
           {!d.speed.some((x) => x.mobile.field) && <p className="px-4 pb-3 text-xs text-slate-500">ℹ️ &ldquo;Real users&rdquo; is empty because Google doesn&apos;t have enough Chrome visits to this site yet to publish field data. That&apos;s normal for smaller sites; the lab scores still apply.</p>}
           {(d.speed[0]?.mobile.opportunities?.length ?? 0) > 0 && (
             <div className="border-t border-slate-100 p-4 text-sm">

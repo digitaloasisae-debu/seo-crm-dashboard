@@ -7,7 +7,7 @@
 import type { Prisma, SiteCrawl } from "@prisma/client";
 import { db } from "./db";
 import { dfsPost } from "./dataforseo";
-import { pageSpeed, type PsiSummary } from "./audit";
+import { pageSpeed, type PsiSummary, type Shot } from "./audit";
 import { gscQuery } from "./google";
 import { geminiConfigured, geminiJson } from "./gemini";
 import { refreshIssues, type CrawlIssue } from "./crawl";
@@ -54,6 +54,8 @@ export type CrawlDeep = {
   overall: number;
   categories: Category[];
   speed: { url: string; mobile: PsiSummary; desktop: PsiSummary }[];
+  /** Page screenshots (PageSpeed) with the crawl problems found on each page. Added by ensureShots. */
+  shots?: Shot[];
   status: Record<string, number>;
   depth: Record<string, number>;
   deepPages: DeepPage[];
@@ -458,7 +460,44 @@ export async function runDeepSafe(crawlId: string, refresh = false) {
     // A re-run (or a report from an older version) also rebuilds the issue list with the latest checks.
     if (refresh) crawl = await refreshIssues(crawl).catch(() => crawl);
     await runDeep(crawl);
+    await ensureShots(await db.siteCrawl.findUniqueOrThrow({ where: { id: crawlId } })).catch((e) => console.error("audit.shots_failed", e));
   } catch (e) {
     await db.siteCrawl.update({ where: { id: crawlId }, data: { advancedError: e instanceof Error ? e.message : String(e), advancedAt: new Date() } });
   }
+}
+
+/**
+ * Screenshots for the report: the PageSpeed pages plus the services, contact and about pages, each with the
+ * crawl problems found on it. Reports made before screenshots existed get them the first time they're needed.
+ */
+export async function ensureShots(crawl: SiteCrawl): Promise<CrawlDeep | null> {
+  const deep = crawl.advanced as unknown as CrawlDeep | null;
+  if (!deep || deep.shots?.length) return deep;
+  const issues = (crawl.issues as unknown as CrawlIssue[] | null) ?? [];
+  const strip = (u: string) => u.replace(/^https?:\/\/(www\.)?/, "").replace(/[?#].*$/, "").replace(/\/+$/, "");
+  const home = deep.speed[0]?.url ?? `https://${crawl.target}/`;
+  const known = [...new Set([...deep.speed.map((x) => x.url), ...issues.flatMap((i) => i.urls)].filter((u) => /^https?:\/\//.test(u) && strip(u).startsWith(strip(home).split("/")[0])))];
+  const pick = (re: RegExp) => known.find((u) => { try { return re.test(new URL(u).pathname); } catch { return false; } });
+  const urls = [...new Map([home, ...deep.speed.map((x) => x.url), pick(/servic|what-we-do|solutions/i), pick(/contact|book|quote/i), pick(/about/i)].filter((u): u is string => !!u).map((u) => [strip(u), u])).values()].slice(0, 5);
+  const label = (u: string) => { try { const p = new URL(u).pathname.replace(/\/+$/, ""); return p ? p.split("/").pop()!.replace(/[-_]+/g, " ").replace(/^\w/, (c) => c.toUpperCase()) : "Home page"; } catch { return u; } };
+  const problemsOn = (u: string) => issues.filter((i) => i.urls.some((x) => strip(x) === strip(u))).sort((a, b) => ({ error: 0, warning: 1, notice: 2 })[a.severity] - ({ error: 0, warning: 1, notice: 2 })[b.severity]).map((i) => i.title);
+  const fromSpeed = (u: string, dev: "mobile" | "desktop") => deep.speed.find((x) => strip(x.url) === strip(u))?.[dev];
+  const shots: (Shot | null)[] = await Promise.all([
+    ...urls.map(async (u) => {
+      const have = fromSpeed(u, "mobile");
+      const psi = have?.screenshot ? have : await pageSpeed(u, "mobile");
+      return psi.screenshot ? { url: u, label: label(u), device: "mobile" as const, image: psi.screenshot, performance: psi.performance, problems: problemsOn(u) } : null;
+    }),
+    (async () => {
+      const have = fromSpeed(home, "desktop");
+      const psi = have?.screenshot ? have : await pageSpeed(home, "desktop");
+      return psi.screenshot ? { url: home, label: "Home page", device: "desktop" as const, image: psi.screenshot, performance: psi.performance, problems: [] } : null;
+    })(),
+  ]);
+  const list = shots.filter((x): x is Shot => !!x);
+  if (!list.length) return deep;
+  // Keep one copy of each image: in shots, not in the speed table.
+  const next: CrawlDeep = { ...deep, shots: list, speed: deep.speed.map((x) => ({ ...x, mobile: { ...x.mobile, screenshot: null }, desktop: { ...x.desktop, screenshot: null } })) };
+  await db.siteCrawl.update({ where: { id: crawl.id }, data: { advanced: next as unknown as Prisma.InputJsonValue } });
+  return next;
 }
