@@ -235,32 +235,16 @@ const lines = (text: string) => text.split("\n").map((s) => s.trim());
 export type BrandLogo = { src: string; light: string; dark: string; lum: number };
 export type Brand = { name: string; site: string; logo: BrandLogo | null };
 
-/** The logo version that reads on this background. */
-function logoFor(logo: BrandLogo, bg: string) {
-  const l = lum(bg);
-  if (l < 0.3 && logo.lum < 0.35) return logo.light;
-  if (l > 0.6 && logo.lum > 0.7) return logo.dark;
-  return logo.src;
-}
 type Ctx = { t: Theme; f: Display; brand: Brand; seed: number };
 
-function Logo({ c, size = 44 }: { c: Ctx; size?: number }) {
-  if (!c.brand.logo) return <div style={{ display: "flex", fontFamily: "Inter", fontWeight: 700, fontSize: size * 0.62, color: c.t.fg }}>{c.brand.name}</div>;
-  return (
-    <div style={{ display: "flex" }}>
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src={logoFor(c.brand.logo, c.t.bg)} style={{ height: size }} alt="" />
-    </div>
-  );
+// Hamza asked (2026-11-13) for no logo, brand name or website on the images: these render nothing,
+// so every layout keeps its spacing. The captions carry the brand.
+function Logo(_: { c: Ctx; size?: number }) {
+  return <div style={{ display: "flex" }} />;
 }
 
-function Footer({ c }: { c: Ctx }) {
-  return (
-    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%" }}>
-      <Logo c={c} />
-      <div style={{ display: "flex", fontFamily: "Inter", fontWeight: 400, fontSize: 28, color: c.t.muted }}>{c.brand.site}</div>
-    </div>
-  );
+function Footer(_: { c: Ctx }) {
+  return <div style={{ display: "flex" }} />;
 }
 
 const PAD = 84;
@@ -290,20 +274,6 @@ function Note({ c, text }: { c: Ctx; text: string }) {
   const size = fit(plain(body), INNER, 880, 0.49, 1.3, 36, 68);
   return (
     <div style={{ display: "flex", flexDirection: "column", width: W, height: H, background: c.t.bg, padding: PAD, justifyContent: "center" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 22, marginBottom: 46 }}>
-        <div style={{ display: "flex", width: 92, height: 92, borderRadius: 46, border: `2px solid ${c.t.line}`, alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
-          {c.brand.logo ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={logoFor(c.brand.logo, c.t.bg)} style={{ width: 70, height: 70, objectFit: "contain" }} alt="" />
-          ) : (
-            <div style={{ display: "flex", fontFamily: "Inter", fontWeight: 700, fontSize: 40, color: "#111111" }}>{c.brand.name.slice(0, 1)}</div>
-          )}
-        </div>
-        <div style={{ display: "flex", flexDirection: "column" }}>
-          <div style={{ display: "flex", fontFamily: "Inter", fontWeight: 700, fontSize: 36, color: c.t.fg }}>{c.brand.name}</div>
-          <div style={{ display: "flex", fontFamily: "Inter", fontWeight: 400, fontSize: 28, color: c.t.muted }}>{c.brand.site}</div>
-        </div>
-      </div>
       <div style={{ display: "flex", flexDirection: "column", gap: Math.round(size * 0.7) }}>
         {body.split(/\n\s*\n/).map((para, i) => (
           <div key={i} style={{ display: "flex", fontFamily: "Inter", fontWeight: 400, fontSize: size, lineHeight: 1.3, color: c.t.fg }}>
@@ -594,15 +564,9 @@ function ReelText({ c, text, boxed, small }: { c: Ctx; text: string; boxed: bool
   );
 }
 
-function ReelBrand({ c }: { c: Ctx }) {
-  return (
-    <div style={{ display: "flex", width: RW, height: RH, flexDirection: "column", justifyContent: "flex-end", padding: PAD, paddingBottom: 150 }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", background: c.t.bg, padding: "26px 34px", borderRadius: 8 }}>
-        <Logo c={c} size={46} />
-        <div style={{ display: "flex", fontFamily: "Inter", fontWeight: 600, fontSize: 32, color: c.t.fg }}>{c.brand.site}</div>
-      </div>
-    </div>
-  );
+/** The end layer of a Reel (empty: no logo or website on the images). */
+function ReelBrand(_: { c: Ctx }) {
+  return <div style={{ display: "flex", width: RW, height: RH }} />;
 }
 
 /**
@@ -628,17 +592,6 @@ export async function reelLayers(d: DesignInput, scenes: string[]): Promise<{ ba
  * background around it is made transparent (only where it touches the edge, so white parts inside
  * the logo stay), the empty margin is trimmed, and one-colour light and dark versions are made.
  */
-async function logoData(url: string | null | undefined): Promise<BrandLogo | null> {
-  if (!url) return null;
-  try {
-    const r = await fetch(url, { signal: AbortSignal.timeout(10_000), headers: { "User-Agent": "Mozilla/5.0 (compatible; RankflowBot/1.0)" } });
-    if (!r.ok) return null;
-    return await cleanLogo(Buffer.from(await r.arrayBuffer()));
-  } catch {
-    return null;
-  }
-}
-
 export async function cleanLogo(input: Buffer): Promise<BrandLogo> {
   const { data, info } = await sharp(input, { density: 300 }).resize({ height: 240, width: 840, fit: "inside" }).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
   const { width: w, height: h } = info;
@@ -704,7 +657,7 @@ export async function designInput(post: SocialPost, project: SocialProject & { c
     main: post.headlineMain || post.idea.split(" ").slice(0, 5).join(" "),
     bottom: post.headlineBottom,
     photo,
-    brand: { name: project.client.name, site: project.client.siteUrl.replace(/^https?:\/\/(www\.)?/, "").replace(/\/+$/, ""), logo: await logoData(project.client.logoUrl) },
+    brand: { name: project.client.name, site: project.client.siteUrl.replace(/^https?:\/\/(www\.)?/, "").replace(/\/+$/, ""), logo: null },
     colors: project.client,
   };
 }
