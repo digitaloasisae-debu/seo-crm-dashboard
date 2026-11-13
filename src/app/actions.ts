@@ -327,9 +327,15 @@ export async function fixSopAction(articleId: string) {
 }
 
 export async function contentScoreAction(articleId: string, refresh: boolean, _prev: string | null): Promise<string | null> {
-  await articleForEdit(articleId);
+  const { article } = await articleForEdit(articleId);
   try {
     await runContentScore(articleId, { refresh });
+    // A new focus keyword has no Google research yet (competitor reviews, PAA plan): fetch it in the background.
+    const { cachedResearch, getResearch } = await import("@/lib/research");
+    const kw = article.focusKeyword;
+    if (kw.trim().split(/\s+/).length >= 2 && !(await cachedResearch(article.clientId, kw).catch(() => null))) {
+      afterResponse(() => getResearch(article.clientId, kw).then(() => runQuality(articleId)).then(() => undefined).catch((e) => console.error("research_failed", articleId, e)));
+    }
   } catch (e) {
     return e instanceof Error ? e.message : String(e);
   }

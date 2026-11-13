@@ -10,6 +10,7 @@ import { db } from "./db";
 import { dfsPost } from "./dataforseo";
 import { rankLocation } from "./rank";
 import { geminiConfigured, geminiJson } from "./gemini";
+import { resolveGoogleLink } from "./serp";
 
 const CACHE_DAYS = 14;
 const UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36";
@@ -58,7 +59,10 @@ async function fetchResearch(keyword: string, clientId: string): Promise<Researc
   const serp = await dfsPost<{ items?: Serp[] }>("serp/google/organic/live/advanced", [{ keyword, language_code: "en", depth: 20, people_also_ask_click_depth: 1, ...(loc.location_coordinate ? { location_coordinate: loc.location_coordinate } : { location_name: loc.location_name }) }], 55_000);
   const items = serp[0]?.items ?? [];
   const own = host(client.siteUrl);
-  const organic = items.filter((i) => i.type === "organic" && i.url && !SKIP.test(host(i.url)) && host(i.url) !== own).slice(0, 4);
+  // Google sometimes returns its own redirect links (google.com/goto?url=…) instead of the page address: resolve them first.
+  const candidates = items.filter((i) => i.type === "organic" && i.url).slice(0, 12);
+  await Promise.all(candidates.map(async (o) => { o.url = (await resolveGoogleLink(o.url!)) ?? o.url; }));
+  const organic = candidates.filter((i) => !SKIP.test(host(i.url!)) && host(i.url!) !== own).slice(0, 4);
   const paa = [...new Set(items.filter((i) => i.type === "people_also_ask").flatMap((i) => (i.items ?? []).map((q) => (q.title ?? "").trim())).filter(Boolean))].slice(0, 12);
   const relatedSearches = [...new Set(items.filter((i) => i.type === "related_searches").flatMap((i) => (i.items ?? []).map((q) => (typeof q === "string" ? q : q.title ?? "").trim())).filter(Boolean))].slice(0, 10);
 

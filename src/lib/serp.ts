@@ -28,6 +28,8 @@ export type ContentScore = {
   competitors: Competitor[];
   fetchedAt: string;
   location: string;
+  /** Why the comparison can't be trusted (keyword too broad, too few pages read). */
+  warning?: string;
 };
 
 const clean = (html: string) => html.replace(/<(script|style|noscript|svg|nav|header|footer|form|aside|iframe)[\s\S]*?<\/\1>/gi, " ");
@@ -58,6 +60,42 @@ function readPage(html: string) {
 const median = (xs: number[]) => { if (!xs.length) return 0; const s = [...xs].sort((a, b) => a - b); const m = Math.floor(s.length / 2); return s.length % 2 ? s[m] : Math.round((s[m - 1] + s[m]) / 2); };
 const host = (u: string) => { try { return new URL(u).hostname.replace(/^www\./, ""); } catch { return ""; } };
 
+const isGoogleLink = (u: string) => /(^|\.)google\.[a-z.]+$/i.test(host(u)) && /^\/(goto|url)\b/.test((() => { try { return new URL(u).pathname; } catch { return ""; } })());
+
+/** The real page behind a Google redirect link, or the link itself when it isn't one. Null when it can't be resolved. */
+export async function resolveGoogleLink(u: string): Promise<string | null> {
+  if (!isGoogleLink(u)) return u;
+  try {
+    const url = new URL(u);
+    const q = url.searchParams.get("q") ?? url.searchParams.get("url");
+    if (q && /^https?:\/\//.test(q)) return q;
+    const r = await fetch(u, { redirect: "manual", headers: { "User-Agent": UA, Accept: "text/html" }, signal: AbortSignal.timeout(6000) });
+    const loc = r.headers.get("location");
+    if (loc && /^https?:\/\//.test(loc) && !isGoogleLink(loc)) return loc;
+    if (!r.ok) return null;
+    const html = (await r.text()).slice(0, 200_000);
+    const found = [
+      html.match(/http-equiv=["']?refresh["']?[^>]*url=['"]?([^"'>\s]+)/i)?.[1],
+      html.match(/location\.(?:replace|href)\s*(?:=|\()\s*["']([^"']+)["']/i)?.[1],
+      ...[...html.matchAll(/href=["'](https?:\/\/[^"']+)["']/gi)].map((m) => m[1]),
+    ].map((x) => x?.replace(/&amp;/g, "&").replace(/\\x3d/g, "=").replace(/\\x26/g, "&"));
+    return found.find((x) => x && /^https?:\/\//.test(x) && !/(^|\.)(google|gstatic|googleapis)\.[a-z.]+$/i.test(host(x))) ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/** Words in a keyword that carry meaning. */
+export const keywordWords = (keyword: string) => tokens(keyword).filter((w) => !STOP.has(w) && w.length > 2);
+
+/** A warning when the top 10 says little about this article: a one-word keyword, or too few pages read. */
+export function benchmarkWarning(b: Pick<SerpBenchmark, "keyword" | "competitors">) {
+  const read = b.competitors.filter((c) => c.ok).length;
+  if (keywordWords(b.keyword).length < 2) return `The focus keyword "${b.keyword}" is a single word, so Google's top 10 is about anything with that name, not this article's topic. Change the focus keyword (under "Edit before publishing") to the full phrase people search, 2 to 5 words, then click "Fetch fresh top 10".`;
+  if (read < 3) return `Only ${read} of the top pages could be opened, so this score is rough. Click "Fetch fresh top 10" to try again.`;
+  return undefined;
+}
+
 async function fetchBenchmark(keyword: string, location: string, ownSite: string): Promise<SerpBenchmark> {
   type Item = { type: string; rank_absolute: number; url: string; title: string };
   const res = await dfsPost<{ items?: Item[] }>("serp/google/organic/live/regular", [{ keyword, location_name: location, language_code: "en", depth: 20 }]);
@@ -66,6 +104,11 @@ async function fetchBenchmark(keyword: string, location: string, ownSite: string
 
   const pages = await Promise.all(organic.map(async (o) => {
     try {
+      // Google now often hands out its own redirect links (google.com/goto?url=…) instead of the page address.
+      const real = await resolveGoogleLink(o.url);
+      if (!real) throw new Error("unresolved redirect");
+      o.url = real;
+      if (SKIP_HOSTS.test(host(real)) || (own && host(real) === own)) throw new Error("skipped site");
       const r = await fetch(o.url, { headers: { "User-Agent": UA, Accept: "text/html" }, redirect: "follow", signal: AbortSignal.timeout(9000) });
       if (!r.ok || !(r.headers.get("content-type") ?? "").includes("html")) throw new Error("not html");
       const html = (await r.text()).slice(0, 1_500_000);
@@ -150,7 +193,7 @@ export function scoreContent(bodyHtml: string, b: SerpBenchmark): ContentScore {
     score: Math.round((termScore * 0.6 + lenScore * 0.25 + h2Score * 0.15) * 100),
     words: page.words, targetWords: [lo, hi], h2: page.h2.length, targetH2: target,
     terms, missing: terms.filter((t) => t.used === 0).map((t) => t.term), headings: b.headings,
-    competitors: b.competitors, fetchedAt: b.fetchedAt, location: b.location,
+    competitors: b.competitors, fetchedAt: b.fetchedAt, location: b.location, warning: benchmarkWarning(b),
   };
 }
 

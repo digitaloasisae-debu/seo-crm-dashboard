@@ -12,6 +12,7 @@ import { runQuality, type QualityReport } from "./quality";
 import { logActivity } from "./activity";
 import { dataforseoConfigured } from "./dataforseo";
 import { rescoreContent, runContentScore, type ContentScore } from "./serp";
+import { cachedResearch, headingPlan } from "./research";
 
 /** A rewrite that has been "running" this long has died (the server stops background work after 5 minutes). */
 export const REVISE_STALE_MS = 6 * 60_000;
@@ -160,6 +161,11 @@ Local clients: write the location in "City, State/Province" form (e.g. "Lahore, 
 Links: add internal links ONLY to URLs from the "INTERNAL PAGES" list (descriptive 2–3 word anchors, first one in the intro). Add at most one external link, only to a well-known authority site (government, standards body, major publication), with target="_blank" rel="noopener".
 The body is HTML. Images are placeholders like [[IMG1]]: keep each one on its own line, exactly as written.
 The focus keyword must appear word for word in the FIRST paragraph (within the first 100 words of the body, after the H1).
+Stay on the article's topic (its title): if the FAQ or any section is about another meaning of the keyword, replace it with questions and content about this topic.
+Transition words: at least 35% of sentences must contain one (however, because, for example, as a result, so, but, also, in addition, first, next, then, finally, in fact, that said, for this reason, such as, while, since, once, if, instead, especially).
+Readability grade 6–8: average 12–15 words per sentence, split any sentence over 20 words, use everyday words (use, not utilise; help, not facilitate).
+Paragraphs: 50–120 words each (except the bold answer, lists and the FAQ answers). Merge paragraphs that are too short.
+People Also Ask: when PAA questions are given for subheadings, use each one as an H2 or H3 almost word for word, and answer it right below. Use the FAQ ones as FAQ questions.
 Return JSON: {"meta_title":"...","meta_description":"...","body_html":"...","image_alts":{"IMG1":"..."},"changes":["<one short line per fix>"]}`;
 
 /** Checker items the AI can't fix in text (images, the URL slug). */
@@ -192,8 +198,13 @@ function ensureAlts(html: string, keyword: string, altMap?: Record<string, strin
   return unpack(p.body.replace(/\n?\[\[IMG(\d+)\]\]\n?/g, "[[IMG$1]]"), p);
 }
 
-/** Fewer problems = better. The AI review's own score wobbles a little between runs, so count issues instead. */
-const issueCount = (r: QualityReport) => [...r.items, ...(r.ai?.items ?? [])].reduce((n, i) => n + (i.status === "fail" ? 1 : i.status === "warn" ? 0.5 : 0), 0);
+/**
+ * Fewer problems = better. The AI review's own score wobbles a little between runs, so count issues instead.
+ * AI review problems (off-topic FAQs, a promise the article doesn't keep) weigh 3x: they matter more to a reader than a rule like keyword density.
+ */
+const issueCount = (r: QualityReport) =>
+  r.items.reduce((n, i) => n + (i.status === "fail" ? 1 : i.status === "warn" ? 0.5 : 0), 0) +
+  (r.ai?.items ?? []).reduce((n, i) => n + (i.status === "fail" ? 3 : i.status === "warn" ? 1 : 0), 0);
 
 /**
  * The SOP pass every new draft gets: full SOP check (rules + AI review), AI fixes what failed,
@@ -211,6 +222,8 @@ export async function autoFixSop(articleId: string, opts: { userId?: string; min
   // Google's top 10 for the keyword: what the draft is missing compared with pages that already rank.
   let gaps: ContentScore | null = null;
   if (dataforseoConfigured()) gaps = await runContentScore(articleId).catch((e) => { console.error("content_score_failed", articleId, e); return null; });
+  // A one-word keyword or 1–2 readable pages: the "gaps" would be about something else (e.g. Excel's RANK), so ignore them.
+  if (gaps?.warning) gaps = null;
   const gapLines = gaps ? [
     ...(gaps.words < gaps.targetWords[0] ? [`Top-ranking pages average ${gaps.targetWords[0]}–${gaps.targetWords[1]} words; this draft has ${gaps.words}. Add useful depth (not filler).`] : []),
     ...(gaps.missing.length ? [`Terms most top-10 pages use that this draft never mentions (work in the relevant ones naturally): ${gaps.missing.slice(0, 20).join(", ")}`] : []),
@@ -234,6 +247,13 @@ export async function autoFixSop(articleId: string, opts: { userId?: string; min
     const client = await db.client.findUniqueOrThrow({ where: { id: article.clientId }, select: { linkPool: true, siteUrl: true, gscPages: { select: { page: true }, orderBy: { clicks: "desc" }, take: 30 } } });
     const pages = [...new Set([...client.linkPool, ...client.gscPages.map((p) => p.page)])].filter((u) => /^https?:\/\//.test(u) || u.startsWith("/")).slice(0, 40);
     const p = pack(article.bodyHtml);
+    const research = await cachedResearch(article.clientId, article.focusKeyword).catch(() => null);
+    const plan = research ? research.plan ?? headingPlan(research.paa, research.secondaryKeywords.map((k) => k.keyword)) : null;
+    const researchLines = plan ? [
+      ...(plan.paaForHeadings.length ? [`People Also Ask questions to use as H2/H3 subheadings: ${plan.paaForHeadings.map((q) => `"${q}"`).join(", ")}`] : []),
+      ...(plan.paaForFaq.length ? [`People Also Ask questions for the FAQ: ${plan.paaForFaq.slice(0, 8).map((q) => `"${q}"`).join(", ")}`] : []),
+      ...(plan.secondaryForHeadings.length ? [`Competitor keywords to work into the H2/H3 subheadings where they fit the topic: ${plan.secondaryForHeadings.join(", ")}`] : []),
+    ] : [];
     const out = await geminiJson<{ meta_title?: string; meta_description?: string; body_html?: string; image_alts?: Record<string, string>; changes?: string[] }>(
       `${head}
 
@@ -243,7 +263,7 @@ ${issues.slice(0, 40).map((i) => `- ${i}`).join("\n")}
 IMAGES (write alt text for each: descriptive, under 125 characters, and the focus keyword in at least the first one):
 ${p.images.length ? p.images.map((img, n) => `- IMG${n + 1}: current alt "${attr(img.match(/<img\b[^>]*>/i)?.[0] ?? "", "alt")}"`).join("\n") : "(none)"}
 
-${gapLines.length ? `COMPETITOR GAPS (Google top 10 for "${article.focusKeyword}", content score ${gaps!.score}/100):\n${gapLines.map((l) => `- ${l}`).join("\n")}\n\n` : ""}INTERNAL PAGES (the only URLs you may link internally):
+${researchLines.length ? `GOOGLE RESEARCH FOR "${article.focusKeyword}" (skip anything that is not about this article's topic):\n${researchLines.map((l) => `- ${l}`).join("\n")}\n\n` : ""}${gapLines.length ? `COMPETITOR GAPS (Google top 10 for "${article.focusKeyword}", content score ${gaps!.score}/100):\n${gapLines.map((l) => `- ${l}`).join("\n")}\n\n` : ""}INTERNAL PAGES (the only URLs you may link internally):
 ${pages.length ? pages.map((u) => `- ${u}`).join("\n") : "(none known: do not add internal links)"}
 
 CURRENT ARTICLE
@@ -270,14 +290,17 @@ ${p.body}`,
     });
     const after = await runQuality(articleId, { ai: true });
     const gapsAfter = gaps ? await rescoreContent(articleId).catch(() => null) : null;
-    const better = after.report.ruleScore >= before.report.ruleScore && (issueCount(after.report) < issueCount(before.report) || after.score > before.score || (!!gaps && !!gapsAfter && gapsAfter.score >= gaps.score + 5 && after.score >= before.score - 1));
+    // Keep the fix when it leaves fewer problems overall (AI review problems count 3x), as long as the rule score doesn't fall by more than 3.
+    const better = after.report.ruleScore >= before.report.ruleScore - 3 && (issueCount(after.report) < issueCount(before.report) || after.score > before.score || (!!gaps && !!gapsAfter && gapsAfter.score >= gaps.score + 5 && after.score >= before.score - 1));
     if (!better) {
-      // Keep the draft as it was (plus the alt-text fix, which only helps).
+      // Keep the draft as it was (plus the alt-text fix, which only helps), and save the AI's version in History so it can still be used.
+      const rejected = await db.article.findUniqueOrThrow({ where: { id: articleId }, select: { metaTitle: true, metaDescription: true, bodyHtml: true } });
+      await db.articleRevision.create({ data: { articleId, ...rejected, request: `- SOP auto-fix, not kept (SOP score ${before.score} → ${after.score}). Restore this version to use it anyway.`, changes: (out.changes ?? []).slice(0, 25).map(String), createdById: opts.userId ?? null } });
       await db.article.update({ where: { id: articleId }, data: original });
       const kept = await runQuality(articleId);
       if (gaps) await rescoreContent(articleId).catch(() => null);
       if (original.bodyHtml !== untouched.bodyHtml) await db.articleRevision.create({ data: { articleId, ...untouched, request: "- SOP auto-fix: image alt text", changes: ["Added alt text with the focus keyword"], createdById: opts.userId ?? null } });
-      await mark(original.bodyHtml !== untouched.bodyHtml ? "Fixed the image alt text. The AI's other changes didn't reduce the issues, so they weren't kept" : "The AI's changes didn't reduce the issues, so the draft was kept as it was");
+      await mark(original.bodyHtml !== untouched.bodyHtml ? `Fixed the image alt text. The AI's other changes didn't reduce the issues (SOP ${before.score} → ${after.score}), so they weren't kept. Its version is under "Earlier versions" if you want it anyway` : `The AI's changes didn't reduce the issues (SOP ${before.score} → ${after.score}), so the draft was kept as it was. Its version is under "Earlier versions" if you want it anyway`);
       return { before: before.score, after: kept.score, fixed: original.bodyHtml !== untouched.bodyHtml };
     }
     await db.articleRevision.create({

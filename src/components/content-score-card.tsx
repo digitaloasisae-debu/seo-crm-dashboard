@@ -33,6 +33,7 @@ export function ContentScoreCard({ report, checkedAt, runAction, refreshAction, 
           <p className="text-xs text-slate-500">Google {report.location} · {read.length} pages read · {fmtDate(checkedAt)}</p>
         </div>
       </div>
+      {report.warning && <p className="rounded-lg bg-amber-50 p-2.5 text-sm text-amber-900 ring-1 ring-amber-200 ring-inset"><b>Don&apos;t trust this score yet.</b> {report.warning} The SOP auto-fix ignores it until then.</p>}
       <div className="grid grid-cols-3 gap-2 text-center text-xs">
         <div className={`rounded-xl p-2 ${report.words >= report.targetWords[0] ? "bg-emerald-50" : "bg-amber-50"}`}><div className="text-slate-500">Words</div><div className="text-lg font-semibold tabular-nums">{report.words.toLocaleString()}</div><div className="text-slate-500">target {report.targetWords[0].toLocaleString()}–{report.targetWords[1].toLocaleString()}</div></div>
         <div className={`rounded-xl p-2 ${report.h2 >= report.targetH2 ? "bg-emerald-50" : "bg-amber-50"}`}><div className="text-slate-500">H2 sections</div><div className="text-lg font-semibold tabular-nums">{report.h2}</div><div className="text-slate-500">target {report.targetH2}+</div></div>
