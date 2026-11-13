@@ -103,7 +103,11 @@ export function checkArticle(a: ArticleInput, c: ClientInput, research: Research
   const kwLen = Math.max(1, words(kw).length);
   const density = wc ? (countPhrase(text, kw) * kwLen * 100) / wc : 0;
   items.push(item("kw_density", "Content", "Keyword density 1%–1.5%", band(Number(density.toFixed(2)), 1, 1.5, 0.6, 2.2), `${density.toFixed(2)}% (${countPhrase(text, kw)} uses)`));
-  const sentences = text.split(/(?<=[.!?])\s+/).filter((s) => words(s).length > 2);
+  // Sentences come from the prose only. Headings, list items and table cells often have no full stop, so each block ends a sentence;
+  // joining them into the next sentence made "sentences" of 60+ words and pushed the readability grade to 12+.
+  const prose = parse(stripCode(a.bodyHtml || ""));
+  prose.querySelectorAll("h1,h2,h3,h4,h5,h6,figcaption").forEach((e) => e.remove());
+  const sentences = prose.structuredText.split(/\n+/).flatMap((b) => b.replace(/\s+/g, " ").trim().split(/(?<=[.!?])\s+/)).filter((s) => words(s).length > 2);
   // SOP: mix short and long sentences (no fixed length), and avoid rambling ones.
   const lens = sentences.map((x) => words(x).length);
   const shortShare = lens.length ? lens.filter((l) => l <= 12).length / lens.length : 0;
@@ -140,8 +144,9 @@ export function checkArticle(a: ArticleInput, c: ClientInput, research: Research
   const lists = root.querySelectorAll("ul,ol").length;
   const tables = root.querySelectorAll("table").length;
   items.push(item("lists", "Content", "Bullet points or lists to break up text", lists >= 2 ? "pass" : lists === 1 ? "warn" : "fail", `${lists} list${lists === 1 ? "" : "s"}${tables ? `, ${tables} table${tables > 1 ? "s" : ""}` : ""}`));
-  const totalSyl = allWords.reduce((n, w) => n + syllables(w), 0);
-  const grade = sentences.length && wc ? 0.39 * (wc / sentences.length) + 11.8 * (totalSyl / wc) - 15.59 : 0;
+  const proseWords = sentences.flatMap((x) => words(x));
+  const totalSyl = proseWords.reduce((n, w) => n + syllables(w), 0);
+  const grade = sentences.length && proseWords.length ? 0.39 * (proseWords.length / sentences.length) + 11.8 * (totalSyl / proseWords.length) - 15.59 : 0;
   items.push(item("readability", "Content", "Readability grade 6–8", band(Math.round(grade), 5, 8, 4, 10), `Grade ${grade.toFixed(1)}`));
 
   // --- Headings ---
