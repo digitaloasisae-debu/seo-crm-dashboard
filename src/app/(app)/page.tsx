@@ -225,7 +225,7 @@ export default async function Home() {
       <div className="mb-3 flex items-end justify-between gap-3">
         <div>
           <h2 className="text-lg font-semibold">Your clients</h2>
-          <p className="text-sm text-slate-500">Google clicks over the last 12 weeks. Clients with work waiting come first.</p>
+          <p className="text-sm text-slate-500">Visits from Google: the last 4 weeks compared with the month before. Hover a card for details. Clients with work waiting come first.</p>
         </div>
         <Link href="/clients" className="btn-secondary shrink-0">See all</Link>
       </div>

@@ -1,6 +1,6 @@
 /**
  * "Why did this client go up or down?" for the Today page client cards.
- * Compares the first 4 weeks of the 12-week window with the last 4 complete weeks,
+ * Compares the last 4 complete weeks with the 4 weeks before them (month on month),
  * then explains the change from Search Console data and Rankflow activity.
  */
 import { db } from "@/lib/db";
@@ -13,8 +13,21 @@ const monday = (d: Date) => addDays(d, -((d.getUTCDay() + 6) % 7));
 export function pulseWindow(now = new Date()) {
   const today = new Date(`${now.toISOString().slice(0, 10)}T00:00:00Z`);
   const last = monday(addDays(today, -8)); // newest complete week
-  const first = addDays(last, -77); // 12 weeks in total
-  return { first, last, beforeEnd: addDays(first, 28), nowFrom: addDays(last, -21) };
+  const first = addDays(last, -77); // 12 weeks in total (the chart)
+  const nowFrom = addDays(last, -21); // last 4 complete weeks
+  const prevFrom = addDays(nowFrom, -28); // the 4 weeks before them
+  return { first, last, prevFrom, beforeEnd: nowFrom, nowFrom };
+}
+
+const fmtDay = (d: Date) => d.toLocaleDateString("en-US", { day: "numeric", month: "short", timeZone: "UTC" });
+/** Plain date ranges for the labels, e.g. "14 Sep – 11 Oct". */
+export function pulseLabels(w = pulseWindow()) {
+  return {
+    prev: `${fmtDay(w.prevFrom)} – ${fmtDay(addDays(w.nowFrom, -1))}`,
+    now: `${fmtDay(w.nowFrom)} – ${fmtDay(addDays(w.last, 6))}`,
+    chartFrom: fmtDay(w.first),
+    chartTo: fmtDay(addDays(w.last, 6)),
+  };
 }
 
 export type Mover = { label: string; before: number; now: number; posBefore: number | null; posNow: number | null };
@@ -42,7 +55,7 @@ async function movers(table: "GscPageWeek" | "GscQueryWeek", col: "page" | "quer
        GROUP BY 1, 2
      )
      SELECT *, ROW_NUMBER() OVER (PARTITION BY "clientId" ORDER BY ABS(now - before) DESC) AS rn FROM s WHERE now <> before`,
-    ids, w.beforeEnd, w.nowFrom, w.first, w.last,
+    ids, w.beforeEnd, w.nowFrom, w.prevFrom, w.last,
   ).then((rows) => rows.filter((r) => Number(r.rn) <= 4).map((r) => ({ ...r, before: Number(r.before), now: Number(r.now), impBefore: Number(r.impBefore), impNow: Number(r.impNow) })));
 }
 
@@ -66,7 +79,7 @@ export async function pulseReasons(ids: string[], w = pulseWindow()): Promise<Ma
          COUNT(DISTINCT CASE WHEN "weekStart" < $2 THEN "weekStart" END)::int AS nb,
          COUNT(DISTINCT CASE WHEN "weekStart" >= $3 THEN "weekStart" END)::int AS nn
        FROM "GscPageWeek" WHERE "clientId" = ANY($1) AND "weekStart" >= $4 AND "weekStart" <= $5 GROUP BY 1`,
-      ids, w.beforeEnd, w.nowFrom, w.first, w.last,
+      ids, w.beforeEnd, w.nowFrom, w.prevFrom, w.last,
     ),
     db.article.groupBy({ by: ["clientId"], where: { clientId: { in: ids }, pushedAt: { gte: w.first } }, _count: true }),
     db.contentRefresh.groupBy({ by: ["clientId"], where: { clientId: { in: ids }, status: { in: ["OPEN", "DRAFTED"] } }, _count: true }),

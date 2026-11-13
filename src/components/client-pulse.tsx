@@ -1,5 +1,5 @@
 import Link from "next/link";
-import type { PulseWhy } from "@/lib/pulse-reasons";
+import { pulseLabels, type PulseWhy } from "@/lib/pulse-reasons";
 
 export type Pulse = {
   id: string;
@@ -40,7 +40,8 @@ export function ClientPulse({ c }: { c: Pulse }) {
   const lastV = c.trend.at(-1) ?? 0;
   const up = c.why ? c.why.now >= c.why.before : lastV >= first;
   const pct = c.why ? c.why.pct : first ? Math.round((lastV / first - 1) * 100) : null;
-  // Same numbers as the hover card: average of the last 4 complete weeks, vs the first 4 weeks of the 12.
+  // Same numbers as the hover card: weekly average of the last 4 complete weeks vs the 4 weeks before.
+  const L = pulseLabels();
   const clicksNow = c.why ? c.why.now : c.clicks;
   const clicksBefore = c.why ? c.why.before : first || null;
   const pos = c.why?.metrics.find((m) => m.label === "Average position");
@@ -70,22 +71,23 @@ export function ClientPulse({ c }: { c: Pulse }) {
         <>
           <div className="mt-4 flex items-end justify-between gap-3">
             <div className="min-w-0">
-              <div className="text-xs text-slate-500">Visits from Google</div>
+              <div className="text-xs text-slate-500">Visits from Google, last 4 weeks</div>
               <div className="leading-none"><b className="num text-3xl font-semibold text-slate-900">{fmt(clicksNow)}</b> <span className="text-sm text-slate-500">a week</span></div>
             </div>
             {pct != null && (
               <span data-why className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold ${chip}`}>
-                {flat ? "No real change" : `${up ? "▲ Up" : "▼ Down"} ${Math.abs(pct)}%`}
+                {flat ? "About the same" : `${up ? "▲" : "▼"} ${Math.abs(pct)}% vs month before`}
               </span>
             )}
           </div>
-          {clicksBefore != null && <p className="mt-1 text-xs text-slate-500">{fmt(clicksBefore)} a week 3 months ago</p>}
-          <div className="mt-3"><Spark values={c.trend} up={up || flat} /></div>
-          <div className="mt-1 flex justify-between text-[10.5px] text-slate-400"><span>12 weeks ago</span><span>last week</span></div>
+          {clicksBefore != null && <p className="mt-1 text-xs text-slate-500">Month before: {fmt(clicksBefore)} a week ({L.prev})</p>}
+          <div className="mt-3 mb-1 text-[11px] font-medium text-slate-500">Visits each week, last 12 weeks</div>
+          <Spark values={c.trend} up={up || flat} />
+          <div className="mt-1 flex justify-between text-[10.5px] text-slate-400"><span>{L.chartFrom}</span><span>{L.chartTo}</span></div>
           {posNow != null && (
             <p className="mt-2.5 text-xs text-slate-600">
               Usually ranks around <b className="num text-slate-900">#{Math.round(posNow)}</b> on Google
-              {posBetter != null && <span className={posBetter ? " text-emerald-600" : " text-red-600"}> ({posBetter ? "better" : "worse"} than #{Math.round(posBefore!)})</span>}
+              {posBetter != null && <span className={posBetter ? " text-emerald-600" : " text-red-600"}> (was #{Math.round(posBefore!)})</span>}
             </p>
           )}
         </>
@@ -106,6 +108,7 @@ const fmt = (v: number) => (v >= 10 ? Math.round(v) : Math.round(v * 10) / 10).t
 /** Short hover card: the 3 key numbers, the biggest page change, and the top thing to do. */
 function Why({ c, pct }: { c: Pulse; pct: number | null }) {
   const w = c.why!;
+  const L = pulseLabels();
   const tone = (b: boolean | null) => (b == null ? "text-slate-700" : b ? "text-emerald-600" : "text-red-600");
   const rows = w.metrics.filter((m) => m.label !== "Click rate").map((m) => ({ ...m, label: m.label === "Clicks a week" ? "Visits from Google" : m.label === "Google views a week" ? "Times shown on Google" : "Google position" }));
   const page = w.movers[0];
@@ -113,7 +116,7 @@ function Why({ c, pct }: { c: Pulse; pct: number | null }) {
   return (
     <div className="pointer-events-none invisible absolute top-[calc(100%-10px)] right-2 left-2 z-30 translate-y-2 rounded-xl border border-slate-200 bg-white p-4 opacity-0 shadow-[var(--shadow-pop)] transition-all duration-200 group-hover/why:pointer-events-auto group-hover/why:visible group-hover/why:translate-y-0 group-hover/why:opacity-100">
       <div className="text-sm font-semibold">{pct == null ? "What changed" : Math.abs(pct) < 5 ? "Visits about the same" : <>Visits {pct >= 0 ? "up" : "down"} <span className={pct >= 0 ? "text-emerald-600" : "text-red-600"}>{Math.abs(pct)}%</span></>}</div>
-      <p className="text-[11px] text-slate-400">Weekly average, 3 months ago → last 4 weeks (Search Console)</p>
+      <p className="text-[11px] text-slate-400">A week, month before ({L.prev}) → last 4 weeks ({L.now})</p>
       <table className="mt-2 w-full text-xs">
         <tbody>
           {rows.map((m) => (
