@@ -48,17 +48,76 @@ export async function testConnection(clientId: string) {
   }
 }
 
-async function uploadFeaturedImage(cred: ClientCredential, imageUrl: string, slug: string): Promise<number> {
-  const img = await fetch(imageUrl, { signal: AbortSignal.timeout(60_000) });
-  if (!img.ok) throw new Error(`Could not download featured image (${img.status})`);
-  const type = img.headers.get("content-type") || "image/png";
-  const ext = type.split("/")[1]?.split(";")[0] || "png";
-  const media = await wpFetch(cred, "/media", {
+const slugify = (t: string) => t.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 60);
+const host = (u: string) => { try { return new URL(u).hostname.replace(/^www\./, "").toLowerCase(); } catch { return ""; } };
+
+/** Upload one image (URL or data: URI) to the WordPress media library with its alt text. */
+async function uploadImage(cred: ClientCredential, src: string, name: string, alt: string): Promise<{ id: number; url: string }> {
+  let type = "image/png";
+  let data: Buffer;
+  const m = src.match(/^data:([^;,]+)(;base64)?,(.*)$/s);
+  if (m) {
+    type = m[1];
+    data = m[2] ? Buffer.from(m[3], "base64") : Buffer.from(decodeURIComponent(m[3]));
+  } else {
+    const img = await fetch(src, { signal: AbortSignal.timeout(60_000) });
+    if (!img.ok) throw new Error(`Could not download image (${img.status})`);
+    type = (img.headers.get("content-type") || "image/png").split(";")[0];
+    data = Buffer.from(await img.arrayBuffer());
+  }
+  if (!type.startsWith("image/")) throw new Error(`Not an image (${type})`);
+  const ext = { "image/jpeg": "jpg", "image/svg+xml": "svg" }[type] ?? type.split("/")[1] ?? "png";
+  const q = new URLSearchParams({ alt_text: alt.slice(0, 200), title: alt.slice(0, 100) || name });
+  const media = await wpFetch(cred, `/media?${q}`, {
     method: "POST",
-    headers: { "Content-Type": type, "Content-Disposition": `attachment; filename="${slug || "featured"}.${ext}"` },
-    body: Buffer.from(await img.arrayBuffer()),
+    headers: { "Content-Type": type, "Content-Disposition": `attachment; filename="${name || "image"}.${ext}"` },
+    body: new Uint8Array(data),
   });
-  return Number(media.id);
+  return { id: Number(media.id), url: String(media.source_url ?? "") };
+}
+
+/**
+ * Every image in the blog goes into the client's WordPress media library first, and the blog then
+ * uses the WordPress copy (not imgbb or other temporary hosts). Images already on the client's site are left alone.
+ * The new body is saved to the article, so a retry doesn't upload the same images twice.
+ */
+async function moveImagesToWordPress(cred: ClientCredential, article: { id: string; slug: string; focusKeyword: string; metaTitle: string; bodyHtml: string; featuredImageUrl: string | null; wpMediaId: number | null }, siteUrl: string) {
+  const own = host(siteUrl);
+  const wpHost = host(cred.endpoint);
+  const isOurs = (u: string) => { const h = host(u); return !!h && (h === own || h === wpHost); };
+  let body = article.bodyHtml;
+  const tags = [...new Set(body.match(/<img\b[^>]*>/gi) ?? [])];
+  let n = 0;
+  const failed: string[] = [];
+  for (const tag of tags) {
+    const src = tag.match(/\ssrc=["']([^"']+)["']/i)?.[1];
+    if (!src || (!/^https?:/i.test(src) && !src.startsWith("data:")) || isOurs(src)) continue;
+    const alt = (tag.match(/\salt=["']([^"']*)["']/i)?.[1] ?? "").trim() || article.focusKeyword;
+    n++;
+    try {
+      const up = await uploadImage(cred, src.replace(/&amp;/g, "&"), `${slugify(alt) || article.slug}-${n}`, alt);
+      if (!up.url) continue;
+      let next = tag.replace(/\ssrc=["'][^"']+["']/i, ` src="${up.url}"`).replace(/\s(srcset|sizes)=["'][^"']*["']/gi, "");
+      next = /\sclass=["']/i.test(next) ? next.replace(/\sclass=["']([^"']*)["']/i, ` class="$1 wp-image-${up.id}"`) : next.replace(/<img/i, `<img class="wp-image-${up.id}"`);
+      if (!/\salt=/i.test(next)) next = next.replace(/<img/i, `<img alt="${alt.replace(/"/g, "&quot;")}"`);
+      body = body.split(tag).join(next);
+    } catch (e) {
+      failed.push(`${src.slice(0, 80)}: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  }
+
+  // Featured image: also uploaded to the media library, with the focus keyword as alt text (SOP Step 5).
+  let mediaId = article.wpMediaId;
+  let featured = article.featuredImageUrl;
+  if (!mediaId && featured) {
+    const up = await uploadImage(cred, featured, article.slug || "featured", article.focusKeyword || article.metaTitle);
+    mediaId = up.id;
+    if (up.url) featured = up.url;
+  }
+  if (body !== article.bodyHtml || mediaId !== article.wpMediaId || featured !== article.featuredImageUrl) {
+    await db.article.update({ where: { id: article.id }, data: { bodyHtml: body, wpMediaId: mediaId, featuredImageUrl: featured } });
+  }
+  return { body, mediaId, failed };
 }
 
 /**
@@ -81,17 +140,15 @@ export async function pushArticle(articleId: string, actorId?: string) {
   let lastError = "";
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
     try {
-      let mediaId = article.wpMediaId;
-      if (!mediaId && article.featuredImageUrl) {
-        mediaId = await uploadFeaturedImage(cred, article.featuredImageUrl, article.slug);
-        await db.article.update({ where: { id: articleId }, data: { wpMediaId: mediaId } });
-      }
+      const fresh = await db.article.findUniqueOrThrow({ where: { id: articleId }, select: { id: true, slug: true, focusKeyword: true, metaTitle: true, bodyHtml: true, featuredImageUrl: true, wpMediaId: true, client: { select: { siteUrl: true } } } });
+      const { body, mediaId, failed } = await moveImagesToWordPress(cred, fresh, fresh.client.siteUrl);
+      if (failed.length) await logActivity({ actorId, clientId: article.clientId, action: "article.images_failed", entity: "article", entityId: articleId, after: { failed } });
 
       const slot = article.wpPostId ? null : await nextOpenSlot(article.clientId);
       const payload: Record<string, unknown> = {
         // Imported posts keep their own headline; the SEO title goes into Rank Math.
         title: article.wpTitle ?? article.metaTitle,
-        content: article.bodyHtml,
+        content: body,
         // New posts go in as drafts; an update (e.g. a content refresh) keeps the post's current status.
         ...(article.wpPostId ? {} : { status: "draft" }),
         slug: article.slug,

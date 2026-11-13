@@ -66,7 +66,7 @@ export default async function ClientLayout({ children, params }: { children: Rea
   );
   return (
     <>
-      <section className="rf-banner mb-5 p-5 md:p-6" style={{ ["--brand" as string]: brand }}>
+      <section className="rf-banner mb-5 p-5 md:p-6 print:hidden" style={{ ["--brand" as string]: brand }}>
         <span className="blob b1" /><span className="blob b2" /><span className="blob b3" /><span className="grid-fx" />
         <span className="stars" aria-hidden>{stars.map(([x, y], i) => <span key={i} style={{ left: `${x}%`, top: `${y}%`, animationDelay: `${i * 0.6}s` }} />)}</span>
         <div className="flex flex-wrap items-center gap-4 md:gap-5">

@@ -347,3 +347,12 @@ details[open] > *:not(summary) { @apply animate-fade-in; }
 @media (prefers-reduced-motion: reduce) {
   .rf-banner .blob, .rf-banner .stars span, .rf-avatar-ring, .rf-gtab.is-on::after, .rf-live::before, .rf-pill, .rf-page-in { animation: none !important; }
 }
+
+/* Printed reports ("Save as PDF"): white page, no app chrome, keep colours. */
+@media print {
+  @page { margin: 12mm; }
+  html, body { background: #fff !important; }
+  body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  main { max-width: none !important; padding: 0 !important; }
+  .card { box-shadow: none !important; break-inside: auto; }
+}

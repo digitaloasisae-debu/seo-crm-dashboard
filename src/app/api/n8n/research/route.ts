@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { db } from "@/lib/db";
 import { checkN8nAuth } from "@/lib/n8n";
-import { getResearch, researchBrief } from "@/lib/research";
+import { getResearch, headingPlan, researchBrief } from "@/lib/research";
 import { getSop } from "@/lib/sop";
 import { linkIdeas } from "@/lib/keyword-usage";
 
@@ -37,7 +37,9 @@ export async function GET(req: NextRequest) {
     topic_id: topic.id,
     keyword: topic.keyword,
     location: r?.location ?? null,
-    competitors: (r?.competitors ?? []).map((c) => ({ url: c.url, title: c.title, position: c.position, words: c.words, h2: c.h2, h3: c.h3, ranks_for: c.keywords.slice(0, 15).map((k) => k.keyword) })),
+    competitors: (r?.competitors ?? []).map((c) => ({ url: c.url, title: c.title, position: c.position, words: c.words, review: c.review ?? "", h2: c.h2, h3: c.h3, ranks_for: c.keywords.slice(0, 15).map((k) => k.keyword) })),
+    competitor_gaps: r?.gaps ?? [],
+    heading_plan: r ? (r.plan ?? headingPlan(r.paa, r.secondaryKeywords.map((k) => k.keyword))) : null,
     competitor_urls: (r?.competitors ?? []).map((c) => c.url),
     secondary_keywords: (r?.secondaryKeywords ?? []).map((k) => k.keyword),
     people_also_ask: r?.paa ?? [],

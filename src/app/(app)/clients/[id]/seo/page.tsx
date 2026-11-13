@@ -4,14 +4,14 @@ import { requireUser } from "@/lib/session";
 import { Badge, Empty, ScoreRing } from "@/components/ui";
 import { Icon } from "@/components/icons";
 import { fmtDate } from "@/lib/utils";
-import type { Issue, PsiSummary } from "@/lib/audit";
+import type { Issue, PsiSummary, Shot } from "@/lib/audit";
+import Link from "next/link";
+import { Findings, findingsFromIssues, Screenshots } from "@/components/audit-report";
 import { runAuditAction } from "./actions";
 import { RunButton } from "./run-button";
 import { SearchPerformance } from "./search-performance";
 
-export const maxDuration = 60;
-
-const sevColor = { error: "red", warning: "yellow", notice: "gray" } as const;
+export const maxDuration = 300;
 
 function scoreColor(n: number | null | undefined) {
   if (n == null) return "text-slate-400";
@@ -60,10 +60,13 @@ export default async function ClientSeo({ params }: { params: Promise<{ id: stri
       <section className="card flex flex-wrap items-center justify-between gap-4">
         <div>
           <h2 className="flex items-center gap-2 font-semibold"><span className="flex h-7 w-7 items-center justify-center rounded-lg bg-indigo-50 text-indigo-500"><Icon name="search" className="h-4 w-4" /></span>Quick SEO check</h2>
-          <p className="text-sm text-slate-500">PageSpeed for the home page, plus on-page checks on up to 25 pages from the sitemap.</p>
+          <p className="text-sm text-slate-500">PageSpeed with screenshots of the home page and 3 key pages, plus on-page checks on up to 25 pages from the sitemap.</p>
           {last?.status === "FAILED" && <p className="mt-1 text-sm text-red-700">Last run failed: {last.error}</p>}
         </div>
-        {editable && <form action={runAuditAction.bind(null, id)}><RunButton label={latest ? "Run again" : "Run first audit"} /></form>}
+        <div className="flex flex-wrap items-center gap-2">
+          {latest && <Link href={`/clients/${id}/seo/report`} className="btn-secondary inline-flex items-center gap-1.5"><Icon name="file" className="h-4 w-4" /> Client report</Link>}
+          {editable && <form action={runAuditAction.bind(null, id)}><RunButton label={latest ? "Run again" : "Run first audit"} /></form>}
+        </div>
       </section>
 
       {!latest ? <Empty>No audit yet.</Empty> : (
@@ -81,28 +84,8 @@ export default async function ClientSeo({ params }: { params: Promise<{ id: stri
             </div>
           </section>
 
-          <section className="card p-0">
-            <h2 className="p-4 pb-2 font-semibold">Issues to fix</h2>
-            {issues.length === 0 ? <p className="p-4 pt-0 text-sm text-slate-500">Nothing found. Nice.</p> : (
-              <ul className="divide-y divide-slate-100">
-                {issues.map((i) => (
-                  <li key={i.code} className="px-4 py-3 transition-colors hover:bg-slate-50/80">
-                    <details>
-                      <summary className="flex cursor-pointer items-center gap-3 text-sm">
-                        <Badge color={sevColor[i.severity]}>{i.severity}</Badge>
-                        <span className="flex-1">{i.title}</span>
-                        <span className="text-slate-500">{i.count} {i.count === 1 ? "page" : "pages"}</span>
-                      </summary>
-                      <ul className="mt-2 space-y-0.5 pl-2 text-xs break-all text-slate-600">
-                        {i.urls.map((u) => <li key={u}><a className="hover:underline" href={u.split(" (on ")[0]} target="_blank" rel="noreferrer">{u}</a></li>)}
-                        {i.count > i.urls.length && <li>…and {i.count - i.urls.length} more</li>}
-                      </ul>
-                    </details>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </section>
+          <Screenshots shots={(latest.shots as unknown as Shot[] | null) ?? []} />
+          <Findings findings={findingsFromIssues(issues, latest.pagesChecked)} />
         </>
       )}
 

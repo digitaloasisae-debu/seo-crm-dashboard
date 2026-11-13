@@ -122,3 +122,55 @@ export async function KeywordCheck({ articleId, clientId, keyword, bodyHtml }: {
     </section>
   );
 }
+
+/** SOP Step 1: the Google research the blog was written from (competitor reviews, their keywords, PAA plan). */
+export async function CompetitorResearch({ clientId, keyword, bodyHtml }: { clientId: string; keyword: string; bodyHtml: string }) {
+  const { cachedResearch, headingPlan } = await import("@/lib/research");
+  const r = await cachedResearch(clientId, keyword).catch(() => null);
+  if (!r) return null;
+  const plan = r.plan ?? headingPlan(r.paa, r.secondaryKeywords.map((k) => k.keyword));
+  const heads = [...bodyHtml.matchAll(/<h[23][^>]*>([\s\S]*?)<\/h[23]>/gi)].map((m) => m[1].replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim().toLowerCase());
+  const inHeads = (k: string) => heads.some((h) => k.toLowerCase().split(/\s+/).filter((w) => w.length > 2).every((w) => h.includes(w)));
+  return (
+    <section id="research" className="card scroll-mt-20 space-y-3">
+      <div className="flex items-center justify-between gap-2">
+        <h3 className="font-sans text-sm font-semibold tracking-normal">Competitor research</h3>
+        <span className="text-xs text-slate-500">Google {r.location}, {r.fetchedAt.slice(0, 10)}</span>
+      </div>
+      {r.competitors.length === 0 && <p className="text-sm text-slate-500">No competitor articles found on page one for this keyword.</p>}
+      <ol className="space-y-3">
+        {r.competitors.map((c) => (
+          <li key={c.url} className="rounded-lg border border-slate-100 p-2.5">
+            <SourceRow s={{ url: c.url, title: c.title }} sub={`#${c.position}${c.words ? ` · ${c.words.toLocaleString()} words` : ""}`} />
+            {c.review && <p className="mt-1 px-1.5 text-sm leading-6 text-slate-700">{c.review}</p>}
+            {c.keywords.length > 0 && <p className="mt-1.5 px-1.5 text-xs text-slate-500"><span className="font-medium">Ranks for:</span> {c.keywords.slice(0, 8).map((k) => k.keyword).join(", ")}</p>}
+          </li>
+        ))}
+      </ol>
+      {r.gaps && r.gaps.length > 0 && (
+        <div>
+          <div className="mb-1 text-xs font-medium text-slate-500">What they miss</div>
+          <ul className="list-disc space-y-0.5 pl-5 text-sm text-slate-700">{r.gaps.map((g) => <li key={g}>{g}</li>)}</ul>
+        </div>
+      )}
+      {plan.secondaryForHeadings.length > 0 && (
+        <div>
+          <div className="mb-1 text-xs font-medium text-slate-500">Competitor keywords for the subheadings</div>
+          <div className="flex flex-wrap gap-1.5">{plan.secondaryForHeadings.map((k) => <span key={k} className={`rounded-md px-2 py-0.5 text-xs ${inHeads(k) ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-600"}`}>{inHeads(k) ? "✓ " : ""}{k}</span>)}</div>
+        </div>
+      )}
+      {r.paa.length > 0 && (
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div>
+            <div className="mb-1 text-xs font-medium text-slate-500">People Also Ask → subheadings</div>
+            <ul className="space-y-0.5 text-sm text-slate-700">{plan.paaForHeadings.map((q) => <li key={q}>{q}</li>)}{!plan.paaForHeadings.length && <li className="text-slate-400">Too few questions, all go to the FAQ</li>}</ul>
+          </div>
+          <div>
+            <div className="mb-1 text-xs font-medium text-slate-500">People Also Ask → FAQ</div>
+            <ul className="space-y-0.5 text-sm text-slate-700">{plan.paaForFaq.map((q) => <li key={q}>{q}</li>)}</ul>
+          </div>
+        </div>
+      )}
+    </section>
+  );
+}

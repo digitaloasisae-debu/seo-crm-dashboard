@@ -77,7 +77,7 @@ export function ClientTabs({ groups }: { groups: GroupedNav }) {
   const g = groups[open];
   const page = groups.flatMap((x) => x.items).find((i) => isOn(i.href));
   return (
-    <div className="mb-7">
+    <div className="mb-7 print:hidden">
       <div role="tablist" className="grid grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-4">
         {groups.map((x, i) => {
           const on = i === open;

@@ -15,6 +15,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     { href: "/", label: "Today", icon: "inbox" },
     { href: "/clients", label: "Clients", icon: "briefcase" },
     { href: "/seo", label: "SEO overview", icon: "chart" },
+    { href: "/prospect", label: "Audit any website", icon: "search" },
     ...(user.role !== "MEMBER"
       ? ([
           { href: "/intake", label: "Intake", icon: "zap", group: "Admin" },
@@ -46,7 +47,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const initials = user.name.split(/\s+/).map((w) => w[0]).slice(0, 2).join("").toUpperCase();
   return (
     <div className="min-h-screen md:flex">
-      <aside className="rf-side relative z-10 border-b md:sticky md:top-0 md:flex md:h-screen md:w-60 md:shrink-0 md:flex-col md:border-r md:border-b-0">
+      <aside className="rf-side print:hidden relative z-10 border-b md:sticky md:top-0 md:flex md:h-screen md:w-60 md:shrink-0 md:flex-col md:border-r md:border-b-0">
         <div className="flex items-center justify-between px-5 py-4">
           <Link href="/" className="transition-opacity hover:opacity-80">
             <Logo size={26} />
@@ -77,13 +78,13 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       <Toaster />
       <CommandMenu clients={clients.map((c) => ({ id: c.id, name: c.name, site: c.siteUrl }))} links={nav.map((n) => ({ href: n.href, label: n.label, icon: n.icon }))} />
       <div className="min-w-0 flex-1">
-        <div className="sticky top-0 z-20 hidden items-center gap-3 border-b border-slate-200/70 bg-slate-50/85 px-8 py-2.5 backdrop-blur-md md:flex">
+        <div className="sticky top-0 z-20 hidden print:!hidden items-center gap-3 border-b border-slate-200/70 bg-slate-50/85 px-8 py-2.5 backdrop-blur-md md:flex">
           <SearchButton />
           <div className="ml-auto flex items-center gap-2">
             <ThemeToggle />
           </div>
         </div>
-        <div className="px-4 pt-3 md:hidden"><SearchButton /></div>
+        <div className="px-4 pt-3 md:hidden print:hidden"><SearchButton /></div>
         <main className="page-enter mx-auto w-full max-w-6xl p-4 md:px-8 md:pt-6 md:pb-12">{children}</main>
       </div>
     </div>

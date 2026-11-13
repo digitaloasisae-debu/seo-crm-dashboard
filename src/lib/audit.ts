@@ -22,8 +22,12 @@ export type PsiSummary = {
   field?: PsiField | null;
   /** Biggest Lighthouse savings, e.g. "Properly size images" (ms saved). */
   opportunities?: { title: string; savingsMs: number }[];
+  /** What the page looked like when Google loaded it (JPEG data URI from Lighthouse). */
+  screenshot?: string | null;
   error?: string;
 };
+/** A page screenshot for the report, with the problems found on that page. */
+export type Shot = { url: string; label: string; device: "mobile" | "desktop"; image: string; performance: number | null; problems: string[] };
 
 const ISSUE_INFO: Record<string, { severity: Severity; title: string }> = {
   site_unreachable: { severity: "error", title: "Home page did not load" },
@@ -46,6 +50,13 @@ const ISSUE_INFO: Record<string, { severity: Severity; title: string }> = {
   canonical_missing: { severity: "notice", title: "No canonical tag" },
   img_alt_missing: { severity: "notice", title: "Images without alt text" },
   thin_content: { severity: "notice", title: "Thin content (under 300 words)" },
+  no_viewport: { severity: "error", title: "Not set up for mobile (no viewport tag)" },
+  http_no_redirect: { severity: "warning", title: "http:// doesn't redirect to https://" },
+  no_analytics: { severity: "warning", title: "No Google Analytics or Tag Manager found" },
+  no_business_schema: { severity: "warning", title: "No business schema (Organization or LocalBusiness)" },
+  no_schema: { severity: "notice", title: "No structured data (schema) on the page" },
+  og_missing: { severity: "notice", title: "No social share image (og:image)" },
+  no_phone_link: { severity: "notice", title: "No click-to-call phone link on the home page" },
   slow_mobile: { severity: "warning", title: "Mobile performance score under 50" },
   poor_lcp: { severity: "warning", title: "Largest Contentful Paint over 4s (mobile)" },
   poor_cls: { severity: "warning", title: "Layout shift (CLS) over 0.25 (mobile)" },
@@ -113,6 +124,7 @@ export async function pageSpeed(url: string, strategy: "mobile" | "desktop"): Pr
         .map((a) => ({ title: String(a.title ?? ""), savingsMs: Math.round(a.details!.overallSavingsMs!) }))
         .sort((a, b) => b.savingsMs - a.savingsMs)
         .slice(0, 6),
+      screenshot: typeof aud["final-screenshot"]?.details?.data === "string" ? aud["final-screenshot"].details.data : null,
     };
   } catch (e) {
     return { ...empty, error: e instanceof Error && e.name === "TimeoutError" ? "PageSpeed took too long" : String(e) };
@@ -153,7 +165,7 @@ async function sitemapUrls(origin: string, robotsText: string): Promise<string[]
   return null;
 }
 
-type PageResult = { url: string; status: number; title: string; meta: string; h1: number; noindex: boolean; canonical: boolean; imgNoAlt: number; words: number; links: string[] };
+type PageResult = { url: string; status: number; title: string; meta: string; h1: number; noindex: boolean; canonical: boolean; imgNoAlt: number; words: number; links: string[]; schema: string[]; og: boolean; viewport: boolean; analytics: boolean; tel: boolean };
 
 function analyse(url: string, status: number, html: string, origin: string): PageResult {
   const root: HTMLElement = parse(html, { blockTextElements: { script: false, style: false, noscript: false } });
@@ -183,6 +195,11 @@ function analyse(url: string, status: number, html: string, origin: string): Pag
     imgNoAlt: root.querySelectorAll("img").filter((i) => !i.hasAttribute("alt")).length,
     words: text ? text.split(" ").length : 0,
     links: [...new Set(links)],
+    schema: [...new Set(root.querySelectorAll('script[type="application/ld+json"]').flatMap((x) => [...x.textContent.matchAll(/"@type"\s*:\s*(?:\[\s*)?"([^"]+)"/g)].map((m) => m[1])))],
+    og: Boolean(root.querySelector('meta[property="og:image"]')),
+    viewport: Boolean(root.querySelector('meta[name="viewport"]')),
+    analytics: /googletagmanager\.com|google-analytics\.com|gtag\(|\bG-[A-Z0-9]{6,}\b|GTM-[A-Z0-9]{4,}/.test(html),
+    tel: Boolean(root.querySelector('a[href^="tel:"]')),
   };
 }
 
@@ -226,6 +243,7 @@ export async function runAudit(clientId: string, actorId?: string) {
         psiMobile: result.psiMobile as unknown as Prisma.InputJsonValue,
         psiDesktop: result.psiDesktop as unknown as Prisma.InputJsonValue,
         issues: result.issues as unknown as Prisma.InputJsonValue,
+        shots: result.shots as unknown as Prisma.InputJsonValue,
         finishedAt: new Date(),
       },
     });
@@ -236,7 +254,7 @@ export async function runAudit(clientId: string, actorId?: string) {
   return audit.id;
 }
 
-export async function auditSite(siteUrl: string) {
+export async function auditSite(siteUrl: string, opts: { extraShots?: number } = {}) {
   const home = siteUrl.replace(/\/+$/, "") + "/";
   const found = new Map<string, string[]>(); // issue code -> urls
   const flag = (code: string, url = home) => {
@@ -250,14 +268,24 @@ export async function auditSite(siteUrl: string) {
 
   let origin = new URL(home).origin;
   let homeRes: Response | null = null;
+  let finalHome = home;
   try {
     homeRes = await get(home);
-    origin = new URL(homeRes.url).origin;
+    finalHome = homeRes.url || home;
+    origin = new URL(finalHome).origin;
   } catch {
     flag("site_unreachable");
   }
   if (homeRes && !homeRes.ok) flag("site_unreachable");
   if (!origin.startsWith("https://")) flag("no_https");
+  else {
+    try {
+      const r = await fetch(origin.replace(/^https:/, "http:") + "/", { redirect: "manual", headers: { "User-Agent": UA }, signal: AbortSignal.timeout(6_000) });
+      if (r.status < 300 || r.status >= 400 || !/^https:/i.test(r.headers.get("location") ?? "")) flag("http_no_redirect", origin.replace(/^https:/, "http:") + "/");
+    } catch {
+      /* http:// not answering at all is fine */
+    }
+  }
 
   let robotsText = "";
   try {
@@ -275,8 +303,12 @@ export async function auditSite(siteUrl: string) {
   // Pages: home first, then sitemap pages (pages before posts), same host only.
   const homeHtml = homeRes?.ok ? await homeRes.text() : "";
   const pages: PageResult[] = [];
-  if (homeHtml) pages.push(analyse(homeRes!.url, homeRes!.status, homeHtml, origin));
-  const queue = [...new Set((fromSitemap ?? pages[0]?.links ?? []).filter((u) => u.startsWith(origin) && u !== homeRes?.url && u !== home))].slice(0, MAX_PAGES - 1);
+  if (homeHtml) pages.push(analyse(finalHome, homeRes!.status, homeHtml, origin));
+  const queue = [...new Set((fromSitemap ?? pages[0]?.links ?? []).filter((u) => u.startsWith(origin) && u !== finalHome && u !== home))].slice(0, MAX_PAGES - 1);
+  // Screenshots: home (mobile from the PageSpeed run) plus up to 3 key pages, taken while the crawl runs.
+  const pick = (re: RegExp) => queue.find((u) => re.test(new URL(u).pathname));
+  const shotUrls = [...new Set([pick(/servic|what-we-do|treatment|product/i), pick(/contact|book|quote/i), pick(/about/i), pick(/blog|news|\/20\d\d\//i), queue[0]].filter((u): u is string => !!u))].slice(0, opts.extraShots ?? 3);
+  const shotPromise = Promise.all(shotUrls.map(async (u) => ({ url: u, psi: await pageSpeed(u, "mobile") })));
   const crawled = await pool(queue, 5, async (url) => {
     try {
       const r = await get(url);
@@ -314,6 +346,17 @@ export async function auditSite(siteUrl: string) {
     if (p.imgNoAlt > 0) flag("img_alt_missing", p.url);
     if (p.words < 300) flag("thin_content", p.url);
   }
+  const homePage = homeHtml ? pages[0] : undefined;
+  if (homePage) {
+    if (!homePage.viewport) flag("no_viewport", homePage.url);
+    if (!homePage.analytics) flag("no_analytics", homePage.url);
+    if (!homePage.schema.some((t) => /Organization|LocalBusiness|Store|Restaurant|Dentist|Physician|Attorney|LegalService|HomeAndConstructionBusiness|Plumber|Electrician|HVACBusiness|RoofingContractor|AutoRepair|ProfessionalService|MedicalBusiness|HealthAndBeautyBusiness|RealEstateAgent|FinancialService/i.test(t))) flag("no_business_schema", homePage.url);
+    if (!homePage.tel) flag("no_phone_link", homePage.url);
+  }
+  for (const p of pages) {
+    if (!p.schema.length) flag("no_schema", p.url);
+    if (!p.og) flag("og_missing", p.url);
+  }
   for (const urls of titles.values()) if (urls.length > 1) urls.forEach((u) => flag("title_duplicate", u));
   for (const urls of metas.values()) if (urls.length > 1) urls.forEach((u) => flag("meta_duplicate", u));
 
@@ -332,6 +375,7 @@ export async function auditSite(siteUrl: string) {
   });
 
   const [psiMobile, psiDesktop] = await psiPromise;
+  const extra = await shotPromise;
   if (psiMobile.performance != null && psiMobile.performance < 50) flag("slow_mobile");
   if (psiMobile.lcpMs != null && psiMobile.lcpMs > 4000) flag("poor_lcp");
   if (psiMobile.cls != null && psiMobile.cls > 0.25) flag("poor_cls");
@@ -344,5 +388,19 @@ export async function auditSite(siteUrl: string) {
   // Health score: each issue type costs its weight, scaled by the share of pages it affects (min 25%).
   const penalty = issues.reduce((sum, i) => sum + WEIGHT[i.severity] * Math.max(0.25, Math.min(1, i.count / pagesChecked)), 0);
   const score = found.has("site_unreachable") ? 0 : Math.max(0, Math.round(100 - penalty));
-  return { score, pagesChecked: pages.length, psiMobile, psiDesktop, issues };
+  // Each screenshot lists the problems found on that page, so the report can show them side by side.
+  const problemsOn = (url: string) => {
+    const strip = (u: string) => u.replace(/\/+$/, "").replace(/^https?:\/\/(www\.)?/, "");
+    return issues.filter((i) => i.urls.some((u) => strip(u.split(" (on ")[0]) === strip(url))).map((i) => i.title);
+  };
+  const homeUrl = finalHome;
+  const label = (u: string) => { const p = new URL(u).pathname.replace(/\/+$/, ""); return p ? p.split("/").pop()!.replace(/[-_]+/g, " ").replace(/^\w/, (c) => c.toUpperCase()) : "Home page"; };
+  const shots: Shot[] = [];
+  if (psiMobile.screenshot) shots.push({ url: homeUrl, label: "Home page", device: "mobile", image: psiMobile.screenshot, performance: psiMobile.performance, problems: problemsOn(homeUrl) });
+  if (psiDesktop.screenshot) shots.push({ url: homeUrl, label: "Home page", device: "desktop", image: psiDesktop.screenshot, performance: psiDesktop.performance, problems: [] });
+  for (const e of extra) if (e.psi.screenshot) shots.push({ url: e.url, label: label(e.url), device: "mobile", image: e.psi.screenshot, performance: e.psi.performance, problems: problemsOn(e.url) });
+  // Screenshots are stored separately, not inside the PageSpeed summaries.
+  delete psiMobile.screenshot;
+  delete psiDesktop.screenshot;
+  return { score, pagesChecked: pages.length, psiMobile, psiDesktop, issues, shots, home: homePage ? { title: homePage.title, schema: homePage.schema, analytics: homePage.analytics, tel: homePage.tel } : null };
 }

@@ -5,6 +5,7 @@ import { db } from "./db";
 import { checkArticle, type CheckItem } from "./sop-check";
 import { geminiConfigured, geminiJson } from "./gemini";
 import { getSop } from "./sop";
+import { cachedResearch } from "./research";
 
 export type QualityReport = {
   ruleScore: number;
@@ -18,7 +19,7 @@ export type QualityReport = {
 };
 
 const SYSTEM = `You are a strict SEO editor checking a blog article against the agency's SOP and the client's brain (their learned preferences).
-Measurable items (word count, link counts, meta lengths, keyword placement, paragraph length, bold answer, AI phrases, readability) are already checked by code; do NOT repeat them.
+Measurable items (word count, link counts, meta lengths, title number/power/sentiment words, slug, keyword placement, competitor keywords and PAA questions in headings and FAQ, paragraph length, transition words, bold answer, AI phrases, readability, image count) are already checked by code; do NOT repeat them.
 Judge ONLY the qualitative items listed below, each as "pass", "warn" or "fail" with a one-sentence reason quoting the article where useful.
 Return JSON: {"items":[{"id":"...","label":"...","status":"pass|warn|fail","detail":"..."}],"summary":"<2 sentences>","top_fixes":["<max 5 specific fixes, most important first>"]}`;
 
@@ -26,7 +27,8 @@ const AI_ITEMS = [
   ["intent", "Matches the search intent of the keyword"],
   ["on_title", "Every section helps answer the title; nothing off-topic"],
   ["value", "Original, actionable and solves the reader's problem"],
-  ["secondary_kw", "H2/H3s use secondary (competitor) keywords and People Also Ask questions, naturally, no stuffing"],
+  ["secondary_kw", "Secondary keywords and PAA questions in the headings read naturally, with no stuffing or repeated phrases"],
+  ["coverage", "Covers what the top competitors cover, plus what they miss, without drifting off the title"],
   ["snippets", "Optimised for featured snippets (lists, tables, Q&A)"],
   ["faq_quality", "FAQs are distinct, searched-as-asked questions that relate to the title, answered in the first sentence"],
   ["human", "Reads like a person wrote it: varied sentence starts, no AI rhythm patterns (\"not just X but Y\", threes everywhere, dramatic one-line closers)"],
@@ -46,7 +48,16 @@ export async function runQuality(articleId: string, opts: { ai?: boolean } = {})
     where: { id: articleId },
     include: { client: { select: { id: true, name: true, siteUrl: true, primaryCity: true, competitors: true, ctaLink: true, ctaText: true, brain: true } } },
   });
-  const rule = checkArticle(article, article.client);
+  const research = article.focusKeyword ? await cachedResearch(article.client.id, article.focusKeyword).catch(() => null) : null;
+  const rule = checkArticle(article, article.client, research ? { secondary: research.secondaryKeywords.map((k) => k.keyword), paa: research.paa } : null);
+  // SOP Step 1.7 / Rank Math: the focus keyword isn't the focus keyword of another post on the site.
+  if (article.focusKeyword.trim()) {
+    const dupes = await db.article.findMany({ where: { clientId: article.client.id, id: { not: article.id }, focusKeyword: { equals: article.focusKeyword.trim(), mode: "insensitive" } }, select: { metaTitle: true }, take: 3 });
+    rule.items.push({ id: "kw_unique", group: "Title & meta", label: "Focus keyword not used on another post", status: dupes.length ? "fail" : "pass", detail: dupes.length ? `Also the focus keyword of: ${dupes.map((d) => `"${d.metaTitle}"`).join(", ")}` : "Unique on this site", weight: 1.5 });
+    const value = { pass: 1, warn: 0.5, fail: 0 } as const;
+    const tw = rule.items.reduce((n, i) => n + (i.weight ?? 1), 0);
+    rule.score = Math.round((rule.items.reduce((n, i) => n + value[i.status] * (i.weight ?? 1), 0) / tw) * 100);
+  }
   const report: QualityReport = { ruleScore: rule.score, wordCount: rule.wordCount, local: rule.local, items: rule.items };
   const prev = article.qualityReport as unknown as QualityReport | null;
   const hash = createHash("sha1").update(`${article.metaTitle}|${article.metaDescription}|${article.focusKeyword}|${article.bodyHtml}`).digest("hex");

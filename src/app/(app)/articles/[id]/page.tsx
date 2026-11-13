@@ -18,7 +18,7 @@ import { dataforseoConfigured } from "@/lib/dataforseo";
 import type { ContentScore } from "@/lib/serp";
 import { NoteForm } from "./note-form";
 import { InternalLinks } from "./links";
-import { KeywordCheck, Sources } from "./research";
+import { CompetitorResearch, KeywordCheck, Sources } from "./research";
 import { clientArticles, usageIn } from "@/lib/keyword-usage";
 import { runQuality, type QualityReport } from "@/lib/quality";
 import { geminiConfigured } from "@/lib/gemini";
@@ -135,6 +135,7 @@ export default async function ArticleReview({ params, searchParams }: { params: 
           </section>
 
           {article.focusKeyword && <KeywordCheck articleId={article.id} clientId={article.clientId} keyword={article.focusKeyword} bodyHtml={article.bodyHtml} />}
+          {article.focusKeyword && !article.importedAt && <CompetitorResearch clientId={article.clientId} keyword={article.focusKeyword} bodyHtml={article.bodyHtml} />}
           <Sources sources={article.sources as never} bodyHtml={article.bodyHtml} siteUrl={article.client.siteUrl} competitors={article.client.competitors} writtenHere={!article.importedAt} />
 
           {["APPROVED", "PUSHING", "PUSHED_DRAFT", "PUSH_FAILED"].includes(article.status) && (

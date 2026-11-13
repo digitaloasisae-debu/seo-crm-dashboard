@@ -105,6 +105,17 @@ export function DeepAudit({ d }: { d: CrawlDeep }) {
               </tbody>
             </table>
           </div>
+          {d.speed.some((x) => x.mobile.screenshot) && (
+            <div className="grid grid-cols-2 gap-3 border-t border-slate-100 p-4 sm:grid-cols-3 lg:grid-cols-5">
+              {d.speed.filter((x) => x.mobile.screenshot).map((x) => (
+                <figure key={x.url} className="min-w-0 space-y-1">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={x.mobile.screenshot!} alt={`${path(x.url)} on mobile`} className="block w-full rounded-lg border border-slate-200" />
+                  <figcaption className="truncate text-xs text-slate-600">{path(x.url)} · mobile <b className={toneText(x.mobile.performance)}>{x.mobile.performance ?? "—"}</b></figcaption>
+                </figure>
+              ))}
+            </div>
+          )}
           {!d.speed.some((x) => x.mobile.field) && <p className="px-4 pb-3 text-xs text-slate-500">ℹ️ &ldquo;Real users&rdquo; is empty because Google doesn&apos;t have enough Chrome visits to this site yet to publish field data. That&apos;s normal for smaller sites; the lab scores still apply.</p>}
           {(d.speed[0]?.mobile.opportunities?.length ?? 0) > 0 && (
             <div className="border-t border-slate-100 p-4 text-sm">
