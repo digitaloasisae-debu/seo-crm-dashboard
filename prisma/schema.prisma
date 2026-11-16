@@ -376,6 +376,16 @@ model Topic {
   reviewNote        String?
   approvedById      String?
   generatedAt       DateTime    @default(now())
+  /// Researched brief (Google search + the SERP): title is the H1, angle is the direction.
+  seoTitle          String?
+  metaDescription   String?
+  /// [{heading, notes}]
+  outline           Json?
+  /// [{url, title}] pages Google Search returned while checking the facts
+  briefSources      Json?
+  briefAt           DateTime?
+  briefingAt        DateTime?
+  briefError        String?
 
   client     Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
   keywordRow Keyword? @relation(fields: [keywordId], references: [id], onDelete: SetNull)

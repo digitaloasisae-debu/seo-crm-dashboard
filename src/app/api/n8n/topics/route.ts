@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { checkN8nAuth } from "@/lib/n8n";
 import { linkIdeas } from "@/lib/keyword-usage";
 import { getSop } from "@/lib/sop";
+import { briefText } from "@/lib/topic-brief";
 
 // GET /api/n8n/topics?client={id}&status=approved&has_article=false&limit=10
 // (replaces "Get row(s) in sheet" + "Filter & Select Keyword" in WF2)
@@ -46,6 +47,12 @@ export async function GET(req: NextRequest) {
       topic: t.title,
       angle: t.angle ?? "",
       category: t.category ?? "",
+      // Researched brief (empty until it's done): the writer follows it.
+      h1: t.title,
+      seo_title: t.seoTitle ?? "",
+      meta_description: t.metaDescription ?? "",
+      outline: t.outline ?? [],
+      brief: briefText(t),
       internal_link_suggestions: links[i].map((l) => ({ url: l.url, anchor: l.anchor, title: l.title })),
       recent_blogs: recentBy.get(t.clientId) ?? [],
       sop,

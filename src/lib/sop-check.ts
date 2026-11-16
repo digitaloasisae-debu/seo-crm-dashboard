@@ -2,6 +2,7 @@
  * Rule-based SOP checks for an article (everything that can be measured without AI).
  * Mirrors Hamza's SOP 1 (general, updated 12 Nov 2026 with the Blog Writing SOP) and SOP 2 (local, when the client has a primary city).
  */
+import { isEventTopic, yearRule, yearsIn } from "./year";
 import { parse, type HTMLElement } from "node-html-parser";
 
 export type CheckStatus = "pass" | "warn" | "fail";
@@ -17,7 +18,7 @@ export type ArticleInput = {
 };
 export type ClientInput = { siteUrl: string; primaryCity: string | null; competitors: string[]; ctaLink: string | null; ctaText: string | null; linkPool?: string[] };
 /** SOP Step 1 research for the focus keyword (Rankflow's cached Google research), when there is one. */
-export type ResearchInput = { secondary: string[]; paa: string[] } | null;
+export type ResearchInput = { secondary: string[]; paa: string[]; paaForHeadings?: string[]; paaForFaq?: string[] } | null;
 
 const STOP = new Set("a an the and or of to in on for with is are do does can how what when why which who your you my i it its be by at from vs".split(" "));
 const content = (s: string) => words(s).filter((w) => !STOP.has(w) && w.length > 1);
@@ -57,6 +58,9 @@ function syllables(w: string) {
   const m = w.match(/[aeiouy]{1,2}/g);
   return Math.max(1, m ? m.length : 1);
 }
+const STOP_TOPIC = new Set("best guide tips ways steps step quick easy dubai with your that this from what when where which their have will 2025 2026 2027 more most into secrets reasons how".split(" "));
+const stem = (w: string) => w.replace(/(ing|ers|er|es|s)$/, "");
+const PROMISE = /\b(\d{1,2})\s+(?:[a-z-]+\s+){0,6}?(tips|steps|ways|secrets|reasons|mistakes|signs|strategies|ideas|questions|things|tricks|hacks|factors|benefits|rules|red flags|lessons|tools|methods|examples|myths|trends|checks|stages|types|habits|keys|pillars)\b/i;
 const item = (id: string, group: string, label: string, status: CheckStatus, detail: string, weight = 1): CheckItem => ({ id, group, label, status, detail, weight });
 const band = (v: number, passLo: number, passHi: number, warnLo: number, warnHi: number): CheckStatus => (v >= passLo && v <= passHi ? "pass" : v >= warnLo && v <= warnHi ? "warn" : "fail");
 
@@ -93,8 +97,25 @@ export function checkArticle(a: ArticleInput, c: ClientInput, research: Research
   const md = (a.metaDescription || "").trim();
   const mdStatus: CheckStatus = !md ? "fail" : md.length >= 150 && md.length <= 160 && hasKeyword(md, kw) ? "pass" : md.length >= 120 && md.length <= 175 ? "warn" : "fail";
   items.push(item("meta_desc", "Title & meta", "Meta description 150–160 characters with the keyword", mdStatus, md ? `${md.length} characters${hasKeyword(md, kw) ? "" : ", keyword missing"}` : "Missing"));
-  const oldYears = [...new Set((`${a.metaTitle} ${text}`.match(/\b(2019|2020|2021|2022|2023|2024|2025)\b/g) ?? []))];
-  items.push(item("year_rule", "Title & meta", "Uses 2026 as the current year (older years only for comparisons)", oldYears.length === 0 ? "pass" : "warn", oldYears.length ? `Mentions ${oldYears.join(", ")}. Fine only if it's historical data.` : "No outdated years"));
+  const yr = yearRule();
+  const oldYears = yearsIn(`${a.metaTitle} ${text}`).filter((y) => y < yr.current);
+  if (yr.yearEnd) {
+    // Nov–Dec: no year in the title, SEO title or slug; the content targets next year.
+    // Exceptions: a year that's part of the focus keyword ("Dubai Shopping Festival 2026–27"), and dated events.
+    const kwYears = yearsIn(kw);
+    const event = isEventTopic(`${kw} ${h1}`);
+    const titleYears = yearsIn(`${a.metaTitle} ${h1}`);
+    const slugYears = yearsIn(a.slug || "").filter((y) => !kwYears.includes(y));
+    const extra = titleYears.filter((y) => !kwYears.includes(y));
+    const missingKwYear = kwYears.filter((y) => !titleYears.includes(y));
+    const titleOk = (event || extra.length === 0) && missingKwYear.length === 0 && slugYears.length === 0;
+    items.push(item("year_title", "Title & meta", kwYears.length ? "Title keeps the keyword's year" : event ? "Event topic: its year may stay in the title" : "No year in the title, SEO title or slug (November–December rule)", titleOk ? "pass" : "fail",
+      missingKwYear.length ? `The keyword has ${missingKwYear.join(", ")}; keep it in the title as written.` : slugYears.length ? `Slug has ${slugYears.join(", ")}. Slugs never carry a year.` : extra.length && !event ? `Title has ${extra.join(", ")}. Remove the year until January.` : kwYears.length ? "Keyword's year is in the title" : event ? "Dated event, year allowed" : "No year in the title", 1.5));
+    const targets = yearsIn(text).includes(yr.target);
+    items.push(item("year_rule", "Content", `Content targets ${yr.target} (older years only for comparisons)`, targets && !oldYears.length ? "pass" : "warn", !targets ? `${yr.target} isn't mentioned. Frame the plan, trends or prices for ${yr.target}.` : `Mentions ${oldYears.join(", ")}. Fine only if it's past data.`));
+  } else {
+    items.push(item("year_rule", "Title & meta", `Uses ${yr.current} as the current year (older years only for comparisons)`, oldYears.length === 0 ? "pass" : "warn", oldYears.length ? `Mentions ${oldYears.join(", ")}. Fine only if it's historical data.` : "No outdated years"));
+  }
 
   // --- Body ---
   items.push(item("word_count", "Content", "1,000–2,000 words (the brief's length)", wc >= 1000 && wc <= 2200 ? "pass" : wc >= 800 ? "warn" : "fail", `${wc.toLocaleString()} words`, 2));
@@ -170,13 +191,25 @@ export function checkArticle(a: ArticleInput, c: ClientInput, research: Research
       const inHead = research.paa.filter((q) => subs.some((h) => overlaps(h, q)));
       // Same split as the research heading plan: some PAA in subheadings, keeping at least 5 for the FAQ.
       const n = research.paa.length;
-      const need = Math.min(2, Math.min(4, Math.max(n >= 6 ? 2 : n >= 4 ? 1 : 0, n - 5)));
+      // With a topic plan, only the PAA questions that fit this article's topic count.
+      const need = research.paaForHeadings ? Math.min(2, research.paaForHeadings.length) : Math.min(2, Math.min(4, Math.max(n >= 6 ? 2 : n >= 4 ? 1 : 0, n - 5)));
       if (need > 0) items.push(item("paa_headings", "Headings", "People Also Ask questions used as subheadings", inHead.length >= need ? "pass" : inHead.length ? "warn" : "fail", inHead.length ? `${inHead.length} of ${n} PAA questions` : "No PAA question in the H2/H3s", 1.5));
       const faqQs = faqStart ? root.querySelectorAll("h3,h4,strong,b").filter((h) => h.range[0] > faqAt && h.textContent.trim().endsWith("?")).map((h) => h.textContent.trim()) : [];
-      const rest = research.paa.filter((q) => !inHead.includes(q));
+      const rest = (research.paaForFaq ?? research.paa).filter((q) => !inHead.includes(q));
       const inFaq = rest.filter((q) => faqQs.some((f) => overlaps(f, q)));
       if (rest.length) items.push(item("paa_faq", "Structure", "Remaining PAA questions used in the FAQ", inFaq.length >= Math.min(3, rest.length) ? "pass" : inFaq.length ? "warn" : "fail", `${inFaq.length} of ${rest.length} remaining PAA questions are in the FAQ`, 1.5));
     }
+  }
+
+  // The title is a promise: "7 Tips" needs 7 numbered points in the body (before the FAQ).
+  const promise = `${a.metaTitle} ${h1}`.match(PROMISE);
+  if (promise) {
+    const want = Number(promise[1]);
+    const faqPos = faqStart ? faqStart.range[0] : Infinity;
+    const numbered = root.querySelectorAll("h2,h3,h4").filter((h) => h.range[0] < faqPos && /^\s*(?:(?:step|tip|no\.?|#)\s*)?\d{1,2}\s*[.):\-–—]/i.test(h.textContent)).length;
+    const listed = root.querySelectorAll("ol").filter((o) => o.range[0] < faqPos).map((o) => o.querySelectorAll(":scope > li").length).filter((n) => n === want).length;
+    const ok = numbered === want || (numbered === 0 && listed > 0);
+    items.push(item("title_promise", "Headings", `Body delivers the "${promise[0]}" the title promises`, ok ? "pass" : numbered > 0 && Math.abs(numbered - want) <= 1 ? "warn" : "fail", ok ? `${want} numbered points` : `Title promises ${want} ${promise[2].toLowerCase()}, the body has ${numbered} numbered heading${numbered === 1 ? "" : "s"}`, 2));
   }
 
   // --- Links ---
@@ -189,6 +222,18 @@ export function checkArticle(a: ArticleInput, c: ClientInput, research: Research
   const introHtml = root.querySelector("p");
   const introHasLink = !!introHtml?.querySelectorAll("a[href]").some((x) => isInternal(x.getAttribute("href") || ""));
   items.push(item("intro_link", "Links", "First internal link in the intro paragraph", introHasLink ? "pass" : "warn", introHasLink ? "Intro has an internal link" : "No internal link in the first paragraph"));
+  // SOP: the intro links the service page for THIS topic, not the general services page or the home page.
+  const introLink = introHtml?.querySelectorAll("a[href]").find((x) => isInternal(x.getAttribute("href") || ""));
+  if (introLink) {
+    const href = introLink.getAttribute("href") || "";
+    const path = (() => { try { return new URL(href, c.siteUrl || "https://x.invalid").pathname; } catch { return href; } })();
+    const segs = path.split("/").filter(Boolean);
+    const generic = segs.length === 0 || (segs.length === 1 && /^(services?|our-services|solutions|blog|about(-us)?|contact(-us)?|home)$/i.test(segs[0]));
+    const topicWords = new Set(words(`${kw} ${h1}`).filter((w) => w.length > 3 && !STOP_TOPIC.has(w)).map(stem));
+    const pathWords = words(segs.join(" ").replace(/[-_]/g, " ")).map(stem);
+    const fits = pathWords.some((w) => topicWords.has(w));
+    items.push(item("intro_link_topic", "Links", "Intro links the service page for this topic", generic ? "fail" : fits ? "pass" : "warn", generic ? `Links to a general page (${path}). Link the service page that matches this blog instead.` : fits ? `Links ${path}` : `Links ${path}, which doesn't look related to the topic`, 1.5));
+  }
   const badAnchors = internal.filter((l) => { const n = words(l.text).length; return n < 2 || n > 4; });
   items.push(item("anchors", "Links", "Internal anchor text is 2–3 words", internal.length === 0 ? "warn" : badAnchors.length === 0 ? "pass" : badAnchors.length <= 2 ? "warn" : "fail", badAnchors.length ? `${badAnchors.length} anchor${badAnchors.length > 1 ? "s" : ""} outside 2–3 words` : "Anchors look good"));
   const kwAnchors = internal.filter((l) => norm(l.text) === norm(kw) || (norm(kw).length > 3 && norm(l.text).includes(norm(kw)))).length;
@@ -247,7 +292,9 @@ export function checkArticle(a: ArticleInput, c: ClientInput, research: Research
   if (city) {
     const lastText = paras.slice(-2).join(" ");
     const introText = paras.slice(0, 2).join(" ");
-    items.push(item("local_title", "Local SEO", `City "${city}" and 2026 in the title`, hasKeyword(h1, city) && /2026/.test(h1) ? "pass" : hasKeyword(h1, city) ? "warn" : "fail", `H1: "${h1}"`, 1.5));
+    const yrL = yearRule();
+    const yearOk = yrL.titleYear && !yearsIn(kw).length ? new RegExp(`\\b${yrL.current}\\b`).test(h1) : true;
+    items.push(item("local_title", "Local SEO", yrL.titleYear ? `City "${city}" and ${yrL.current} in the title` : `City "${city}" in the title (no year until January)`, hasKeyword(h1, city) && yearOk ? "pass" : hasKeyword(h1, city) ? "warn" : "fail", `H1: "${h1}"`, 1.5));
     items.push(item("local_intro", "Local SEO", "City named in the intro", hasKeyword(introText, city) ? "pass" : "fail", hasKeyword(introText, city) ? "Found" : "Not in the first paragraphs"));
     const h2City = h2s.filter((h) => hasKeyword(h, city)).length;
     items.push(item("local_h2", "Local SEO", "City named in H2 headings", h2City >= 1 ? "pass" : "fail", `${h2City} of ${h2s.length} H2s mention ${city}`));

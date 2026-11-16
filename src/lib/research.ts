@@ -10,7 +10,7 @@ import { db } from "./db";
 import { dfsPost } from "./dataforseo";
 import { rankLocation } from "./rank";
 import { geminiConfigured, geminiJson } from "./gemini";
-import { resolveGoogleLink } from "./serp";
+import { readViaDataForSeo, resolveGoogleLink } from "./serp";
 
 const CACHE_DAYS = 14;
 const UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36";
@@ -67,7 +67,9 @@ async function fetchResearch(keyword: string, clientId: string): Promise<Researc
   const relatedSearches = [...new Set(items.filter((i) => i.type === "related_searches").flatMap((i) => (i.items ?? []).map((q) => (typeof q === "string" ? q : q.title ?? "").trim())).filter(Boolean))].slice(0, 10);
 
   const competitors: ResearchCompetitor[] = await Promise.all(organic.map(async (o) => {
-    const [page, kws] = await Promise.all([readHeadings(o.url!), rankedKeywords(o.url!, country)]);
+    const [direct, kws] = await Promise.all([readHeadings(o.url!), rankedKeywords(o.url!, country)]);
+    // Blocked or JavaScript-only pages: read them through DataForSEO's crawler instead.
+    const page = direct && direct.words > 150 ? direct : await readViaDataForSeo(o.url!).then((d) => (d ? { h2: d.h2.slice(0, 20), h3: d.h3.slice(0, 25), words: d.text.split(/\s+/).length, excerpt: d.text.slice(0, 2500) } : direct));
     return { url: o.url!, title: o.title ?? "", position: o.rank_group ?? 0, words: page?.words ?? 0, h2: page?.h2 ?? [], h3: page?.h3 ?? [], excerpt: page?.excerpt ?? "", keywords: kws.slice(0, 25) };
   }));
 
@@ -110,6 +112,75 @@ Return JSON: {"reviews":[{"n":1,"review":"..."}],"gaps":["..."]}`,
   } catch {
     return { gaps: [] as string[] };
   }
+}
+
+export type TopicPlan = HeadingPlan & { topic: string; outline: string[]; dropped: string[] };
+
+/**
+ * The heading plan for ONE article: research is per keyword, but which PAA questions and competitor keywords fit
+ * depends on the article's own topic. "Digital marketing agency dubai" brings PAA like "what is the 1% rule in marketing?",
+ * which has no place in a blog on how to hire an agency. Gemini keeps only the ones that fit; cached per topic.
+ */
+export async function topicPlan(topic: { id: string; title: string; angle?: string | null }, r: Research, opts: { refresh?: boolean } = {}): Promise<TopicPlan> {
+  const key = { keyword: `plan:${topic.id}`, location: r.location };
+  if (!opts.refresh) {
+    const hit = await db.serpBenchmark.findUnique({ where: { keyword_location: key } });
+    if (hit && (hit.data as unknown as TopicPlan).topic === topic.title) return hit.data as unknown as TopicPlan;
+  }
+  const base = headingPlan(r.paa, r.secondaryKeywords.map((k) => k.keyword));
+  let plan: TopicPlan = { ...base, topic: topic.title, outline: [], dropped: [] };
+  if (geminiConfigured() && (r.paa.length || r.secondaryKeywords.length)) {
+    try {
+      const out = await geminiJson<{ paa_headings: string[]; paa_faq: string[]; secondary: string[]; outline: string[] }>(
+        `ARTICLE TOPIC: ${topic.title}${topic.angle ? `\nANGLE: ${topic.angle}` : ""}\nFOCUS KEYWORD: ${r.keyword}\n\nPEOPLE ALSO ASK (Google):\n${r.paa.map((q) => `- ${q}`).join("\n") || "(none)"}\n\nKEYWORDS COMPETITOR PAGES RANK FOR:\n${r.secondaryKeywords.map((k) => `- ${k.keyword}`).join("\n") || "(none)"}\n\nCOMPETITOR H2s:\n${r.competitors.flatMap((c) => c.h2).slice(0, 30).map((h) => `- ${h}`).join("\n") || "(none)"}`,
+        {
+          system: `You plan the headings of one blog article for an SEO writer. Keep ONLY items a reader of THIS article's topic and angle would expect it to answer.
+Drop anything about a different subject that merely shares words with the keyword (salaries, definitions of unrelated marketing rules, other services, other countries, brand names of competitors).
+- paa_headings: up to 2 People Also Ask questions (copied exactly) that fit as H2/H3 subheadings of this article.
+- paa_faq: People Also Ask questions (copied exactly) that fit the FAQ of this article, not already in paa_headings.
+- secondary: up to 5 competitor keywords (copied exactly) that fit naturally into this article's subheadings.
+- outline: 4–7 H2 headings for this article, in order, that deliver the topic (if the topic implies a number of tips/steps, make each one a numbered point).
+Return JSON: {"paa_headings":[],"paa_faq":[],"secondary":[],"outline":[]}`,
+          timeoutMs: 40_000,
+          temperature: 0.2,
+        },
+      );
+      if (!Array.isArray(out.paa_faq) && !Array.isArray(out.paa_headings) && !Array.isArray(out.secondary)) throw new Error("Gemini returned no plan");
+      const pick = (xs: string[] | undefined, from: string[]) => (xs ?? []).map((x) => from.find((f) => f.toLowerCase().trim() === String(x).toLowerCase().trim())).filter((x): x is string => !!x);
+      const secAll = r.secondaryKeywords.map((k) => k.keyword);
+      const head = pick(out.paa_headings, r.paa).slice(0, 2);
+      const faq = pick(out.paa_faq, r.paa).filter((q) => !head.includes(q));
+      const sec = pick(out.secondary, secAll).slice(0, 5);
+      plan = {
+        topic: topic.title, paaForHeadings: head, paaForFaq: faq, secondaryForHeadings: sec,
+        outline: (out.outline ?? []).map(String).filter(Boolean).slice(0, 8),
+        dropped: [...r.paa.filter((q) => !head.includes(q) && !faq.includes(q)), ...secAll.filter((k) => !sec.includes(k))],
+      };
+    } catch (e) {
+      console.error("topic_plan_failed", topic.id, e);
+    }
+  }
+  await db.serpBenchmark.upsert({ where: { keyword_location: key }, create: { ...key, data: plan as unknown as Prisma.InputJsonValue }, update: { data: plan as unknown as Prisma.InputJsonValue, fetchedAt: new Date() } });
+  return plan;
+}
+
+/** The saved plan for an article's topic, if there is one (never calls Gemini). */
+export async function cachedTopicPlan(topicId: string | null | undefined) {
+  if (!topicId) return null;
+  const hit = await db.serpBenchmark.findFirst({ where: { keyword: `plan:${topicId}` }, orderBy: { fetchedAt: "desc" } });
+  return hit ? (hit.data as unknown as TopicPlan) : null;
+}
+
+/** Heading plan lines for the writer, from a topic plan. */
+export function planBrief(p: TopicPlan) {
+  const lines = [`\nHEADING PLAN FOR THIS ARTICLE (only what fits the topic "${p.topic}"; this replaces the keyword-level heading plan above)`];
+  if (p.outline.length) lines.push(`- Suggested H2 outline: ${p.outline.join(" | ")}`);
+  if (p.secondaryForHeadings.length) lines.push(`- Competitor keywords for H2/H3s: ${p.secondaryForHeadings.join(", ")}`);
+  if (p.paaForHeadings.length) lines.push(`- People Also Ask questions as H2/H3s: ${p.paaForHeadings.join(" | ")}`);
+  if (p.paaForFaq.length) lines.push(`- People Also Ask questions for the FAQ (add your own on-topic questions to reach 5): ${p.paaForFaq.join(" | ")}`);
+  if (p.dropped.length) lines.push(`- Do NOT use these (off-topic for this article): ${p.dropped.slice(0, 15).join(" | ")}`);
+  lines.push(`- If the title has a number ("7 Tips"), the body must have exactly that many numbered H2/H3 points (1., 2., 3. …).`);
+  return lines.join("\n");
 }
 
 /** Research already saved for this keyword (never calls DataForSEO). */

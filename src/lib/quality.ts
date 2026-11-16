@@ -5,7 +5,7 @@ import { db } from "./db";
 import { checkArticle, type CheckItem } from "./sop-check";
 import { geminiConfigured, geminiJson } from "./gemini";
 import { getSop } from "./sop";
-import { cachedResearch } from "./research";
+import { cachedResearch, cachedTopicPlan } from "./research";
 
 export type QualityReport = {
   ruleScore: number;
@@ -49,7 +49,11 @@ export async function runQuality(articleId: string, opts: { ai?: boolean } = {})
     include: { client: { select: { id: true, name: true, siteUrl: true, primaryCity: true, competitors: true, ctaLink: true, ctaText: true, brain: true } } },
   });
   const research = article.focusKeyword ? await cachedResearch(article.client.id, article.focusKeyword).catch(() => null) : null;
-  const rule = checkArticle(article, article.client, research ? { secondary: research.secondaryKeywords.map((k) => k.keyword), paa: research.paa } : null);
+  // The topic's own plan (only PAA and competitor keywords that fit this article) wins over the keyword-level research.
+  const plan = research ? await cachedTopicPlan(article.topicId).catch(() => null) : null;
+  const rule = checkArticle(article, article.client, research ? (plan
+    ? { secondary: plan.secondaryForHeadings, paa: [...plan.paaForHeadings, ...plan.paaForFaq], paaForHeadings: plan.paaForHeadings, paaForFaq: plan.paaForFaq }
+    : { secondary: research.secondaryKeywords.map((k) => k.keyword), paa: research.paa }) : null);
   // SOP Step 1.7 / Rank Math: the focus keyword isn't the focus keyword of another post on the site.
   if (article.focusKeyword.trim()) {
     const dupes = await db.article.findMany({ where: { clientId: article.client.id, id: { not: article.id }, focusKeyword: { equals: article.focusKeyword.trim(), mode: "insensitive" } }, select: { metaTitle: true }, take: 3 });

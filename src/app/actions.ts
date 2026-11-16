@@ -154,6 +154,41 @@ export async function setAssignmentAction(clientId: string, fd: FormData) {
   revalidatePath(`/clients/${clientId}`, "layout");
 }
 
+/** Team page: give one member several clients at once. */
+export async function assignClientsAction(fd: FormData) {
+  const admin = await requireAdmin();
+  const userId = str(fd, "userId");
+  const clientIds = fd.getAll("clientId").map(String).filter(Boolean);
+  const access = str(fd, "access") as AccessLevel | "REMOVE";
+  if (!userId) throw new Error("Pick a team member");
+  if (!clientIds.length) throw new Error("Tick at least one client");
+  const member = await db.user.findUniqueOrThrow({ where: { id: userId }, select: { role: true } });
+  if (member.role === "SUPER_ADMIN") throw new Error("The Super Admin already sees every client");
+  for (const clientId of clientIds) {
+    if (access === "REMOVE") await db.clientAssignment.deleteMany({ where: { clientId, userId } });
+    else {
+      if (access === "OWNER") await db.clientAssignment.updateMany({ where: { clientId, access: "OWNER", userId: { not: userId } }, data: { access: "EDIT" } });
+      const data = { access, grantedById: admin.id, expiresAt: null };
+      await db.clientAssignment.upsert({ where: { clientId_userId: { clientId, userId } }, create: { clientId, userId, ...data }, update: data });
+    }
+    await logActivity({ actorId: admin.id, clientId, action: "assignment.set", entity: "client", entityId: clientId, after: { userId, access } });
+  }
+  revalidatePath("/", "layout");
+}
+
+/** Team page: set the one owner of a client. The previous owner keeps Edit access. */
+export async function setClientOwnerAction(clientId: string, fd: FormData) {
+  const admin = await requireAdmin();
+  const userId = str(fd, "ownerId");
+  await db.clientAssignment.updateMany({ where: { clientId, access: "OWNER", ...(userId ? { userId: { not: userId } } : {}) }, data: { access: "EDIT" } });
+  if (userId) {
+    const data = { access: "OWNER" as AccessLevel, grantedById: admin.id, expiresAt: null };
+    await db.clientAssignment.upsert({ where: { clientId_userId: { clientId, userId } }, create: { clientId, userId, ...data }, update: data });
+  }
+  await logActivity({ actorId: admin.id, clientId, action: "assignment.owner", entity: "client", entityId: clientId, after: { userId: userId || null } });
+  revalidatePath("/", "layout");
+}
+
 export async function removeAssignmentAction(clientId: string, userId: string) {
   const admin = await requireAdmin();
   await db.clientAssignment.deleteMany({ where: { clientId, userId } });
@@ -207,9 +242,27 @@ export async function deleteKeywordsAction(clientId: string, fd: FormData) {
   await requireClientAccess(user, clientId, "edit");
   const selected = ids(fd);
   if (!selected.length) return;
-  await db.keyword.deleteMany({ where: { id: { in: selected }, clientId, used: false } });
-  await logActivity({ actorId: user.id, clientId, action: "keyword.delete", entity: "keyword", entityId: selected.join(",") });
+  // Super admin can delete any keyword; others only keywords no topic has used yet. Topics keep their keyword text.
+  const where = { id: { in: selected }, clientId, ...(user.role === "SUPER_ADMIN" ? {} : { used: false }) };
+  const gone = await db.keyword.findMany({ where, select: { keyword: true } });
+  await db.keyword.deleteMany({ where });
+  await logActivity({ actorId: user.id, clientId, action: "keyword.delete", entity: "keyword", entityId: selected.join(","), before: { keywords: gone.map((k) => k.keyword) } });
   revalidatePath(`/clients/${clientId}/keywords`);
+}
+
+/** Super admin only. A topic that already has an article is removed, but the article stays. */
+export async function deleteTopicsAction(clientId: string, fd: FormData) {
+  const user = await requireUser();
+  if (user.role !== "SUPER_ADMIN") throw new Error("Only the super admin can delete topics");
+  const selected = ids(fd);
+  if (!selected.length) return;
+  const gone = await db.topic.findMany({ where: { id: { in: selected }, clientId }, select: { id: true, title: true } });
+  await db.$transaction([
+    db.article.updateMany({ where: { topicId: { in: gone.map((t) => t.id) } }, data: { topicId: null } }),
+    db.topic.deleteMany({ where: { id: { in: gone.map((t) => t.id) } } }),
+  ]);
+  await logActivity({ actorId: user.id, clientId, action: "topic.delete", entity: "topic", entityId: selected.join(","), before: { titles: gone.map((t) => t.title) } });
+  revalidatePath(`/clients/${clientId}/topics`);
 }
 
 // ---------- Topics ----------
@@ -233,10 +286,28 @@ export async function editTopicAction(topicId: string, fd: FormData) {
   await requireClientAccess(user, topic.clientId, "edit");
   const after = await db.topic.update({
     where: { id: topicId },
-    data: { title: str(fd, "title"), angle: str(fd, "angle") || null, category: str(fd, "category") || null, status: "GENERATED" },
+    data: {
+      title: str(fd, "title"), angle: str(fd, "angle") || null, category: str(fd, "category") || null, status: "GENERATED",
+      ...(fd.has("seoTitle") ? { seoTitle: str(fd, "seoTitle") || null, metaDescription: str(fd, "metaDescription") || null } : {}),
+      // One H2 per line; "Heading — notes" keeps the notes.
+      ...(fd.has("outline") ? { outline: str(fd, "outline").split(/\n+/).map((l) => l.trim()).filter(Boolean).map((l) => { const [h, ...n] = l.replace(/^\d+[.)]\s*/, "").split(/\s+[—–]\s+/); return { heading: h.trim(), notes: n.join(" — ").trim() }; }) } : {}),
+    },
   });
   await logActivity({ actorId: user.id, clientId: topic.clientId, action: "topic.edit", entity: "topic", entityId: topicId, before: topic, after });
   revalidatePath(`/clients/${topic.clientId}/topics`);
+}
+
+/** Research and rewrite topic briefs (Google Search + the SERP). Runs in the background, 30–90 seconds each. */
+export async function briefTopicsAction(clientId: string, fd: FormData) {
+  const user = await requireUser();
+  await requireClientAccess(user, clientId, "edit");
+  const selected = ids(fd).length ? ids(fd) : [str(fd, "topicId")].filter(Boolean);
+  const topics = await db.topic.findMany({ where: { id: { in: selected }, clientId, article: { is: null } }, select: { id: true } });
+  if (!topics.length) return;
+  await db.topic.updateMany({ where: { id: { in: topics.map((t) => t.id) } }, data: { briefingAt: new Date(), briefError: null } });
+  const { briefTopics } = await import("@/lib/topic-brief");
+  afterResponse(() => briefTopics(topics.map((t) => t.id)));
+  revalidatePath(`/clients/${clientId}/topics`);
 }
 
 export async function runN8nAction(clientId: string, which: "WF1" | "WF2") {
@@ -333,8 +404,10 @@ export async function contentScoreAction(articleId: string, refresh: boolean, _p
     // A new focus keyword has no Google research yet (competitor reviews, PAA plan): fetch it in the background.
     const { cachedResearch, getResearch } = await import("@/lib/research");
     const kw = article.focusKeyword;
-    if (kw.trim().split(/\s+/).length >= 2 && !(await cachedResearch(article.clientId, kw).catch(() => null))) {
-      afterResponse(() => getResearch(article.clientId, kw).then(() => runQuality(articleId)).then(() => undefined).catch((e) => console.error("research_failed", articleId, e)));
+    const cached = await cachedResearch(article.clientId, kw).catch(() => null);
+    // No research yet for this keyword, or research with no competitor pages (older runs couldn't open Google's redirect links).
+    if (kw.trim().split(/\s+/).length >= 2 && (!cached || (refresh && cached.competitors.length === 0))) {
+      afterResponse(() => getResearch(article.clientId, kw, { refresh: !!cached }).then(() => runQuality(articleId)).then(() => undefined).catch((e) => console.error("research_failed", articleId, e)));
     }
   } catch (e) {
     return e instanceof Error ? e.message : String(e);

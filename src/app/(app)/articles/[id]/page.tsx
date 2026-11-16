@@ -135,7 +135,7 @@ export default async function ArticleReview({ params, searchParams }: { params: 
           </section>
 
           {article.focusKeyword && <KeywordCheck articleId={article.id} clientId={article.clientId} keyword={article.focusKeyword} bodyHtml={article.bodyHtml} />}
-          {article.focusKeyword && !article.importedAt && <CompetitorResearch clientId={article.clientId} keyword={article.focusKeyword} bodyHtml={article.bodyHtml} />}
+          {article.focusKeyword && !article.importedAt && <CompetitorResearch clientId={article.clientId} keyword={article.focusKeyword} bodyHtml={article.bodyHtml} topicId={article.topicId} />}
           <Sources sources={article.sources as never} bodyHtml={article.bodyHtml} siteUrl={article.client.siteUrl} competitors={article.client.competitors} writtenHere={!article.importedAt} />
 
           {["APPROVED", "PUSHING", "PUSHED_DRAFT", "PUSH_FAILED"].includes(article.status) && (

@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { DataTable } from "@/components/data-table";
 import { db } from "@/lib/db";
 import { requireAdmin } from "@/lib/session";
@@ -13,7 +14,7 @@ export default async function UsersPage() {
 
   return (
     <>
-      <PageHeader title="Team" subtitle="Admins can request access to other members' clients. Members only see their assigned clients." />
+      <PageHeader title="Team" subtitle="Members only see the clients assigned to them." actions={<Link href="/users/assign" className="btn-primary">Assign clients</Link>} />
       <form action={createUserAction} className="card mb-8 grid gap-4 md:grid-cols-5 md:items-end">
         <Field label="Name"><input className="input" name="name" required /></Field>
         <Field label="Email"><input className="input" name="email" type="email" required /></Field>
@@ -31,6 +32,7 @@ export default async function UsersPage() {
             id: u.id,
             values: { name: u.name, email: u.email, role: u.role.replace("_", " ").toLowerCase(), active: u.active ? "active" : "inactive", clients: u._count.assignments, edit: "" },
             cells: {
+              clients: u.role === "SUPER_ADMIN" ? <span className="text-xs text-slate-500">all</span> : <Link href={`/users/assign?member=${u.id}`} className="text-indigo-600 hover:underline">{u._count.assignments} · assign</Link>,
               name: <span className="font-medium">{u.name}</span>,
               role: <span className="text-xs capitalize">{u.role.replace("_", " ").toLowerCase()}</span>,
               edit: !isSuper && u.role === "SUPER_ADMIN" ? <span className="text-xs text-slate-500">super admin</span> : (

@@ -124,11 +124,12 @@ export async function KeywordCheck({ articleId, clientId, keyword, bodyHtml }: {
 }
 
 /** SOP Step 1: the Google research the blog was written from (competitor reviews, their keywords, PAA plan). */
-export async function CompetitorResearch({ clientId, keyword, bodyHtml }: { clientId: string; keyword: string; bodyHtml: string }) {
-  const { cachedResearch, headingPlan } = await import("@/lib/research");
+export async function CompetitorResearch({ clientId, keyword, bodyHtml, topicId }: { clientId: string; keyword: string; bodyHtml: string; topicId?: string | null }) {
+  const { cachedResearch, cachedTopicPlan, headingPlan } = await import("@/lib/research");
   const r = await cachedResearch(clientId, keyword).catch(() => null);
   if (!r) return null;
-  const plan = r.plan ?? headingPlan(r.paa, r.secondaryKeywords.map((k) => k.keyword));
+  const tp = await cachedTopicPlan(topicId).catch(() => null);
+  const plan = tp ?? r.plan ?? headingPlan(r.paa, r.secondaryKeywords.map((k) => k.keyword));
   const heads = [...bodyHtml.matchAll(/<h[23][^>]*>([\s\S]*?)<\/h[23]>/gi)].map((m) => m[1].replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim().toLowerCase());
   const inHeads = (k: string) => heads.some((h) => k.toLowerCase().split(/\s+/).filter((w) => w.length > 2).every((w) => h.includes(w)));
   return (
@@ -153,6 +154,12 @@ export async function CompetitorResearch({ clientId, keyword, bodyHtml }: { clie
           <ul className="list-disc space-y-0.5 pl-5 text-sm text-slate-700">{r.gaps.map((g) => <li key={g}>{g}</li>)}</ul>
         </div>
       )}
+      {tp && tp.outline.length > 0 && (
+        <div>
+          <div className="mb-1 text-xs font-medium text-slate-500">Suggested outline for this topic</div>
+          <ol className="list-decimal space-y-0.5 pl-5 text-sm text-slate-700">{tp.outline.map((h) => <li key={h}>{h}</li>)}</ol>
+        </div>
+      )}
       {plan.secondaryForHeadings.length > 0 && (
         <div>
           <div className="mb-1 text-xs font-medium text-slate-500">Competitor keywords for the subheadings</div>
@@ -170,6 +177,12 @@ export async function CompetitorResearch({ clientId, keyword, bodyHtml }: { clie
             <ul className="space-y-0.5 text-sm text-slate-700">{plan.paaForFaq.map((q) => <li key={q}>{q}</li>)}</ul>
           </div>
         </div>
+      )}
+      {tp && tp.dropped.length > 0 && (
+        <details className="text-xs text-slate-500">
+          <summary className="cursor-pointer">Left out as off-topic for this blog ({tp.dropped.length})</summary>
+          <p className="mt-1">{tp.dropped.join(" · ")}</p>
+        </details>
       )}
     </section>
   );
