@@ -134,7 +134,7 @@ export default async function KeywordsPage({ params, searchParams }: { params: P
             <>
               <SubmitButton data-celebrate="approved" formAction={setKeywordStatusAction.bind(null, id, "APPROVED")} className="btn-primary px-3 py-1.5 text-xs">Approve</SubmitButton>
               <SubmitButton formAction={setKeywordStatusAction.bind(null, id, "REJECTED")} className="btn-danger px-3 py-1.5 text-xs">Reject</SubmitButton>
-              <SubmitButton formAction={deleteKeywordsAction.bind(null, id)} className="btn-secondary px-3 py-1.5 text-xs">Delete (unused only)</SubmitButton>
+              <SubmitButton formAction={deleteKeywordsAction.bind(null, id)} className={user.role === "SUPER_ADMIN" ? "btn-danger px-3 py-1.5 text-xs" : "btn-secondary px-3 py-1.5 text-xs"}>{user.role === "SUPER_ADMIN" ? "Delete" : "Delete (unused only)"}</SubmitButton>
             </>
           ) : undefined}
         />

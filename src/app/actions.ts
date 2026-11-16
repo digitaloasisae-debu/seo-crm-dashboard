@@ -207,9 +207,27 @@ export async function deleteKeywordsAction(clientId: string, fd: FormData) {
   await requireClientAccess(user, clientId, "edit");
   const selected = ids(fd);
   if (!selected.length) return;
-  await db.keyword.deleteMany({ where: { id: { in: selected }, clientId, used: false } });
-  await logActivity({ actorId: user.id, clientId, action: "keyword.delete", entity: "keyword", entityId: selected.join(",") });
+  // Super admin can delete any keyword; others only keywords no topic has used yet. Topics keep their keyword text.
+  const where = { id: { in: selected }, clientId, ...(user.role === "SUPER_ADMIN" ? {} : { used: false }) };
+  const gone = await db.keyword.findMany({ where, select: { keyword: true } });
+  await db.keyword.deleteMany({ where });
+  await logActivity({ actorId: user.id, clientId, action: "keyword.delete", entity: "keyword", entityId: selected.join(","), before: { keywords: gone.map((k) => k.keyword) } });
   revalidatePath(`/clients/${clientId}/keywords`);
+}
+
+/** Super admin only. A topic that already has an article is removed, but the article stays. */
+export async function deleteTopicsAction(clientId: string, fd: FormData) {
+  const user = await requireUser();
+  if (user.role !== "SUPER_ADMIN") throw new Error("Only the super admin can delete topics");
+  const selected = ids(fd);
+  if (!selected.length) return;
+  const gone = await db.topic.findMany({ where: { id: { in: selected }, clientId }, select: { id: true, title: true } });
+  await db.$transaction([
+    db.article.updateMany({ where: { topicId: { in: gone.map((t) => t.id) } }, data: { topicId: null } }),
+    db.topic.deleteMany({ where: { id: { in: gone.map((t) => t.id) } } }),
+  ]);
+  await logActivity({ actorId: user.id, clientId, action: "topic.delete", entity: "topic", entityId: selected.join(","), before: { titles: gone.map((t) => t.title) } });
+  revalidatePath(`/clients/${clientId}/topics`);
 }
 
 // ---------- Topics ----------

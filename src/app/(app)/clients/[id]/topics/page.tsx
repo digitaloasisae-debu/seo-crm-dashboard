@@ -7,7 +7,7 @@ import { requireUser } from "@/lib/session";
 import { KeywordLink, StatusBadge } from "@/components/ui";
 import { DataTable, type Row } from "@/components/data-table";
 import { fmtDate } from "@/lib/utils";
-import { briefTopicsAction, editTopicAction, setTopicStatusAction } from "../../../../actions";
+import { briefTopicsAction, deleteTopicsAction, editTopicAction, setTopicStatusAction } from "../../../../actions";
 import { after } from "next/server";
 import { BRIEF_STALE_MS, briefTopics, type OutlineItem } from "@/lib/topic-brief";
 import { geminiConfigured } from "@/lib/gemini";
@@ -56,7 +56,7 @@ export default async function TopicsPage({ params, searchParams }: { params: Pro
             return {
             id: t.id,
             href: t.article ? `/articles/${t.article.id}` : undefined,
-            selectable: editable && !t.article,
+            selectable: (editable && !t.article) || user.role === "SUPER_ADMIN",
             values: { title: t.title, keyword: t.keyword, reuse: dup.length ? "Already used" : "New", category: t.category ?? "", status: t.status, article: t.article ? t.article.status : "No article", generated: t.generatedAt.toISOString(), angle: t.angle ?? "" },
             cells: {
               title: (
@@ -118,6 +118,7 @@ export default async function TopicsPage({ params, searchParams }: { params: Pro
               <SubmitButton data-celebrate="approved" formAction={setTopicStatusAction.bind(null, id, "APPROVED")} className="btn-primary px-3 py-1.5 text-xs">Approve</SubmitButton>
               <SubmitButton formAction={setTopicStatusAction.bind(null, id, "REJECTED")} className="btn-danger px-3 py-1.5 text-xs">Reject</SubmitButton>
               <SubmitButton formAction={briefTopicsAction.bind(null, id)} className="btn-secondary px-3 py-1.5 text-xs" title="Search Google and rewrite the title, angle and outline">Research brief</SubmitButton>
+              {user.role === "SUPER_ADMIN" && <SubmitButton formAction={deleteTopicsAction.bind(null, id)} className="btn-danger px-3 py-1.5 text-xs" title="Removes the topic. A written article stays.">Delete</SubmitButton>}
             </>
           ) : undefined}
         />
