@@ -17,13 +17,13 @@ const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? o
 function Waiting({ c }: { c: ClientWork }) {
   const chips = [
     c.failed > 0 && { href: `/clients/${c.id}/articles`, text: `${c.failed} failed to send`, tone: "bg-rose-50 text-rose-700" },
-    c.keywords > 0 && { href: `/clients/${c.id}/keywords?status=PENDING`, text: plural(c.keywords, "keyword"), tone: "bg-sky-50 text-sky-700" },
-    c.topics > 0 && { href: `/clients/${c.id}/topics?status=GENERATED`, text: plural(c.topics, "topic"), tone: "bg-amber-50 text-amber-700" },
+    c.keywords > 0 && { href: `/clients/${c.id}/keywords?status=PENDING`, text: `${plural(c.keywords, "keyword")} to approve`, tone: "bg-sky-50 text-sky-700" },
+    c.topics > 0 && { href: `/clients/${c.id}/topics?status=GENERATED`, text: `${plural(c.topics, "topic")} to approve`, tone: "bg-amber-50 text-amber-700" },
     c.review > 0 && { href: `/clients/${c.id}/articles`, text: `${plural(c.review, "article")} to review`, tone: "bg-indigo-50 text-indigo-700" },
     c.toSend > 0 && { href: `/clients/${c.id}/articles`, text: `${c.toSend} to send to WordPress`, tone: "bg-emerald-50 text-emerald-700" },
-    c.google > 0 && { href: `/clients/${c.id}/gbp`, text: `${plural(c.google, "Google reply", "Google replies")}/posts`, tone: "bg-slate-100 text-slate-700" },
+    c.google > 0 && { href: `/clients/${c.id}/gbp`, text: `${plural(c.google, "Google reply or post", "Google replies/posts")} to approve`, tone: "bg-slate-100 text-slate-700" },
   ].filter(Boolean) as { href: string; text: string; tone: string }[];
-  if (!chips.length) return <span className="text-xs text-emerald-700">Nothing waiting</span>;
+  if (!chips.length) return <span className="text-xs text-emerald-700">No tasks waiting</span>;
   return <span className="flex flex-wrap gap-1">{chips.map((x) => <Link key={x.text} href={x.href} className={`rounded-md px-1.5 py-0.5 text-[11px] font-medium hover:underline ${x.tone}`}>{x.text}</Link>)}</span>;
 }
 
@@ -46,7 +46,7 @@ function Member({ m }: { m: MemberWork }) {
       </div>
 
       <div className="grid grid-cols-4 gap-2 text-center">
-        {[["Projects", owned.length, "text-slate-900"], ["Waiting", m.pending, m.pending > 10 ? "text-amber-600" : "text-slate-900"], ["Done this week", m.week.total, "text-emerald-600"], ["Done this month", m.month.total, "text-emerald-600"]].map(([l, v, t]) => (
+        {[[owned.length === 1 ? "Client they own" : "Clients they own", owned.length, "text-slate-900"], ["Tasks waiting", m.pending, m.pending > 10 ? "text-amber-600" : "text-slate-900"], ["Tasks done this week", m.week.total, "text-emerald-600"], ["Tasks done this month", m.month.total, "text-emerald-600"]].map(([l, v, t]) => (
           <div key={l as string} className="rounded-xl bg-slate-50 p-2">
             <div className={`num text-xl font-semibold ${t}`}>{v as number}</div>
             <div className="text-[11px] leading-tight text-slate-500">{l as string}</div>
@@ -54,30 +54,39 @@ function Member({ m }: { m: MemberWork }) {
         ))}
       </div>
 
+      {m.pending > 0 && (() => {
+        const sum = (k: "keywords" | "topics" | "review" | "toSend" | "failed" | "google") => owned.reduce((n, c) => n + c[k], 0);
+        const parts = [
+          [sum("keywords"), "keyword", "keywords", "to approve"], [sum("topics"), "topic", "topics", "to approve"], [sum("review"), "article", "articles", "to review"],
+          [sum("toSend"), "article", "articles", "to send to WordPress"], [sum("failed"), "article", "articles", "that failed to send"], [sum("google"), "Google reply or post", "Google replies/posts", "to approve"],
+        ].filter(([n]) => (n as number) > 0).map(([n, one, many, what]) => `${n} ${n === 1 ? one : many} ${what}`);
+        return <p className="-mt-2 text-xs text-slate-600"><b className="font-medium">{plural(m.pending, "task")} waiting:</b> {parts.join(", ")}.</p>;
+      })()}
+
       <div>
-        <div className="mb-1 flex justify-between text-xs text-slate-500"><span>This month: done vs still waiting</span><span className="num font-medium text-slate-700">{pct}%</span></div>
+        <div className="mb-1 flex justify-between text-xs text-slate-500"><span>Tasks this month: done vs still waiting</span><span className="num font-medium text-slate-700">{pct}%</span></div>
         <div className="h-2 overflow-hidden rounded-full bg-slate-100"><span className="block h-full rounded-full bg-emerald-500" style={{ width: `${pct}%` }} /></div>
-        <p className="mt-1.5 text-xs text-slate-500">{done.length ? <>This week: {done.map(([n, l]) => `${n} ${l}`).join(", ")}.</> : "Nothing completed yet this week."}</p>
+        <p className="mt-1.5 text-xs text-slate-500">{done.length ? <>Done this week: {done.map(([n, l]) => `${n} ${l}`).join(", ")}.</> : "No tasks done yet this week."}</p>
       </div>
 
-      {missed > 0 && <p className="flex items-center gap-2 rounded-lg bg-rose-50 px-2.5 py-1.5 text-xs text-rose-800"><Icon name="alert" className="h-3.5 w-3.5" />{plural(missed, "posting date")} in the last 30 days went by without a blog.</p>}
+      {missed > 0 && <p className="flex items-center gap-2 rounded-lg bg-rose-50 px-2.5 py-1.5 text-xs text-rose-800"><Icon name="alert" className="h-3.5 w-3.5" />{missed} scheduled blog date{missed === 1 ? "" : "s"} in the last 30 days passed with no blog published (across their clients).</p>}
 
       <div>
-        <div className="mb-1.5 text-xs font-medium text-slate-500">Projects and what&apos;s waiting</div>
+        <div className="mb-1.5 text-xs font-medium text-slate-500">Their clients and the tasks waiting in each</div>
         {owned.length === 0 ? <p className="text-sm text-slate-500">No clients assigned as owner.</p> : (
           <ul className="divide-y divide-slate-100 rounded-lg border border-slate-100">
             {owned.map((c) => (
               <li key={c.id} className="space-y-1 px-2.5 py-2">
                 <div className="flex items-baseline justify-between gap-2">
                   <Link href={`/clients/${c.id}`} className="truncate text-sm font-medium text-slate-900 hover:text-indigo-600">{c.name}</Link>
-                  <span className="shrink-0 text-[11px] text-slate-500">{c.sentMonth > 0 && <>{c.sentMonth} sent this month · </>}{c.next ? `Next post ${day(c.next)}` : "No post date"}</span>
+                  <span className="shrink-0 text-[11px] text-slate-500">{c.sentMonth > 0 && <>{plural(c.sentMonth, "blog")} sent this month · </>}{c.next ? `Next post ${day(c.next)}` : "No post date"}</span>
                 </div>
                 <Waiting c={c} />
               </li>
             ))}
           </ul>
         )}
-        {helps.length > 0 && <p className="mt-2 text-xs text-slate-500">Also helps on: {helps.map((c, i) => <span key={c.id}>{i > 0 && ", "}<Link href={`/clients/${c.id}`} className="hover:text-indigo-600">{c.name}</Link>{pendingOf(c) > 0 && ` (${pendingOf(c)} waiting)`}</span>)}</p>}
+        {helps.length > 0 && <p className="mt-2 text-xs text-slate-500">Also helps on: {helps.map((c, i) => <span key={c.id}>{i > 0 && ", "}<Link href={`/clients/${c.id}`} className="hover:text-indigo-600">{c.name}</Link>{pendingOf(c) > 0 && ` (${plural(pendingOf(c), "task")} waiting)`}</span>)}</p>}
       </div>
     </section>
   );
@@ -92,8 +101,8 @@ export function TeamOverview({ data }: { data: Awaited<ReturnType<typeof teamOve
         {[
           ["Team members", members.length, "users"],
           ["Active clients", totals.clients, "briefcase"],
-          ["Waiting across the team", totals.pending, "inbox"],
-          ["Done this week", totals.doneWeek, "check"],
+          ["Tasks waiting across the team", totals.pending, "inbox"],
+          ["Tasks done this week", totals.doneWeek, "check"],
           ["Blogs sent this month", totals.sentMonth, "send"],
         ].map(([l, v, i]) => (
           <div key={l as string} className="card flex items-center gap-3 !py-3">
@@ -107,13 +116,13 @@ export function TeamOverview({ data }: { data: Awaited<ReturnType<typeof teamOve
           {unowned.length > 0 && (
             <p className="flex flex-wrap items-center gap-2 rounded-xl bg-amber-50 px-3 py-2 text-sm text-amber-900 ring-1 ring-amber-200 ring-inset">
               <Icon name="alert" className="h-4 w-4" /><b>{plural(unowned.length, "client")} with no owner:</b>
-              <span>{unowned.map((c, i) => <span key={c.id}>{i > 0 && ", "}<Link href={`/clients/${c.id}`} className="underline">{c.name}</Link>{pendingOf(c) > 0 && ` (${pendingOf(c)} waiting)`}</span>)}</span>
+              <span>{unowned.map((c, i) => <span key={c.id}>{i > 0 && ", "}<Link href={`/clients/${c.id}`} className="underline">{c.name}</Link>{pendingOf(c) > 0 && ` (${plural(pendingOf(c), "task")} waiting)`}</span>)}</span>
               <Link href="/users" className="ml-auto text-xs font-medium underline">Assign owners on the Team page</Link>
             </p>
           )}
         </div>
       )}
-      <p className="mb-3 text-sm text-slate-500">Each member&apos;s clients, what&apos;s waiting in them, and what they finished. Members with the most waiting come first. &quot;Done&quot; counts approvals, blogs sent to WordPress and Google replies or posts.</p>
+      <p className="mb-3 text-sm text-slate-500">Each card is one team member: the clients they own, the tasks waiting in those clients (keywords, topics, articles to approve or send), and the tasks they finished. Members with the most tasks waiting come first. &quot;Done&quot; counts approvals, blogs sent to WordPress and Google replies or posts.</p>
       <div className="grid gap-4 lg:grid-cols-2 2xl:grid-cols-3">{sorted.map((m) => <Member key={m.id} m={m} />)}</div>
       {members.length === 0 && <p className="card text-sm text-slate-500">No team members yet.</p>}
     </>
