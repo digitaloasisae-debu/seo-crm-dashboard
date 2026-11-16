@@ -12,7 +12,7 @@ import { runQuality, type QualityReport } from "./quality";
 import { logActivity } from "./activity";
 import { dataforseoConfigured } from "./dataforseo";
 import { rescoreContent, runContentScore, type ContentScore } from "./serp";
-import { cachedResearch, headingPlan } from "./research";
+import { cachedResearch, headingPlan, topicPlan } from "./research";
 
 /** A rewrite that has been "running" this long has died (the server stops background work after 5 minutes). */
 export const REVISE_STALE_MS = 6 * 60_000;
@@ -161,6 +161,8 @@ Local clients: write the location in "City, State/Province" form (e.g. "Lahore, 
 Links: add internal links ONLY to URLs from the "INTERNAL PAGES" list (descriptive 2–3 word anchors, first one in the intro). Add at most one external link, only to a well-known authority site (government, standards body, major publication), with target="_blank" rel="noopener".
 The body is HTML. Images are placeholders like [[IMG1]]: keep each one on its own line, exactly as written.
 The focus keyword must appear word for word in the FIRST paragraph (within the first 100 words of the body, after the H1).
+The title is a promise: if it says "7 Tips"/"5 Steps"/"7 Secrets", the body must have exactly that many numbered H2 or H3 points ("1. …", "2. …"), each delivering one. Restructure the sections into those points, or change the number in the title and H1 to match the points the article really has.
+Every section must serve the title. Remove or rewrite sections, PAA questions and keywords that are about something else.
 Stay on the article's topic (its title): if the FAQ or any section is about another meaning of the keyword, replace it with questions and content about this topic.
 Transition words: at least 35% of sentences must contain one (however, because, for example, as a result, so, but, also, in addition, first, next, then, finally, in fact, that said, for this reason, such as, while, since, once, if, instead, especially).
 Readability grade 6–8: average 12–15 words per sentence, split any sentence over 20 words, use everyday words (use, not utilise; help, not facilitate).
@@ -245,13 +247,19 @@ export async function autoFixSop(articleId: string, opts: { userId?: string; min
       article.bodyHtml = withAlts;
     }
     const client = await db.client.findUniqueOrThrow({ where: { id: article.clientId }, select: { linkPool: true, siteUrl: true, gscPages: { select: { page: true }, orderBy: { clicks: "desc" }, take: 30 } } });
-    const pages = [...new Set([...client.linkPool, ...client.gscPages.map((p) => p.page)])].filter((u) => /^https?:\/\//.test(u) || u.startsWith("/")).slice(0, 40);
+    // Most related pages first, so the intro link goes to the service page for this topic.
+    const related = await linkIdeas(article.clientId, `${article.focusKeyword} ${article.topic?.title ?? article.metaTitle}`, { excludeId: article.id, limit: 10 }).catch(() => []);
+    const pages = [...new Set([...related.map((l) => l.url), ...client.linkPool, ...client.gscPages.map((p) => p.page)])].filter((u) => /^https?:\/\//.test(u) || u.startsWith("/")).slice(0, 40);
     const p = pack(article.bodyHtml);
     const research = await cachedResearch(article.clientId, article.focusKeyword).catch(() => null);
-    const plan = research ? research.plan ?? headingPlan(research.paa, research.secondaryKeywords.map((k) => k.keyword)) : null;
+    // Only the PAA questions and competitor keywords that fit THIS article's topic.
+    const plan = research
+      ? (article.topic ? await topicPlan({ id: article.topicId!, title: article.topic.title, angle: article.topic.angle }, research).catch(() => null) : null) ?? research.plan ?? headingPlan(research.paa, research.secondaryKeywords.map((k) => k.keyword))
+      : null;
     const researchLines = plan ? [
       ...(plan.paaForHeadings.length ? [`People Also Ask questions to use as H2/H3 subheadings: ${plan.paaForHeadings.map((q) => `"${q}"`).join(", ")}`] : []),
       ...(plan.paaForFaq.length ? [`People Also Ask questions for the FAQ: ${plan.paaForFaq.slice(0, 8).map((q) => `"${q}"`).join(", ")}`] : []),
+      ...("outline" in plan && (plan as { outline: string[] }).outline.length ? [`Suggested H2 outline for this topic: ${(plan as { outline: string[] }).outline.join(" | ")}`] : []),
       ...(plan.secondaryForHeadings.length ? [`Competitor keywords to work into the H2/H3 subheadings where they fit the topic: ${plan.secondaryForHeadings.join(", ")}`] : []),
     ] : [];
     const out = await geminiJson<{ meta_title?: string; meta_description?: string; body_html?: string; image_alts?: Record<string, string>; changes?: string[] }>(
@@ -263,7 +271,7 @@ ${issues.slice(0, 40).map((i) => `- ${i}`).join("\n")}
 IMAGES (write alt text for each: descriptive, under 125 characters, and the focus keyword in at least the first one):
 ${p.images.length ? p.images.map((img, n) => `- IMG${n + 1}: current alt "${attr(img.match(/<img\b[^>]*>/i)?.[0] ?? "", "alt")}"`).join("\n") : "(none)"}
 
-${researchLines.length ? `GOOGLE RESEARCH FOR "${article.focusKeyword}" (skip anything that is not about this article's topic):\n${researchLines.map((l) => `- ${l}`).join("\n")}\n\n` : ""}${gapLines.length ? `COMPETITOR GAPS (Google top 10 for "${article.focusKeyword}", content score ${gaps!.score}/100):\n${gapLines.map((l) => `- ${l}`).join("\n")}\n\n` : ""}INTERNAL PAGES (the only URLs you may link internally):
+${researchLines.length ? `GOOGLE RESEARCH FOR "${article.focusKeyword}" (skip anything that is not about this article's topic):\n${researchLines.map((l) => `- ${l}`).join("\n")}\n\n` : ""}${gapLines.length ? `COMPETITOR GAPS (Google top 10 for "${article.focusKeyword}", content score ${gaps!.score}/100):\n${gapLines.map((l) => `- ${l}`).join("\n")}\n\n` : ""}INTERNAL PAGES (the only URLs you may link internally; most related to this topic first. The intro link goes to the first page that is the service page for this topic, never the general services page or the home page):
 ${pages.length ? pages.map((u) => `- ${u}`).join("\n") : "(none known: do not add internal links)"}
 
 CURRENT ARTICLE
