@@ -176,7 +176,7 @@ export function PostCard({ p }: { p: CardPost }) {
           <form className="space-y-3">
             {p.hooks.length > 0 && !locked && (
               <div>
-                <div className="label">Pick the opening line (puts it at the top of every caption)</div>
+                <div className="label">Pick the title (puts it at the top of every caption)</div>
                 <div className="flex flex-col gap-1">
                   {p.hooks.map((h) => (
                     <button

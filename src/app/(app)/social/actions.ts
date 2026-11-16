@@ -65,7 +65,8 @@ export async function saveProjectAction(projectId: string, formData: FormData) {
 export async function saveCardAction(projectId: string, service: string, formData: FormData) {
   await requireSuperAdmin();
   const card = String(formData.get("card") ?? "").slice(0, 8000);
-  await db.socialServiceCard.upsert({ where: { projectId_service: { projectId, service } }, create: { projectId, service, card }, update: { card } });
+  const url = String(formData.get("url") ?? "").trim().slice(0, 500);
+  await db.socialServiceCard.upsert({ where: { projectId_service: { projectId, service } }, create: { projectId, service, card, url }, update: { card, url } });
   refresh();
 }
 

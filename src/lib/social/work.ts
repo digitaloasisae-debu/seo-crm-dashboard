@@ -65,11 +65,17 @@ export async function drawOne(postId: string) {
     const d = designOf(post.design);
     let photo: Buffer | null = null;
     let fresh: Buffer | null = null;
+    let brief: string | undefined;
     const media = format === "photo" && post.mediaId ? await db.socialMedia.findUnique({ where: { id: post.mediaId }, select: { data: true } }) : null;
     if (media) photo = await fitPhoto(media.data);
     else if (format === "photo" || format === "concept") {
       // The stored AI picture is reused until a new one is asked for (it is cleared then).
-      photo = post.photo ? Buffer.from(post.photo) : (fresh = await drawAI(post, project));
+      if (post.photo) photo = Buffer.from(post.photo);
+      else {
+        const ai = await drawAI(post, project);
+        photo = fresh = ai.jpeg;
+        brief = ai.brief; // the checker's better prompt, when the first picture was off-topic
+      }
     }
     const input = await designInput(post, project, photo);
     const image = await renderDesign(input);
@@ -85,7 +91,7 @@ export async function drawOne(postId: string) {
     }
     await db.socialPost.update({
       where: { id: post.id },
-      data: { ...(fresh ? { photo: new Uint8Array(fresh), design: { ...d, pic: format } } : {}), image: new Uint8Array(image), slides, video, imageVersion: { increment: 1 }, stage: "ready", stageError: null },
+      data: { ...(fresh ? { photo: new Uint8Array(fresh), design: { ...d, pic: format } } : {}), ...(brief ? { imageBrief: brief } : {}), image: new Uint8Array(image), slides, video, imageVersion: { increment: 1 }, stage: "ready", stageError: null },
     });
   } catch (e) {
     await fail([post], "written", e);
