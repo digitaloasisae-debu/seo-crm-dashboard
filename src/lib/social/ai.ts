@@ -8,6 +8,7 @@ import { geminiJson } from "../gemini";
 import { brandProfileText } from "../brand-profile";
 import { toLocalInput, weeklySlots, zoned } from "./schedule";
 import { ensureResearch, researchText } from "./research";
+import { buildCaption, cardUrl, titleLine, type CaptionParts } from "./caption";
 import { PICTURE_FORMATS, PILLARS, WEEK_MIX, designOf, formatOf, pillarOf, type DesignData, type Slide } from "./formats";
 
 export const PLATFORMS = ["facebook", "instagram", "linkedin"] as const;
@@ -50,18 +51,22 @@ async function fetchHtml(url: string) {
 }
 
 /** The page on the client's site that is most about this service (by link text and URL). */
-async function servicePage(siteUrl: string, service: string): Promise<{ url: string; text: string; home: string }> {
+async function servicePage(siteUrl: string, service: string, known: string[] = []): Promise<{ url: string; text: string; home: string }> {
   const base = siteUrl.replace(/\/+$/, "");
   const html = await fetchHtml(base + "/");
   const words = service.toLowerCase().split(/[^a-z0-9]+/).filter((w) => w.length > 2);
   let best = { url: "", score: 0 };
-  for (const m of html.matchAll(/<a[^>]+href=["']([^"'#]+)["'][^>]*>([\s\S]*?)<\/a>/gi)) {
-    let href = m[1];
+  // Links on the home page, plus pages we already know on the site (link pool, Search Console).
+  const links = [...[...html.matchAll(/<a[^>]+href=["']([^"'#]+)["'][^>]*>([\s\S]*?)<\/a>/gi)].map((m) => [m[1], m[2]]), ...known.map((u) => [u, ""])];
+  for (const m of links) {
+    let href = m[0];
     if (href.startsWith("/")) href = base + href;
-    if (!href.startsWith(base)) continue;
-    const hay = `${href} ${strip(m[2])}`.toLowerCase();
-    const score = words.filter((w) => hay.includes(w)).length;
-    if (score > best.score) best = { url: href, score };
+    const bare = (u: string) => u.replace(/^https?:\/\/(www\.)?/i, "").toLowerCase();
+    if (!bare(href).startsWith(bare(base))) continue;
+    const hay = `${href.replace(/[-_/]/g, " ")} ${strip(m[1])}`.toLowerCase();
+    // A dedicated service page beats a blog post or a menu link that only shares a word.
+    const score = words.filter((w) => hay.includes(w)).length + (/\/(services?|solutions?)\//i.test(href) ? 0.5 : 0) - (/\/(blog|category|tag)\//i.test(href) ? 0.5 : 0);
+    if (score >= 1 && score > best.score) best = { url: href, score };
   }
   const page = best.url ? strip(await fetchHtml(best.url)).slice(0, 7000) : "";
   return { url: best.url, text: page, home: strip(html).slice(0, 4000) };
@@ -88,7 +93,8 @@ ${site.home || "(could not load)"}
 Return JSON: {"card":"markdown with these sections, short bullet points each: **What it is** / **Who buys it** (types of buyers, their situation) / **What they worry about** (5 fears or objections) / **Questions they ask before buying** (5) / **Proof we can use** (only real facts from the site) / **What makes us different** / **Link** (the best page URL for this service)"}`;
   const r = await geminiJson<{ card?: string }>(prompt, { timeoutMs: 90_000, temperature: 0.3, model: textModel() });
   const card = String(r.card ?? "").trim();
-  await db.socialServiceCard.upsert({ where: { projectId_service: { projectId, service } }, create: { projectId, service, card }, update: { card } });
+  const url = site.url || cardUrl({ card }, p.client.siteUrl);
+  await db.socialServiceCard.upsert({ where: { projectId_service: { projectId, service } }, create: { projectId, service, card, url }, update: { card, url } });
   return card;
 }
 
@@ -314,6 +320,7 @@ type DesignOut = { kicker?: string; big?: string; note?: string; title?: string;
 type Written = {
   id: string;
   hooks?: string[];
+  caption?: CaptionParts;
   facebook?: string;
   instagram?: string;
   linkedin?: string;
@@ -347,13 +354,29 @@ export function designToText(format: string, d: DesignOut | undefined): string {
 
 const DESIGN_GUIDE = `THE IMAGE is the first thing people see, so it must stop the scroll on its own. One strong picture, very few words. Never fill the image with text.
 FORMATS:
-- concept (the default): an AI picture with a few words on a solid band above it. imageBrief = the PROMPT for the image model (Google Imagen). It is sent exactly as you write it, so write it as a plain, literal description of ONE real scene that directly shows this post's topic, the way the buyer would recognise it in their own life or business. RELEVANCE FIRST: someone who sees only the picture must know what the post is about.
+- concept (the default): an AI picture with a few words on a solid band above it. imageBrief = the PROMPT for the image model (Google Imagen). It is sent exactly as you write it, so write it as a plain, literal description of ONE real scene that directly shows this post's topic, the way the buyer would recognise it in their own life or business. RELEVANCE FIRST: someone who sees only the picture must know what the post is about. Start from the caption title: picture the one real thing the buyer sees when this topic happens to them, and show exactly that. When the topic is about a platform or tool (Amazon, Google, Instagram, a website, an app, ads), show a phone or laptop with that recognisable kind of page in a real setting. When it is about a holiday or event, show the event itself as people in the country celebrate it.
   Write 2-4 sentences covering: the main subject and what is happening; the setting (a real place in the client's city or country when it fits); the composition and camera (e.g. close-up, eye level, shallow depth of field); the light and mood. Default style: a realistic, high-quality photograph with natural light. Use a clean 3D illustration only when the topic cannot be photographed.
   Good examples: "Close-up of a shop owner's hand holding a smartphone showing a Google Maps business listing with a row of empty star ratings, inside a small bakery in Dubai, warm morning light, shallow depth of field, realistic photo." / "An online shopper's laptop on a sofa with a checkout page open and a full shopping basket icon, a cup of coffee beside it, evening lamp light, realistic photo."
   Never: abstract metaphors (no rockets, lightbulbs, chess pieces, puzzle pieces, trophies, mountains, handshakes, glowing holograms, floating icons), stock-photo clichés (people in suits pointing at screens, smiling at the camera), or anything whose link to the topic needs explaining. Screens may show a recognisable layout (a map, a shop page, search results) but no readable words. No text in the image: the words go on the band.
 - photo: one of OUR REAL PHOTOS (from the library below) with a few words. Only when a library photo truly fits the post (behind the scenes, team, real work, proof). Set photoId.
 - type: big bold words only, for a sharp opinion or a line strong enough on its own. design.kicker = 1-4 small words on top. design.big = 3-8 words. Put *stars* around 1-2 words to highlight them.
-WORDS ON THE IMAGE: headline.main = 2-6 words, the punch (a twist, a warning, a bold claim, a question). headline.top = 0-4 small words of setup, or empty. headline.bottom = empty unless it is truly needed. The words must work with the picture, not describe it. No invented numbers.`;
+WORDS ON THE IMAGE: headline.main = 2-6 words that name the topic plainly, so someone scrolling knows at once what the post is about: a short version of the caption title that uses the topic's own words (e.g. "Amazon retargeting has changed", "Is your Google listing complete?"). No riddles, puns or vague teasers ("The secret nobody tells you", "Game changer", "Here's the truth"). headline.top = 0-4 small words of setup, or empty. headline.bottom = empty unless it is truly needed. No invented numbers.`;
+
+/** The service page for each service (saved on its card; looked up on the site once when missing). */
+async function serviceLinks(p: SocialProject & { client: Client; serviceCards: { service: string; url: string; card: string }[] }, services: string[]) {
+  const out: Record<string, string> = {};
+  for (const s of [...new Set(services)]) {
+    const card = p.serviceCards.find((c) => c.service === s);
+    let url = cardUrl(card, p.client.siteUrl);
+    if (!url) {
+      const known = [...p.client.linkPool, ...(await db.gscPage.findMany({ where: { clientId: p.clientId }, select: { page: true }, orderBy: { clicks: "desc" }, take: 200 })).map((g) => g.page)];
+      url = (await servicePage(p.client.siteUrl, s, known).catch(() => ({ url: "" }))).url;
+      if (url && card) await db.socialServiceCard.update({ where: { projectId_service: { projectId: p.id, service: s } }, data: { url } });
+    } else if (card && !card.url) await db.socialServiceCard.update({ where: { projectId_service: { projectId: p.id, service: s } }, data: { url } });
+    out[s] = url;
+  }
+  return out;
+}
 
 /** Write hooks, captions, headline and image design for up to ~4 posts of one project in one AI call. */
 export async function writePosts(posts: SocialPost[]) {
@@ -375,13 +398,17 @@ VOICE
 - Spelling of the client's country.
 - Competitor research is for learning patterns only: never copy their lines, never mention or hint at a competitor.
 
-HOOKS: write 3 different opening lines for the post (one sentence each, under 110 characters): a myth bust, a mistake callout, a curiosity gap, a painfully relatable moment, a bold opinion, or a direct question the buyer has really asked. Specific to this idea, never generic. Hamza picks one, so make all 3 strong and different.
+TITLES (hooks): write 3 different caption titles: 4-10 words each, a headline that states the post's main message in plain words and names the topic (e.g. "Retargeting is no longer basic audience chasing", "Your Google Business Profile is losing you calls"). Bold, specific to this idea, never generic, never a question that hides the topic. hooks[0] is the one used.
 
-CAPTIONS (start each with hooks[0], adapted to the platform):
-${on("instagram") ? `- instagram: hook first (the first 125 characters decide everything). Then 3-6 very short lines of value, one idea per line with line breaks. 50-140 words. End with ONE action that earns saves or shares ("Save this for...", "Send this to someone who...") or a question to answer in the comments, then the call to action with "link in bio". Max 3 emojis used as markers. Blank line, then 3-5 specific hashtags (topic, niche, local).` : ""}
-${on("facebook") ? `- facebook: hook, then 2-4 short lines that make people react or comment. Call to action with this link on its own line: ${link}. 0-2 emojis, 0-2 hashtags. Max about 500 characters.` : ""}
-${on("linkedin") ? `- linkedin: first 2 lines must make people click "see more" (sharp observation, contrarian take or mini story). Then 60-130 words, one sentence per paragraph, lots of white space, one sharp insight or 3 short points. End with a genuine question, then the call to action. NO links in the post. 0-2 emojis, 3-4 hashtags at the end. Also write firstComment: one line with the link ${link}.` : ""}
-Platforms not listed: return an empty string.
+CAPTION: one caption in Hamza's layout, used on every platform (we put it together, so return the parts in "caption"):
+- emoji: one emoji that fits the topic, shown before the title.
+- intro: 1-2 short sentences (max 35 words) that explain the point in plain words.
+- listTitle: 2-6 words that lead into the list (e.g. "Modern retargeting now relies on", "What to check first").
+- points: 3-5 items, each {"emoji": one emoji that matches that item, "text": 2-9 words}. Concrete and useful, one idea each.
+- closing: one sentence on how ${p.client.name} helps with exactly this, naming ${p.client.name} (e.g. "${p.client.name} helps brands adapt to the future of Amazon advertising.").
+- hashtags: 12-15 specific hashtags, most specific first: the service, the topic, the platform, the industry, the city/country, then #${p.client.name.replace(/[^\p{L}\p{N}]+/gu, "")}. No generic tags (#love, #instagood, #success).
+The service page link and the line breaks are added for you, so do not put links, "link in bio" or hashtags in the other parts. A carousel's intro can end by telling people to swipe; a reel's should be short.
+
 
 ${DESIGN_GUIDE}
 
@@ -395,8 +422,8 @@ ALSO, for every post:
 
 POST TYPES (given per post):
 - image: everything above.
-- carousel: the image above is the COVER slide (it must make people swipe). Also write slides: 3-5 slides that come after the cover, each {"title": 2-6 words, "body": 1-2 short sentences, max 28 words}. One idea per slide, building step by step, the most useful one last. Then end: one short closing line for the last slide (what to do now, e.g. "Save this for your next launch" or a call to action). Captions say there is more to swipe through.
-- reel: a short, silent, animated video: the visual above with words that appear one line at a time. Write scenes: exactly 3 lines, each 2-7 words: 1 = the hook that stops the scroll, 2 = the point or the twist, 3 = the payoff or call to action. They must read as one flowing message. headline.main is the cover text (can match scene 1). Captions are written for a Reel (hook first, short).`;
+- carousel: the image above is the COVER slide (it must make people swipe). Also write slides: 3-5 slides that come after the cover, each {"title": 2-6 words, "body": 1-2 short sentences, max 28 words}. One idea per slide, building step by step, the most useful one last. Then end: one short closing line for the last slide (what to do now, e.g. "Save this for your next launch" or a call to action). Slides follow the caption title and its points, so the carousel and the caption tell the same story.
+- reel: a short, silent, animated video: the visual above with words that appear one line at a time. Write scenes: exactly 3 lines, each 3-8 words, all about this post's title and nothing else: 1 = the topic named plainly (like the title), 2 = the single most useful point from the caption's list, 3 = what to do next or how ${p.client.name} helps. Every line must make sense on its own and use the topic's own words; never vague lines like "Here's the truth", "Game changer", "Level up" or "Don't miss out". headline.main is the cover text (can match scene 1).`;
   const prompt = `BUSINESS: ${businessLine(p.client)}
 Main call to action: ${p.client.ctaText || "get in touch"} (${link})
 
@@ -426,9 +453,10 @@ ${posts
   })
   .join("\n")}
 
-Return JSON: {"posts":[{"id":"...","hooks":["","",""],"instagram":"","facebook":"","linkedin":"","firstComment":"","format":"type","design":{"kicker":"","big":""},"photoId":"","headline":{"top":"","main":"","bottom":""},"imageBrief":"","altText":"","slides":[{"title":"","body":""}],"end":"","scenes":["","",""]}]} (slides and end only for a carousel, scenes only for a reel)`;
+Return JSON: {"posts":[{"id":"...","hooks":["","",""],"caption":{"emoji":"","intro":"","listTitle":"","points":[{"emoji":"","text":""}],"closing":"","hashtags":[""]},"format":"type","design":{"kicker":"","big":""},"photoId":"","headline":{"top":"","main":"","bottom":""},"imageBrief":"","altText":"","slides":[{"title":"","body":""}],"end":"","scenes":["","",""]}]} (slides and end only for a carousel, scenes only for a reel)`;
   const r = await geminiJson<{ posts?: Written[] }>(prompt, { system, timeoutMs: 200_000, temperature: 0.8, model: textModel() });
   const out = r.posts ?? [];
+  const urls = await serviceLinks(p, posts.map((x) => x.service));
   const clean = (s: unknown, max: number) => String(s ?? "").replace(/—/g, ",").trim().slice(0, max);
   for (const x of posts) {
     const w = out.find((o) => o.id === x.id) ?? (out.length === posts.length ? out[posts.indexOf(x)] : undefined);
@@ -453,14 +481,18 @@ Return JSON: {"posts":[{"id":"...","hooks":["","",""],"instagram":"","facebook":
       const scenes = (w.scenes ?? []).map((v) => clean(v, 80)).filter(Boolean).slice(0, 4);
       if (scenes.length) design.scenes = scenes;
     }
+    const titles = (w.hooks ?? []).map((h) => clean(h, 120)).filter(Boolean).slice(0, 3);
+    const parts: CaptionParts = { ...w.caption, title: titles[0] || x.headlineMain || x.idea };
+    const caption = (tags: number) => buildCaption(parts, { url: urls[x.service] || p.client.siteUrl, tags });
     await db.socialPost.update({
       where: { id: x.id },
       data: {
-        hooks: (w.hooks ?? []).map((h) => clean(h, 200)).filter(Boolean).slice(0, 3),
-        captionInstagram: on("instagram") ? clean(w.instagram, 2200) : "",
-        captionFacebook: on("facebook") ? clean(w.facebook, 3000) : "",
-        captionLinkedin: on("linkedin") ? clean(w.linkedin, 3000) : "",
-        firstComment: on("linkedin") ? clean(w.firstComment, 500) : "",
+        // The title choices are stored as finished title lines, so picking one swaps the caption's first line.
+        hooks: titles.map((h) => titleLine(h, w.caption?.emoji)),
+        captionInstagram: on("instagram") ? caption(15).slice(0, 2200) : "",
+        captionFacebook: on("facebook") ? caption(15).slice(0, 3000) : "",
+        captionLinkedin: on("linkedin") ? caption(5).slice(0, 3000) : "",
+        firstComment: "",
         altText: clean(w.altText, 400),
         headlineTop: clean(w.headline?.top, 60),
         headlineMain: clean(w.headline?.main, 60),

@@ -78,6 +78,10 @@ export default async function SocialProjectPage({ params, searchParams }: { para
                   <form action={redraftCardAction.bind(null, p.id, s)}><SubmitButton className="btn-secondary text-xs">Rewrite from website</SubmitButton></form>
                 </div>
                 <form action={saveCardAction.bind(null, p.id, s)} className="space-y-2">
+                  <label className="block">
+                    <span className="label">Service page (every caption links here; empty = found automatically, else the home page)</span>
+                    <input name="url" type="url" defaultValue={c?.url ?? ""} placeholder={`${p.client.siteUrl.replace(/\/+$/, "")}/...`} className="input text-sm" />
+                  </label>
                   <textarea name="card" rows={10} defaultValue={c?.card ?? ""} className="input text-sm leading-5" placeholder="Not written yet. Press Rewrite from website, or type the facts yourself." />
                   <SubmitButton className="btn-secondary text-xs">Save card</SubmitButton>
                 </form>

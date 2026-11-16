@@ -39,9 +39,42 @@ export function imagePrompt(post: Pick<SocialPost, "imageBrief" | "idea">, proje
     .join("\n");
 }
 
-/** A new AI picture for the post, from its prompt. */
-export function drawAI(post: SocialPost, project: SocialProject) {
-  return generateImage(imagePrompt(post, project));
+/**
+ * A new AI picture for the post, from its prompt. A quick vision check then asks whether the picture
+ * clearly shows the post's topic; if not, it is drawn once more from the checker's better prompt.
+ */
+export async function drawAI(post: SocialPost, project: SocialProject): Promise<{ jpeg: Buffer; brief?: string }> {
+  const first = { jpeg: await generateImage(imagePrompt(post, project)) };
+  const topic = [post.headlineMain, post.idea].filter(Boolean).join(". ");
+  const check = await checkImage(first.jpeg, topic).catch((e) => (console.error("social.image_check_failed", e), null));
+  if (!check || check.score >= 7 || !check.betterPrompt) return first;
+  console.log("social.image_retry", post.id, check.score, check.problem);
+  return generateImage(imagePrompt({ ...post, imageBrief: check.betterPrompt }, project)).then((jpeg) => ({ jpeg, brief: check.betterPrompt }), () => first);
+}
+
+/** Does this picture clearly show the topic? Scores 1-10 and suggests a better prompt when it doesn't. */
+async function checkImage(jpeg: Buffer, topic: string): Promise<{ score: number; problem: string; betterPrompt: string }> {
+  const key = process.env.GEMINI_API_KEY;
+  if (!key) throw new Error("GEMINI_API_KEY is not set");
+  const small = await sharp(jpeg).resize(512).jpeg({ quality: 80 }).toBuffer();
+  const prompt = `This picture is for a social media post about: "${topic}".
+Would someone who sees only the picture know what the post is about? Score 1-10 (10 = it obviously shows this exact topic, 1 = unrelated or a vague metaphor). Also fail it (score 3 or less) if it has garbled text, extra fingers or other obvious AI mistakes.
+If the score is below 7, write betterPrompt: a plain, literal 2-4 sentence prompt for an image model describing ONE real scene that directly shows this topic (subject, setting, camera, light, "realistic photo"), with no text in the image.
+Return JSON: {"score":0,"problem":"one short line","betterPrompt":""}`;
+  const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${process.env.GEMINI_MODEL || "gemini-flash-latest"}:generateContent`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "x-goog-api-key": key },
+    body: JSON.stringify({
+      contents: [{ role: "user", parts: [{ inlineData: { mimeType: "image/jpeg", data: small.toString("base64") } }, { text: prompt }] }],
+      generationConfig: { responseMimeType: "application/json", temperature: 0.2 },
+    }),
+    signal: AbortSignal.timeout(40_000),
+  });
+  const j = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(j?.error?.message || `HTTP ${res.status}`);
+  const text: string = j?.candidates?.[0]?.content?.parts?.map((x: { text?: string }) => x.text ?? "").join("") ?? "";
+  const r = JSON.parse(text.replace(/^```(?:json)?\s*|\s*```$/g, ""));
+  return { score: Number(r.score) || 10, problem: String(r.problem ?? ""), betterPrompt: String(r.betterPrompt ?? "").trim() };
 }
 
 /** A library photo, cropped to the post size. */

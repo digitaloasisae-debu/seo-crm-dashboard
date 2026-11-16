@@ -948,6 +948,8 @@ model SocialServiceCard {
   projectId String
   service   String
   card      String   @default("")
+  /// The service page on the client's site; every caption links to it
+  url       String   @default("")
   updatedAt DateTime @updatedAt
 
   project SocialProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
