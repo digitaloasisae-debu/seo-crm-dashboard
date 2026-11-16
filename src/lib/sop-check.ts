@@ -2,7 +2,7 @@
  * Rule-based SOP checks for an article (everything that can be measured without AI).
  * Mirrors Hamza's SOP 1 (general, updated 12 Nov 2026 with the Blog Writing SOP) and SOP 2 (local, when the client has a primary city).
  */
-import { yearRule, yearsIn } from "./year";
+import { isEventTopic, yearRule, yearsIn } from "./year";
 import { parse, type HTMLElement } from "node-html-parser";
 
 export type CheckStatus = "pass" | "warn" | "fail";
@@ -101,8 +101,16 @@ export function checkArticle(a: ArticleInput, c: ClientInput, research: Research
   const oldYears = yearsIn(`${a.metaTitle} ${text}`).filter((y) => y < yr.current);
   if (yr.yearEnd) {
     // Nov–Dec: no year in the title, SEO title or slug; the content targets next year.
-    const titleYears = yearsIn(`${a.metaTitle} ${h1} ${a.slug || ""}`);
-    items.push(item("year_title", "Title & meta", "No year in the title, SEO title or slug (November–December rule)", titleYears.length ? "fail" : "pass", titleYears.length ? `Title or slug has ${titleYears.join(", ")}. Remove the year until January.` : "No year in the title", 1.5));
+    // Exceptions: a year that's part of the focus keyword ("Dubai Shopping Festival 2026–27"), and dated events.
+    const kwYears = yearsIn(kw);
+    const event = isEventTopic(`${kw} ${h1}`);
+    const titleYears = yearsIn(`${a.metaTitle} ${h1}`);
+    const slugYears = yearsIn(a.slug || "").filter((y) => !kwYears.includes(y));
+    const extra = titleYears.filter((y) => !kwYears.includes(y));
+    const missingKwYear = kwYears.filter((y) => !titleYears.includes(y));
+    const titleOk = (event || extra.length === 0) && missingKwYear.length === 0 && slugYears.length === 0;
+    items.push(item("year_title", "Title & meta", kwYears.length ? "Title keeps the keyword's year" : event ? "Event topic: its year may stay in the title" : "No year in the title, SEO title or slug (November–December rule)", titleOk ? "pass" : "fail",
+      missingKwYear.length ? `The keyword has ${missingKwYear.join(", ")}; keep it in the title as written.` : slugYears.length ? `Slug has ${slugYears.join(", ")}. Slugs never carry a year.` : extra.length && !event ? `Title has ${extra.join(", ")}. Remove the year until January.` : kwYears.length ? "Keyword's year is in the title" : event ? "Dated event, year allowed" : "No year in the title", 1.5));
     const targets = yearsIn(text).includes(yr.target);
     items.push(item("year_rule", "Content", `Content targets ${yr.target} (older years only for comparisons)`, targets && !oldYears.length ? "pass" : "warn", !targets ? `${yr.target} isn't mentioned. Frame the plan, trends or prices for ${yr.target}.` : `Mentions ${oldYears.join(", ")}. Fine only if it's past data.`));
   } else {
@@ -285,7 +293,7 @@ export function checkArticle(a: ArticleInput, c: ClientInput, research: Research
     const lastText = paras.slice(-2).join(" ");
     const introText = paras.slice(0, 2).join(" ");
     const yrL = yearRule();
-    const yearOk = yrL.titleYear ? new RegExp(`\\b${yrL.current}\\b`).test(h1) : true;
+    const yearOk = yrL.titleYear && !yearsIn(kw).length ? new RegExp(`\\b${yrL.current}\\b`).test(h1) : true;
     items.push(item("local_title", "Local SEO", yrL.titleYear ? `City "${city}" and ${yrL.current} in the title` : `City "${city}" in the title (no year until January)`, hasKeyword(h1, city) && yearOk ? "pass" : hasKeyword(h1, city) ? "warn" : "fail", `H1: "${h1}"`, 1.5));
     items.push(item("local_intro", "Local SEO", "City named in the intro", hasKeyword(introText, city) ? "pass" : "fail", hasKeyword(introText, city) ? "Found" : "Not in the first paragraphs"));
     const h2City = h2s.filter((h) => hasKeyword(h, city)).length;
