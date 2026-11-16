@@ -85,6 +85,41 @@ export async function resolveGoogleLink(u: string): Promise<string | null> {
   }
 }
 
+async function fetchHtml(url: string) {
+  try {
+    const r = await fetch(url, { headers: { "User-Agent": UA, Accept: "text/html,application/xhtml+xml", "Accept-Language": "en-US,en;q=0.9" }, redirect: "follow", signal: AbortSignal.timeout(9000) });
+    if (!r.ok || !(r.headers.get("content-type") ?? "").includes("html")) return null;
+    return (await r.text()).slice(0, 1_500_000);
+  } catch {
+    return null;
+  }
+}
+
+export type ReadPage = { url: string; text: string; h2: string[]; h3: string[] };
+
+/**
+ * Reads a page through DataForSEO's crawler (On-Page content parsing): works for sites that block
+ * Rankflow's server, pages built in JavaScript, and Google redirect links. About $0.0001 per page.
+ */
+export async function readViaDataForSeo(url: string): Promise<ReadPage | null> {
+  if (!dataforseoConfigured()) return null;
+  try {
+    type Block = { h_title?: string; main_title?: string; level?: number; primary_content?: { text?: string }[]; secondary_content?: { text?: string }[] };
+    type Item = { page_url?: string; url?: string; page_content?: { header?: Block; main_topic?: Block[]; secondary_topic?: Block[]; footer?: Block } };
+    const res = await dfsPost<{ items?: Item[] }>("on_page/content_parsing/live", [{ url, enable_javascript: true }], 40_000);
+    const item = res[0]?.items?.[0];
+    const blocks = item?.page_content?.main_topic ?? [];
+    if (!blocks.length) return null;
+    const txt = (b: Block) => [b.h_title, ...(b.primary_content ?? []).map((c) => c.text), ...(b.secondary_content ?? []).map((c) => c.text)].filter(Boolean).join("\n");
+    const text = blocks.map(txt).join("\n").replace(/[ \t]+/g, " ").trim();
+    const head = (lvl: number) => blocks.filter((b) => b.level === lvl && b.h_title).map((b) => b.h_title!.replace(/\s+/g, " ").trim()).filter((h) => h.length < 120);
+    return { url: item?.page_url || item?.url || url, text, h2: head(2), h3: head(3) };
+  } catch (e) {
+    console.error("dfs_content_parsing_failed", url, e instanceof Error ? e.message : e);
+    return null;
+  }
+}
+
 /** Words in a keyword that carry meaning. */
 export const keywordWords = (keyword: string) => tokens(keyword).filter((w) => !STOP.has(w) && w.length > 2);
 
@@ -103,19 +138,20 @@ async function fetchBenchmark(keyword: string, location: string, ownSite: string
   const organic = (res[0]?.items ?? []).filter((i) => i.type === "organic" && i.url && !SKIP_HOSTS.test(host(i.url)) && (!own || host(i.url) !== own)).slice(0, 10);
 
   const pages = await Promise.all(organic.map(async (o) => {
-    try {
-      // Google now often hands out its own redirect links (google.com/goto?url=…) instead of the page address.
-      const real = await resolveGoogleLink(o.url);
-      if (!real) throw new Error("unresolved redirect");
-      o.url = real;
-      if (SKIP_HOSTS.test(host(real)) || (own && host(real) === own)) throw new Error("skipped site");
-      const r = await fetch(o.url, { headers: { "User-Agent": UA, Accept: "text/html" }, redirect: "follow", signal: AbortSignal.timeout(9000) });
-      if (!r.ok || !(r.headers.get("content-type") ?? "").includes("html")) throw new Error("not html");
-      const html = (await r.text()).slice(0, 1_500_000);
-      return { o, page: readPage(html) };
-    } catch {
-      return { o, page: null };
+    // Google now often hands out its own redirect links (google.com/goto?url=…) instead of the page address.
+    const real = await resolveGoogleLink(o.url);
+    if (real) o.url = real;
+    if (real && (SKIP_HOSTS.test(host(real)) || (own && host(real) === own))) return { o, page: null };
+    const html = real ? await fetchHtml(real) : null;
+    if (html) {
+      const page = readPage(html);
+      if (page.words > 150) return { o, page };
     }
+    // Blocked by the site (bot protection), a page built in JavaScript, or an unresolved Google link:
+    // let DataForSEO's crawler read it instead.
+    const viaDfs = await readViaDataForSeo(o.url);
+    if (viaDfs?.url && viaDfs.url !== o.url) o.url = viaDfs.url;
+    return { o, page: viaDfs ? { text: viaDfs.text, words: tokens(viaDfs.text).length, h2: viaDfs.h2.slice(0, 20) } : null };
   }));
   const ok = pages.filter((p) => p.page && p.page.words > 150);
   const df = new Map<string, { pages: number; total: number }>();

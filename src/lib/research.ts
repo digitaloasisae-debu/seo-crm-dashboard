@@ -10,7 +10,7 @@ import { db } from "./db";
 import { dfsPost } from "./dataforseo";
 import { rankLocation } from "./rank";
 import { geminiConfigured, geminiJson } from "./gemini";
-import { resolveGoogleLink } from "./serp";
+import { readViaDataForSeo, resolveGoogleLink } from "./serp";
 
 const CACHE_DAYS = 14;
 const UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36";
@@ -67,7 +67,9 @@ async function fetchResearch(keyword: string, clientId: string): Promise<Researc
   const relatedSearches = [...new Set(items.filter((i) => i.type === "related_searches").flatMap((i) => (i.items ?? []).map((q) => (typeof q === "string" ? q : q.title ?? "").trim())).filter(Boolean))].slice(0, 10);
 
   const competitors: ResearchCompetitor[] = await Promise.all(organic.map(async (o) => {
-    const [page, kws] = await Promise.all([readHeadings(o.url!), rankedKeywords(o.url!, country)]);
+    const [direct, kws] = await Promise.all([readHeadings(o.url!), rankedKeywords(o.url!, country)]);
+    // Blocked or JavaScript-only pages: read them through DataForSEO's crawler instead.
+    const page = direct && direct.words > 150 ? direct : await readViaDataForSeo(o.url!).then((d) => (d ? { h2: d.h2.slice(0, 20), h3: d.h3.slice(0, 25), words: d.text.split(/\s+/).length, excerpt: d.text.slice(0, 2500) } : direct));
     return { url: o.url!, title: o.title ?? "", position: o.rank_group ?? 0, words: page?.words ?? 0, h2: page?.h2 ?? [], h3: page?.h3 ?? [], excerpt: page?.excerpt ?? "", keywords: kws.slice(0, 25) };
   }));
 
