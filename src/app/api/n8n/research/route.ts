@@ -1,3 +1,4 @@
+import { servicePageFor } from "@/lib/service-page";
 import { NextResponse, type NextRequest } from "next/server";
 import { db } from "@/lib/db";
 import { checkN8nAuth } from "@/lib/n8n";
@@ -30,8 +31,10 @@ export async function GET(req: NextRequest) {
   const plan = r ? await topicPlan(topic, r, { refresh: sp.get("refresh") === "1" }).catch(() => null) : null;
   // The intro links the service page for this topic: the best-matching page that isn't the home page or a general hub.
   const generic = (u: string) => { try { const segs = new URL(u).pathname.split("/").filter(Boolean); return segs.length === 0 || (segs.length === 1 && /^(services?|our-services|solutions|blog|about(-us)?|contact(-us)?|home)$/i.test(segs[0])); } catch { return true; } };
-  const intro = links.filter((l) => !generic(l.url)).sort((a, b) => Number(/\/(services?|solutions?)\//i.test(b.url)) - Number(/\/(services?|solutions?)\//i.test(a.url)) || b.score - a.score)[0] ?? null;
-  const introLine = intro ? `\nINTRO LINK: the first paragraph links to ${intro.url} (the service page for this topic), with a 2–3 word anchor. Never link the general services page or the home page in the intro.` : "";
+  // Hamza's rule: the first paragraph ALWAYS links the service page for the service this blog targets.
+  const svc = await servicePageFor(topic.clientId, { keyword: topic.keyword || topic.title, title: topic.title, angle: topic.angle, topicId: topic.id }, { refresh: sp.get("refresh") === "1" }).catch(() => null);
+  const intro = svc ? { url: svc.url, anchor: svc.anchor } : links.filter((l) => !generic(l.url) && !l.articleId).sort((a, b) => Number(/\/(services?|solutions?)\//i.test(b.url)) - Number(/\/(services?|solutions?)\//i.test(a.url)) || b.score - a.score)[0] ?? null;
+  const introLine = intro ? `\nINTRO LINK (required): the FIRST paragraph must link to ${intro.url}, the service page for the service this blog targets, with a 2–3 word anchor such as "${intro.anchor}". Never link another blog, the general services page or the home page in the intro.` : "";
   const recentBlogs = recent.map((a) => {
     const html = a.bodyHtml.replace(/<(script|style)[\s\S]*?<\/\1>/gi, "");
     return {

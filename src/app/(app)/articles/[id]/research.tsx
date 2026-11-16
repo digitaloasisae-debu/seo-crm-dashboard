@@ -2,6 +2,7 @@ import Link from "next/link";
 import { CopyChip } from "@/components/copy-chip";
 import { Icon } from "@/components/icons";
 import { StatusBadge } from "@/components/ui";
+import { servicePageFor } from "@/lib/service-page";
 import { clientArticles, linkIdeas, usageIn } from "@/lib/keyword-usage";
 
 type Source = { url: string; title?: string; kind?: string };
@@ -64,8 +65,16 @@ export function Sources({ sources, bodyHtml, siteUrl, competitors, writtenHere }
 }
 
 /** Is the focus keyword already taken by another blog, and which live pages to link to for it. */
-export async function KeywordCheck({ articleId, clientId, keyword, bodyHtml }: { articleId: string; clientId: string; keyword: string; bodyHtml: string }) {
-  const [arts, ideas] = await Promise.all([clientArticles(clientId), linkIdeas(clientId, keyword, { excludeId: articleId, bodyHtml, limit: 6 })]);
+export async function KeywordCheck({ articleId, clientId, keyword, bodyHtml, title, topicId }: { articleId: string; clientId: string; keyword: string; bodyHtml: string; title: string; topicId: string | null }) {
+  const [arts, ideas, svc] = await Promise.all([
+    clientArticles(clientId),
+    linkIdeas(clientId, keyword, { excludeId: articleId, bodyHtml, limit: 6 }),
+    // The service page the first paragraph must link (found once, then saved for a week).
+    Promise.race([servicePageFor(clientId, { keyword, title, topicId }), new Promise<null>((r) => setTimeout(() => r(null), 20_000))]).catch(() => null),
+  ]);
+  const firstPara = bodyHtml.match(/<p[^>]*>([\s\S]*?)<\/p>/i)?.[1] ?? "";
+  const svcPath = svc ? path(svc.url).toLowerCase() : "";
+  const svcLinked = !!svc && [...firstPara.matchAll(/href=["']([^"']+)["']/gi)].some((m) => (path(m[1]) || m[1].replace(/\/$/, "")).toLowerCase() === svcPath);
   const used = usageIn(arts, keyword, articleId);
   const same = used.filter((u) => u.match === "same");
   return (
@@ -91,6 +100,17 @@ export async function KeywordCheck({ articleId, clientId, keyword, bodyHtml }: {
           {same.length > 0 && <p className="pl-6 text-xs opacity-80">Fix: give this blog a different focus keyword or angle, or merge the two and link this one to the stronger page.</p>}
         </div>
       )}
+      <div className={`rounded-md p-2.5 text-sm ${!svc ? "bg-slate-50 text-slate-600" : svcLinked ? "bg-emerald-50 text-emerald-800" : "bg-rose-50 text-rose-800"}`}>
+        <div className="text-xs font-medium opacity-80">Service page for the first paragraph</div>
+        {svc ? (
+          <>
+            <a href={svc.url} target="_blank" rel="noreferrer" className="block truncate font-medium hover:underline">{svc.title || path(svc.url)}</a>
+            <span className="flex items-center gap-1 text-xs">{svcLinked ? "Linked in the first paragraph" : <>Not linked in the first paragraph. Anchor idea: <CopyChip text={svc.anchor} /></>}</span>
+          </>
+        ) : (
+          <span className="text-xs">No service page found. Add the client&apos;s service page URLs to their link pool in Settings.</span>
+        )}
+      </div>
       <div>
         <div className="mb-1 flex items-baseline justify-between gap-2">
           <span className="text-xs font-medium text-slate-500">Internal links to add in this blog</span>

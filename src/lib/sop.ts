@@ -31,6 +31,8 @@ Title and meta
 - Year: follow the YEAR RULE at the end of this SOP. From January to October, use the current year wherever a year appears (title, intro, prices, stats). In November and December, the content targets next year but the title, SEO title, meta title and slug have no year at all. Earlier years only when comparing with or citing past data.
 The direct answer
 - The first line under the title answers the title's question or promise, in bold, in 1–1.5 lines.
+- The answer must convert, not just define. Frame it as the result the reader wants (a specific outcome, number or timeframe), then show how the client's service gets them there. Never open with a dictionary definition ("X is the process of…", "X refers to…").
+- The first paragraph ALWAYS links the client's service page for the service this blog targets (an Amazon blog links the Amazon service page). Never another blog, the general services page or the home page.
 - The rest of the paragraph, and the rest of the blog, explains that answer.
 - The primary keyword appears in the first 100 words.
 Example. Title: How Often Should You Clean Your Air Ducts?
@@ -38,7 +40,7 @@ Example. Title: How Often Should You Clean Your Air Ducts?
 Stay on the title. Every section must help answer it. If a topic doesn't, cut it, even if a competitor covers it.
 
 Step 3: Headings and keywords
-- Primary (focus) keyword: title, H1 and main H2 headings, written naturally.
+- Primary (focus) keyword: title, H1 and 2–3 of the H2 headings (exact or a close natural variant), never in every heading.
 - Secondary keywords (from competitors): H2 and H3 subheadings, one main keyword per heading.
 - People Also Ask questions: H2 and H3 subheadings, the question or its keywords as a subheading.
 - Remaining PAA questions: FAQ section (see Step 6).
@@ -49,7 +51,7 @@ Step 3: Headings and keywords
 Step 4: Writing style
 The blog must read like an experienced person wrote it, not an AI tool.
 Paragraphs
-- Every paragraph is at least 4–5 lines long and no more than 120 words. No one- or two-line paragraphs.
+- Every paragraph is 4–5 lines long: about 50–80 words. Split anything longer; no one- or two-line paragraphs.
 - Exceptions: the bold answer under the title, bullet lists and FAQ answers.
 - Break up text with subheadings, bullet lists, tables and visuals, not with very short paragraphs.
 Natural, human tone
@@ -71,7 +73,7 @@ Content
 Step 5: Links, images and CTA
 Internal links
 - 5–7 internal links per post.
-- The first one goes in the first paragraph and points to the client's main service page.
+- The first one goes in the first paragraph and points to the service page for this blog's service (see Step 2).
 - Anchor text is 2–3 words.
 - Never use the primary (focus) keyword as anchor text. Secondary keywords can be used as anchors.
 External links
@@ -88,7 +90,7 @@ Step 6: FAQ section
 Every blog ends with an FAQ section built from the People Also Ask questions.
 - At least 5 questions, using the PAA questions not already used as subheadings (add competitor-page questions only if PAA runs short).
 - Write each question exactly as people search it, as an H3.
-- Answer in the first sentence, then add 2–3 sentences of detail.
+- Keep answers to the point: 25–50 words. Answer in the first sentence, then at most 1–2 short sentences of detail.
 - Every FAQ relates to the blog title.
 
 Step 7: Rank Math and Yoast scores
@@ -102,7 +104,7 @@ Rank Math
 - Keyword density: 1–1.5%; warning above 2.5%.
 - Content length: keep to the brief's 1,000–2,000 words. Rank Math gives full marks only at 2,500+, so make up the points by passing every other test.
 - Images: primary keyword in at least one alt text; 4+ images or videos.
-- Paragraphs: none over 120 words.
+- Paragraphs: none over 80 words (4–5 lines).
 - Table of contents: added with a supported TOC plugin or block.
 - Links: internal links plus 1 dofollow external link.
 - Keyword uniqueness: focus keyword not used on another post.
@@ -123,23 +125,23 @@ Tick every item before the blog goes live.
 [ ] 3–4 competitor articles reviewed and saved in the brief
 [ ] 3–5 competitor keywords used as secondary keywords in subheadings
 [ ] PAA questions used in subheadings, the rest in the FAQ
-[ ] Primary keyword in the title, H1, main headings and first 100 words
+[ ] Primary keyword in the title, H1, 2–3 H2 headings and the first 100 words
 [ ] Title under 60 characters with a number, power word and sentiment word
 [ ] Meta description 150–160 characters with the primary keyword
 [ ] URL contains only the primary keyword, not the blog title, under 75 characters
-[ ] Bold, 1–1.5 line answer right under the title
+[ ] Bold, 1–1.5 line answer right under the title that sells the result (not a definition)
 [ ] All content stays relevant to the title
-[ ] Every paragraph is 4–5 lines minimum and under 120 words (except the bold answer, lists and FAQ answers)
+[ ] Every paragraph is 4–5 lines, about 50–80 words (except the bold answer, lists and FAQ answers)
 [ ] Reads naturally, with no AI-sounding phrases or repeated sentence patterns
 [ ] Structure and opening differ from the client's last 3 blogs
 [ ] Heading order H1 → H2 → H3, no skipped levels
-[ ] First paragraph links to the client's service page for this blog's topic (an Amazon blog links the Amazon service page, never the general services page or the home page)
+[ ] First paragraph ALWAYS links the service page for this blog's service (an Amazon blog links the Amazon service page, never the general services page or the home page)
 [ ] If the title has a number (7 Tips), the body has that many numbered points
 [ ] 5–7 internal links; primary keyword never used as an anchor
 [ ] 1 dofollow external authority link, no competitor links
 [ ] At least 4 images (1 per 500 words), alt text on all
 [ ] Table of contents added
-[ ] FAQ section with at least 5 questions
+[ ] FAQ section with at least 5 questions, each answered in 25–50 words
 [ ] Year follows the YEAR RULE (Nov–Dec: no year in the title, content targets next year); earlier years only for comparisons or past data
 [ ] Rank Math score 95+
 [ ] Yoast focus keyphrase set, SEO and Readability both green

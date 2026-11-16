@@ -2,6 +2,7 @@
  * AI rewrites inside the dashboard: "Rewrite with these changes" and "Give me 3 title options".
  * Uses the client's brain, the SOP and the notes on the article. The old version is kept as an ArticleRevision.
  */
+import { servicePageFor } from "./service-page";
 import { db } from "./db";
 import { brandContext } from "./brand-profile";
 import { geminiJson } from "./gemini";
@@ -168,7 +169,10 @@ Every section must serve the title. Remove or rewrite sections, PAA questions an
 Stay on the article's topic (its title): if the FAQ or any section is about another meaning of the keyword, replace it with questions and content about this topic.
 Transition words: at least 35% of sentences must contain one (however, because, for example, as a result, so, but, also, in addition, first, next, then, finally, in fact, that said, for this reason, such as, while, since, once, if, instead, especially).
 Readability grade 6–8: average 12–15 words per sentence, split any sentence over 20 words, use everyday words (use, not utilise; help, not facilitate).
-Paragraphs: 50–120 words each (except the bold answer, lists and the FAQ answers). Merge paragraphs that are too short.
+Paragraphs: 4–5 lines, i.e. 50–80 words each (except the bold answer, lists and the FAQ answers). Split any paragraph over 80 words; merge paragraphs under 50 words.
+FAQ answers: to the point, 25–50 words each. The first sentence answers the question directly; one or two short sentences of detail at most.
+Focus keyword in headings: the focus keyword (or a close natural variant) in 2–3 of the H2s, never in every heading.
+First paragraph: it must convert. Open with the bold answer framed as the result the reader wants (a specific outcome, number or timeframe), then show how the client's service delivers it and link the service page. Never open with a dictionary definition ("X is the process of…", "X refers to…", "X is a type of…").
 People Also Ask: when PAA questions are given for subheadings, use each one as an H2 or H3 almost word for word, and answer it right below. Use the FAQ ones as FAQ questions.
 __YEAR__
 Return JSON: {"meta_title":"...","meta_description":"...","body_html":"...","image_alts":{"IMG1":"..."},"changes":["<one short line per fix>"]}`;
@@ -252,7 +256,8 @@ export async function autoFixSop(articleId: string, opts: { userId?: string; min
     const client = await db.client.findUniqueOrThrow({ where: { id: article.clientId }, select: { linkPool: true, siteUrl: true, gscPages: { select: { page: true }, orderBy: { clicks: "desc" }, take: 30 } } });
     // Most related pages first, so the intro link goes to the service page for this topic.
     const related = await linkIdeas(article.clientId, `${article.focusKeyword} ${article.topic?.title ?? article.metaTitle}`, { excludeId: article.id, limit: 10 }).catch(() => []);
-    const pages = [...new Set([...related.map((l) => l.url), ...client.linkPool, ...client.gscPages.map((p) => p.page)])].filter((u) => /^https?:\/\//.test(u) || u.startsWith("/")).slice(0, 40);
+    const svc = await servicePageFor(article.clientId, { keyword: article.focusKeyword, title: article.topic?.title ?? article.metaTitle, angle: article.topic?.angle, topicId: article.topicId }).catch(() => null);
+    const pages = [...new Set([...(svc ? [svc.url] : []), ...related.map((l) => l.url), ...client.linkPool, ...client.gscPages.map((p) => p.page)])].filter((u) => /^https?:\/\//.test(u) || u.startsWith("/")).slice(0, 40);
     const p = pack(article.bodyHtml);
     const research = await cachedResearch(article.clientId, article.focusKeyword).catch(() => null);
     // Only the PAA questions and competitor keywords that fit THIS article's topic.
@@ -274,7 +279,7 @@ ${issues.slice(0, 40).map((i) => `- ${i}`).join("\n")}
 IMAGES (write alt text for each: descriptive, under 125 characters, and the focus keyword in at least the first one):
 ${p.images.length ? p.images.map((img, n) => `- IMG${n + 1}: current alt "${attr(img.match(/<img\b[^>]*>/i)?.[0] ?? "", "alt")}"`).join("\n") : "(none)"}
 
-${researchLines.length ? `GOOGLE RESEARCH FOR "${article.focusKeyword}" (skip anything that is not about this article's topic):\n${researchLines.map((l) => `- ${l}`).join("\n")}\n\n` : ""}${gapLines.length ? `COMPETITOR GAPS (Google top 10 for "${article.focusKeyword}", content score ${gaps!.score}/100):\n${gapLines.map((l) => `- ${l}`).join("\n")}\n\n` : ""}INTERNAL PAGES (the only URLs you may link internally; most related to this topic first. The intro link goes to the first page that is the service page for this topic, never the general services page or the home page):
+${researchLines.length ? `GOOGLE RESEARCH FOR "${article.focusKeyword}" (skip anything that is not about this article's topic):\n${researchLines.map((l) => `- ${l}`).join("\n")}\n\n` : ""}${gapLines.length ? `COMPETITOR GAPS (Google top 10 for "${article.focusKeyword}", content score ${gaps!.score}/100):\n${gapLines.map((l) => `- ${l}`).join("\n")}\n\n` : ""}${svc ? `SERVICE PAGE FOR THE FIRST PARAGRAPH (required): ${svc.url}. The first paragraph MUST link it with a 2–3 word anchor like "${svc.anchor}". This is the page for the service this blog sells.\n\n` : ""}INTERNAL PAGES (the only URLs you may link internally; most related to this topic first. The intro link goes to the service page for this topic, never another blog, the general services page or the home page):
 ${pages.length ? pages.map((u) => `- ${u}`).join("\n") : "(none known: do not add internal links)"}
 
 CURRENT ARTICLE

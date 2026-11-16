@@ -67,7 +67,7 @@ const band = (v: number, passLo: number, passHi: number, warnLo: number, warnHi:
 /** WF2 puts a <style> block (brand colours) in the body: its CSS must not count as words. */
 const stripCode = (html: string) => html.replace(/<(style|script|noscript)[\s\S]*?<\/\1>/gi, "");
 
-export function checkArticle(a: ArticleInput, c: ClientInput, research: ResearchInput = null) {
+export function checkArticle(a: ArticleInput, c: ClientInput, research: ResearchInput = null, more: { servicePage?: string | null } = {}) {
   const root = parse(stripCode(a.bodyHtml || ""));
   const kw = a.focusKeyword || "";
   const text = root.structuredText.replace(/\s+/g, " ").trim();
@@ -140,23 +140,29 @@ export function checkArticle(a: ArticleInput, c: ClientInput, research: Research
   const withTrans = sentences.filter((x) => { const t = ` ${norm(x)} `; return TRANSITIONS.some((w) => t.includes(` ${w} `)); }).length;
   const transShare = sentences.length ? withTrans / sentences.length : 0;
   items.push(item("transitions", "Content", "Transition words in at least 30% of sentences", transShare >= 0.3 ? "pass" : transShare >= 0.2 ? "warn" : "fail", `${Math.round(transShare * 100)}% of sentences`));
-  // SOP: paragraphs at least 4–5 lines (about 50+ words), except the bold answer, lists and FAQ answers.
+  // SOP: paragraphs are 4–5 lines (about 50–80 words), except the bold answer, lists and FAQ answers.
   const faqStart = root.querySelectorAll("h1,h2,h3,h4,h5,h6").find((h) => /faq|frequently asked/i.test(h.textContent));
   const bodyParas = root.querySelectorAll("p").filter((p) => {
     if (p.closest("li") || p.closest("table")) return false;
     if (faqStart && faqStart.range[0] < p.range[0]) return false;
     return !!p.textContent.trim();
-  }).slice(1);
-  const shortP = bodyParas.filter((p) => words(p.textContent).length < 50).length;
-  const longP = root.querySelectorAll("p").filter((p) => words(p.textContent).length > 120).length;
-  const badP = shortP + longP * 2;
-  items.push(item("paragraphs", "Content", "Paragraphs 4–5 lines minimum and under 120 words (except the bold answer, lists and FAQ)", longP === 0 && shortP <= 1 ? "pass" : badP <= 3 ? "warn" : "fail", [shortP && `${shortP} under about 4 lines`, longP && `${longP} over 120 words`].filter(Boolean).join(", ") || "All paragraphs are the right length", 1.5));
+  });
+  const shortP = bodyParas.slice(1).filter((p) => words(p.textContent).length < 45).length;
+  // 85 words leaves a little room over 80 before it counts as a sixth line.
+  const longP = bodyParas.filter((p, i) => words(p.textContent).length > (i === 0 ? 95 : 85)).length;
+  const badP = shortP + longP;
+  items.push(item("paragraphs", "Content", "Paragraphs 4–5 lines, about 50–80 words (except the bold answer, lists and FAQ)", badP === 0 || (longP === 0 && shortP <= 1) ? "pass" : longP >= 2 || badP > 3 ? "fail" : "warn", [longP && `${longP} over 80 words (more than 5 lines), split them`, shortP && `${shortP} under about 4 lines`].filter(Boolean).join(", ") || "All paragraphs are 4–5 lines", 2));
   // SOP: bold 1–1.5 line direct answer right under the title.
   const firstP = root.querySelectorAll("p").find((p) => p.textContent.trim());
   const firstBold = firstP?.querySelector("strong, b");
   const boldWords = firstBold ? words(firstBold.textContent).length : 0;
   const startsBold = !!firstBold && norm(firstP!.textContent).startsWith(norm(firstBold.textContent).slice(0, 20));
   items.push(item("bold_answer", "Content", "Bold 1–1.5 line direct answer under the title", startsBold && boldWords >= 8 && boldWords <= 40 ? "pass" : firstBold ? "warn" : "fail", !firstBold ? "First paragraph has no bold answer" : !startsBold ? "Bold text isn't at the start of the first paragraph" : `${boldWords} words in bold`, 2));
+  // Hamza: the first paragraph sells the result; it never opens with a dictionary definition.
+  const firstSentence = (firstP?.textContent ?? "").replace(/\s+/g, " ").trim().split(/(?<=[.!?])\s/)[0] ?? "";
+  const DEFINITION = /^(?:[\w&'’\-]+\s){0,8}?(?:is|are)\s+(?:the\s+(?:process|practice|art|act|strategy|method)\s+of|a\s+(?:type|form|kind|process|method|strategy|set)\s+of|an?\s+(?:term|concept|approach)\b|defined\s+as)|^(?:[\w&'’\-]+\s){0,8}?refers?\s+to\b/i;
+  const isDefinition = DEFINITION.test(firstSentence);
+  items.push(item("intro_converts", "Content", "First paragraph sells the result, not a definition", isDefinition ? "fail" : "pass", isDefinition ? `Opens with a definition: "${firstSentence.slice(0, 90)}…". Lead with the outcome the reader wants and how the service delivers it.` : "Doesn't open with a definition", 1.5));
   // SOP: no AI-sounding phrases.
   const AI_PHRASES = ["in today's fast-paced world", "in todays fast paced world", "delve into", "delves into", "it's important to note", "its important to note", "unlock", "elevate", "in conclusion", "not just", "game-changer", "game changer", "navigate the complexities", "in the ever-evolving", "look no further"];
   const low = ` ${text.toLowerCase()} `;
@@ -172,6 +178,12 @@ export function checkArticle(a: ArticleInput, c: ClientInput, research: Research
 
   // --- Headings ---
   items.push(item("h2_count", "Headings", "At least 3 H2 sections", h2s.length >= 3 ? "pass" : h2s.length >= 2 ? "warn" : "fail", `${h2s.length} H2 headings`));
+  // SOP Step 3: the focus keyword (or a close variant) in 2–3 H2s, never in every heading.
+  const faqH = faqStart ? faqStart.range[0] : Infinity;
+  const bodyH2 = root.querySelectorAll("h2").filter((h) => h.range[0] < faqH).map((h) => h.textContent.trim());
+  const kwH2 = kw ? bodyH2.filter((h) => hasKeyword(h, kw)).length : 0;
+  const stuffed = bodyH2.length >= 4 && kwH2 > Math.ceil(bodyH2.length * 0.6);
+  if (kw) items.push(item("kw_headings", "Headings", "Focus keyword in 2–3 H2 headings", kwH2 >= 2 && !stuffed ? "pass" : kwH2 === 1 || stuffed ? "warn" : "fail", stuffed ? `In ${kwH2} of ${bodyH2.length} H2s. Too many, vary the wording.` : `In ${kwH2} of ${bodyH2.length} H2s`, 1.5));
   let skipped = 0, prev = 1;
   for (const h of headings) { const lvl = Number(h.tagName[1]); if (lvl > prev + 1) skipped++; prev = lvl; }
   items.push(item("hierarchy", "Headings", "Heading levels never skipped (H1 → H2 → H3)", skipped === 0 ? "pass" : "fail", skipped ? `${skipped} skipped level${skipped > 1 ? "s" : ""}` : "Clean hierarchy"));
@@ -221,7 +233,11 @@ export function checkArticle(a: ArticleInput, c: ClientInput, research: Research
   items.push(item("internal_links", "Links", "5–7 internal links", band(internal.length, 5, 7, 3, 10), `${internal.length} internal links`, 1.5));
   const introHtml = root.querySelector("p");
   const introHasLink = !!introHtml?.querySelectorAll("a[href]").some((x) => isInternal(x.getAttribute("href") || ""));
-  items.push(item("intro_link", "Links", "First internal link in the intro paragraph", introHasLink ? "pass" : "warn", introHasLink ? "Intro has an internal link" : "No internal link in the first paragraph"));
+  const pathOnly = (u: string) => { try { return new URL(u, c.siteUrl || "https://x.invalid").pathname.replace(/\/+$/, "").toLowerCase(); } catch { return u.replace(/\/+$/, "").toLowerCase(); } };
+  const introLinks = (introHtml?.querySelectorAll("a[href]") ?? []).map((x) => x.getAttribute("href") || "").filter((h) => isInternal(h));
+  const svcOk = more.servicePage ? introLinks.some((h) => pathOnly(h) === pathOnly(more.servicePage!)) : null;
+  items.push(item("intro_link", "Links", "First paragraph links the service page", !introHasLink ? "fail" : svcOk === false ? "fail" : "pass",
+    !introHasLink ? `No link in the first paragraph.${more.servicePage ? ` Link ${more.servicePage}.` : " Link the service page for this blog's service."}` : svcOk === false ? `Intro links ${introLinks.map(pathOnly).join(", ")}, not the service page ${more.servicePage}` : svcOk ? `Links ${pathOnly(more.servicePage!)}` : "Intro has an internal link", 2));
   // SOP: the intro links the service page for THIS topic, not the general services page or the home page.
   const introLink = introHtml?.querySelectorAll("a[href]").find((x) => isInternal(x.getAttribute("href") || ""));
   if (introLink) {
@@ -273,6 +289,22 @@ export function checkArticle(a: ArticleInput, c: ClientInput, research: Research
   if (faqHead) {
     const h3q = new Set(root.querySelectorAll("h3").filter((h) => faqHead.range[0] < h.range[0] && h.textContent.trim().endsWith("?")).map((h) => norm(h.textContent)));
     items.push(item("faq_h3", "Structure", "FAQ questions written as H3 headings", faqCount && h3q.size >= Math.min(5, faqCount) ? "pass" : h3q.size ? "warn" : "fail", `${h3q.size} of ${faqCount} questions are H3`));
+  }
+  // FAQ answers are to the point: 25–50 words each.
+  if (faqHead) {
+    const answers: number[] = [];
+    let cur = -1;
+    let el = faqHead.nextElementSibling as HTMLElement | null;
+    const lvl = Number(faqHead.tagName[1]);
+    while (el && !(/^H[1-6]$/.test(el.tagName) && Number(el.tagName[1]) <= lvl)) {
+      const isQ = /^H[1-6]$/.test(el.tagName) || (el.tagName === "P" && /\?\s*$/.test(el.textContent.trim()) && words(el.textContent).length < 25 && !!el.querySelector("strong,b"));
+      if (isQ) { answers.push(0); cur = answers.length - 1; }
+      else if (cur >= 0) answers[cur] += words(el.textContent).length;
+      el = el.nextElementSibling as HTMLElement | null;
+    }
+    const filled = answers.filter((n) => n > 0);
+    const long = filled.filter((n) => n > 60).length;
+    if (filled.length) items.push(item("faq_answers", "Structure", "FAQ answers to the point (25–50 words)", long === 0 ? "pass" : long <= 1 ? "warn" : "fail", long ? `${long} of ${filled.length} answers over 60 words (longest ${Math.max(...filled)})` : `Longest answer ${Math.max(...filled)} words`, 1.5));
   }
   const slugWords = a.slug.split("-").filter(Boolean);
   const kwWords = content(kw);

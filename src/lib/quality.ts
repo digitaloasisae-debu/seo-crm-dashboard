@@ -1,4 +1,5 @@
 /** Runs the SOP checker on an article: rule checks always, plus a Gemini review when asked. */
+import { cachedServicePage } from "./service-page";
 import { createHash } from "node:crypto";
 import type { Prisma } from "@prisma/client";
 import { db } from "./db";
@@ -30,6 +31,7 @@ const AI_ITEMS = [
   ["secondary_kw", "Secondary keywords and PAA questions in the headings read naturally, with no stuffing or repeated phrases"],
   ["coverage", "Covers what the top competitors cover, plus what they miss, without drifting off the title"],
   ["snippets", "Optimised for featured snippets (lists, tables, Q&A)"],
+  ["intro_converts", "The first paragraph sells: the bold answer leads with the result the reader wants and how the client's service delivers it, not a textbook definition"],
   ["faq_quality", "FAQs are distinct, searched-as-asked questions that relate to the title, answered in the first sentence"],
   ["human", "Reads like a person wrote it: varied sentence starts, no AI rhythm patterns (\"not just X but Y\", threes everywhere, dramatic one-line closers)"],
   ["variety", "Structure and opening differ from the client's last 3 blogs (listed below)"],
@@ -53,7 +55,8 @@ export async function runQuality(articleId: string, opts: { ai?: boolean } = {})
   const plan = research ? await cachedTopicPlan(article.topicId).catch(() => null) : null;
   const rule = checkArticle(article, article.client, research ? (plan
     ? { secondary: plan.secondaryForHeadings, paa: [...plan.paaForHeadings, ...plan.paaForFaq], paaForHeadings: plan.paaForHeadings, paaForFaq: plan.paaForFaq }
-    : { secondary: research.secondaryKeywords.map((k) => k.keyword), paa: research.paa }) : null);
+    : { secondary: research.secondaryKeywords.map((k) => k.keyword), paa: research.paa }) : null,
+    { servicePage: (await cachedServicePage(article.client.id, { keyword: article.focusKeyword, topicId: article.topicId }).catch(() => null))?.url });
   // SOP Step 1.7 / Rank Math: the focus keyword isn't the focus keyword of another post on the site.
   if (article.focusKeyword.trim()) {
     const dupes = await db.article.findMany({ where: { clientId: article.client.id, id: { not: article.id }, focusKeyword: { equals: article.focusKeyword.trim(), mode: "insensitive" } }, select: { metaTitle: true }, take: 3 });
