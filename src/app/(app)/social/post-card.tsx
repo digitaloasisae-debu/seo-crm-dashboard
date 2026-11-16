@@ -238,7 +238,7 @@ export function PostCard({ p }: { p: CardPost }) {
               ))}
               {p.platforms.includes("linkedin") && (
                 <label className="block">
-                  <span className="label">LinkedIn first comment (the link goes here)</span>
+                  <span className="label">LinkedIn first comment (optional, the link is already in the post)</span>
                   <textarea name="firstComment" defaultValue={p.firstComment} rows={2} className="input text-sm" disabled={locked} />
                 </label>
               )}
