@@ -233,10 +233,28 @@ export async function editTopicAction(topicId: string, fd: FormData) {
   await requireClientAccess(user, topic.clientId, "edit");
   const after = await db.topic.update({
     where: { id: topicId },
-    data: { title: str(fd, "title"), angle: str(fd, "angle") || null, category: str(fd, "category") || null, status: "GENERATED" },
+    data: {
+      title: str(fd, "title"), angle: str(fd, "angle") || null, category: str(fd, "category") || null, status: "GENERATED",
+      ...(fd.has("seoTitle") ? { seoTitle: str(fd, "seoTitle") || null, metaDescription: str(fd, "metaDescription") || null } : {}),
+      // One H2 per line; "Heading — notes" keeps the notes.
+      ...(fd.has("outline") ? { outline: str(fd, "outline").split(/\n+/).map((l) => l.trim()).filter(Boolean).map((l) => { const [h, ...n] = l.replace(/^\d+[.)]\s*/, "").split(/\s+[—–]\s+/); return { heading: h.trim(), notes: n.join(" — ").trim() }; }) } : {}),
+    },
   });
   await logActivity({ actorId: user.id, clientId: topic.clientId, action: "topic.edit", entity: "topic", entityId: topicId, before: topic, after });
   revalidatePath(`/clients/${topic.clientId}/topics`);
+}
+
+/** Research and rewrite topic briefs (Google Search + the SERP). Runs in the background, 30–90 seconds each. */
+export async function briefTopicsAction(clientId: string, fd: FormData) {
+  const user = await requireUser();
+  await requireClientAccess(user, clientId, "edit");
+  const selected = ids(fd).length ? ids(fd) : [str(fd, "topicId")].filter(Boolean);
+  const topics = await db.topic.findMany({ where: { id: { in: selected }, clientId, article: { is: null } }, select: { id: true } });
+  if (!topics.length) return;
+  await db.topic.updateMany({ where: { id: { in: topics.map((t) => t.id) } }, data: { briefingAt: new Date(), briefError: null } });
+  const { briefTopics } = await import("@/lib/topic-brief");
+  afterResponse(() => briefTopics(topics.map((t) => t.id)));
+  revalidatePath(`/clients/${clientId}/topics`);
 }
 
 export async function runN8nAction(clientId: string, which: "WF1" | "WF2") {

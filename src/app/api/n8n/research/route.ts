@@ -4,6 +4,7 @@ import { checkN8nAuth } from "@/lib/n8n";
 import { getResearch, headingPlan, planBrief, researchBrief, topicPlan } from "@/lib/research";
 import { getSop } from "@/lib/sop";
 import { linkIdeas } from "@/lib/keyword-usage";
+import { briefText } from "@/lib/topic-brief";
 
 export const maxDuration = 120;
 
@@ -15,7 +16,7 @@ export async function GET(req: NextRequest) {
   const denied = checkN8nAuth(req);
   if (denied) return denied;
   const sp = req.nextUrl.searchParams;
-  const topic = await db.topic.findUnique({ where: { id: sp.get("topic_id") ?? "" }, select: { id: true, clientId: true, keyword: true, title: true, angle: true } });
+  const topic = await db.topic.findUnique({ where: { id: sp.get("topic_id") ?? "" }, select: { id: true, clientId: true, keyword: true, title: true, angle: true, seoTitle: true, metaDescription: true, outline: true } });
   if (!topic) return NextResponse.json({ error: "Topic not found" }, { status: 404 });
 
   const [sop, recent, links, research] = await Promise.all([
@@ -51,7 +52,9 @@ export async function GET(req: NextRequest) {
     secondary_keywords: (r?.secondaryKeywords ?? []).map((k) => k.keyword),
     people_also_ask: r?.paa ?? [],
     related_searches: r?.relatedSearches ?? [],
-    research_brief: r ? researchBrief(r) + (plan ? planBrief(plan) : "") + introLine : introLine.trim(),
+    // The team-approved brief goes last so it wins over the keyword-level plan.
+    research_brief: (r ? researchBrief(r) + (plan ? planBrief(plan) : "") + introLine : introLine.trim()) + briefText(topic),
+    article_brief: briefText(topic),
     research_error: research.error,
     internal_link_suggestions: links.map((l) => ({ url: l.url, anchor: l.anchor, title: l.title })),
     recent_blogs: recentBlogs,

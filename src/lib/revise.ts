@@ -13,6 +13,7 @@ import { logActivity } from "./activity";
 import { dataforseoConfigured } from "./dataforseo";
 import { rescoreContent, runContentScore, type ContentScore } from "./serp";
 import { cachedResearch, headingPlan, topicPlan } from "./research";
+import { briefText } from "./topic-brief";
 
 /** A rewrite that has been "running" this long has died (the server stops background work after 5 minutes). */
 export const REVISE_STALE_MS = 6 * 60_000;
@@ -49,7 +50,7 @@ async function context(articleId: string) {
     where: { id: articleId },
     include: {
       client: { select: { name: true, businessType: true, primaryCity: true, siteUrl: true, ctaText: true, ctaLink: true, brain: true } },
-      topic: { select: { title: true, angle: true } },
+      topic: { select: { title: true, angle: true, seoTitle: true, metaDescription: true, outline: true } },
       notes: { where: { appliedAt: null }, orderBy: { createdAt: "asc" }, include: { author: { select: { name: true } } } },
     },
   });
@@ -61,7 +62,7 @@ async function context(articleId: string) {
   const head = `SOP:\n${sop}\n\nCLIENT: ${c.name}${c.businessType ? ` (${c.businessType})` : ""}${c.primaryCity ? `, local client in ${c.primaryCity}` : ""}${c.siteUrl ? `, site ${c.siteUrl}` : ""}${c.ctaText ? `\nCTA: ${c.ctaText}${c.ctaLink ? ` -> ${c.ctaLink}` : ""}` : ""}
 BRAND PROFILE AND CLIENT BRAIN (how this client writes, and rules the team taught; follow them strictly):\n${(await brandContext(article.clientId)) || "(none yet)"}
 
-TOPIC: ${article.topic?.title ?? article.metaTitle}${article.topic?.angle ? `\nANGLE: ${article.topic.angle}` : ""}${article.importedAt ? "\nThis is an existing live page imported from WordPress: keep its structure, links, images and facts unless the instructions say otherwise." : ""}
+TOPIC: ${article.topic?.title ?? article.metaTitle}${article.topic?.angle ? `\nANGLE: ${article.topic.angle}` : ""}${article.topic ? briefText(article.topic) : ""}${article.importedAt ? "\nThis is an existing live page imported from WordPress: keep its structure, links, images and facts unless the instructions say otherwise." : ""}
 FOCUS KEYWORD: ${article.focusKeyword}${linkLines}`;
   return { article, head };
 }

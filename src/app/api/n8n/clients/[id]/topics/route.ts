@@ -5,6 +5,11 @@ import { logActivity } from "@/lib/activity";
 import { checkN8nAuth } from "@/lib/n8n";
 import { normalizeKeyword } from "@/lib/utils";
 import { ensureSlots } from "@/lib/posting";
+import { after } from "next/server";
+import { briefTopics } from "@/lib/topic-brief";
+
+// Researching each new topic's brief runs after the response (30–90 seconds per topic, 3 at a time).
+export const maxDuration = 300;
 
 const Body = z.object({
   topics: z
@@ -72,6 +77,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const now = new Date();
   await ensureSlots(clientId, now);
   await ensureSlots(clientId, new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1)));
+
+  // Turn each rough idea into a researched brief (Google Search + SERP) before anyone reviews it.
+  await db.topic.updateMany({ where: { id: { in: created.map((t) => t.id) } }, data: { briefingAt: new Date() } });
+  after(() => briefTopics(created.map((t) => t.id)));
 
   return NextResponse.json({ created: created.map((t) => ({ id: t.id, keyword: t.keyword, topic: t.title })) });
 }
