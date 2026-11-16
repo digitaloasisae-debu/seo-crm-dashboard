@@ -63,7 +63,7 @@ export function ContentScoreCard({ report, checkedAt, runAction, refreshAction, 
             <li key={c.url} className="flex items-baseline gap-2">
               <span className="w-5 shrink-0 text-right text-xs text-slate-400">#{c.position}</span>
               <a href={c.url} target="_blank" rel="noreferrer" className="min-w-0 flex-1 truncate text-indigo-600 hover:underline" title={c.title}>{c.title || host(c.url)}</a>
-              <span className="shrink-0 text-xs text-slate-500">{c.ok ? `${c.words.toLocaleString()} w` : "unreadable"}</span>
+              <span className="shrink-0 text-xs text-slate-500" title={c.error}>{c.ok ? `${c.words.toLocaleString()} w` : c.error ? `unreadable: ${c.error.slice(0, 40)}` : "unreadable"}</span>
             </li>
           ))}
         </ol>
