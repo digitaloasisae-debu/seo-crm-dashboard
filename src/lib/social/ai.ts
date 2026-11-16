@@ -406,7 +406,7 @@ CAPTION: one caption in Hamza's layout, used on every platform (we put it togeth
 - listTitle: 2-6 words that lead into the list (e.g. "Modern retargeting now relies on", "What to check first").
 - points: 3-5 items, each {"emoji": one emoji that matches that item, "text": 2-9 words}. Concrete and useful, one idea each.
 - closing: one sentence on how ${p.client.name} helps with exactly this, naming ${p.client.name} (e.g. "${p.client.name} helps brands adapt to the future of Amazon advertising.").
-- hashtags: 12-15 specific hashtags, most specific first: the service, the topic, the platform, the industry, the city/country, then #${p.client.name.replace(/[^\p{L}\p{N}]+/gu, "")}. No generic tags (#love, #instagood, #success).
+- hashtags: 12-15 real hashtags that people actually search and follow on Instagram, Facebook and LinkedIn, so the post gets found. Mix them: 4-5 big, popular tags for the field (e.g. #DigitalMarketing, #GoogleAds, #AmazonSeller, #Ecommerce, #SmallBusiness), 4-5 mid-size tags for this exact topic or service (e.g. #PPCTips, #LocalSEO, #AmazonFBA), 2-3 local tags people in the area use (e.g. #DubaiBusiness, #UAEBusiness, #Dubai), then #${p.client.name.replace(/[^\p{L}\p{N}]+/gu, "")}. Put the most relevant first (LinkedIn uses only the first 5). Only well-known, existing hashtags of 1-3 words; never invent long or made-up tags, never stuff the keyword into tags nobody searches, no generic filler (#love, #instagood, #success).
 The service page link and the line breaks are added for you, so do not put links, "link in bio" or hashtags in the other parts. A carousel's intro can end by telling people to swipe; a reel's should be short.
 
 
