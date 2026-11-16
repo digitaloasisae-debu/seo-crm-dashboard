@@ -9,6 +9,7 @@ import { geminiConfigured, geminiGrounded } from "./gemini";
 import { brandContext } from "./brand-profile";
 import { getResearch } from "./research";
 import { dataforseoConfigured } from "./dataforseo";
+import { yearRule } from "./year";
 
 export type OutlineItem = { heading: string; notes: string };
 export const BRIEF_STALE_MS = 5 * 60_000;
@@ -21,7 +22,7 @@ Then write a brief that is specific, current and useful, not generic:
 - Tie it to the client's location and services, so the CTA follows naturally.
 - Only state facts you found in search results. If a date or number isn't confirmed, say "verify" instead of guessing.
 - H1: clear and specific, may be a question plus what the reader gets (up to ~90 characters).
-- SEO title: under 60 characters, focus keyword (or its core) in the first half, location or year if natural.
+- SEO title: under 60 characters, focus keyword (or its core) in the first half, location if natural. Years in the H1, SEO title and meta follow the YEAR RULE.
 - Meta description: 140–160 characters, says what the reader learns.
 - Direction: 1–2 sentences on what the article explains and what plan it gives, and for whom.
 - Outline: 5–8 H2 sections in order. For each, short notes on what goes in it (facts to include, steps, comparisons, cautions). Answer the main question in the first section within 50 words. End with an FAQ and a CTA that fits the client's service.
@@ -47,7 +48,7 @@ GOOGLE TOP RESULTS FOR THE KEYWORD (${research.location}):
 ${research.competitors.map((x) => `- ${x.title} (${x.url})${x.h2.length ? `: ${x.h2.slice(0, 8).join(" | ")}` : ""}`).join("\n") || "(none read)"}
 PEOPLE ALSO ASK: ${research.paa.join(" | ") || "(none)"}
 ${research.gaps?.length ? `WHAT THE TOP RESULTS MISS: ${research.gaps.join(" | ")}` : ""}` : ""}`;
-    const { data, sources } = await geminiGrounded<{ h1?: string; seo_title?: string; meta_description?: string; direction?: string; outline?: OutlineItem[]; facts?: { fact: string; source: string }[] }>(prompt, { system: SYSTEM, timeoutMs: 120_000 });
+    const { data, sources } = await geminiGrounded<{ h1?: string; seo_title?: string; meta_description?: string; direction?: string; outline?: OutlineItem[]; facts?: { fact: string; source: string }[] }>(prompt, { system: `${SYSTEM}\n${yearRule().text}`, timeoutMs: 120_000 });
     const h1 = data.h1?.trim();
     if (!h1 || !data.outline?.length) throw new Error("The brief came back incomplete. Try again.");
     const outline = data.outline.filter((o) => o?.heading).slice(0, 10).map((o) => ({ heading: String(o.heading).trim(), notes: String(o.notes ?? "").trim() }));

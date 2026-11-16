@@ -2,6 +2,7 @@
  * Rule-based SOP checks for an article (everything that can be measured without AI).
  * Mirrors Hamza's SOP 1 (general, updated 12 Nov 2026 with the Blog Writing SOP) and SOP 2 (local, when the client has a primary city).
  */
+import { yearRule, yearsIn } from "./year";
 import { parse, type HTMLElement } from "node-html-parser";
 
 export type CheckStatus = "pass" | "warn" | "fail";
@@ -96,8 +97,17 @@ export function checkArticle(a: ArticleInput, c: ClientInput, research: Research
   const md = (a.metaDescription || "").trim();
   const mdStatus: CheckStatus = !md ? "fail" : md.length >= 150 && md.length <= 160 && hasKeyword(md, kw) ? "pass" : md.length >= 120 && md.length <= 175 ? "warn" : "fail";
   items.push(item("meta_desc", "Title & meta", "Meta description 150–160 characters with the keyword", mdStatus, md ? `${md.length} characters${hasKeyword(md, kw) ? "" : ", keyword missing"}` : "Missing"));
-  const oldYears = [...new Set((`${a.metaTitle} ${text}`.match(/\b(2019|2020|2021|2022|2023|2024|2025)\b/g) ?? []))];
-  items.push(item("year_rule", "Title & meta", "Uses 2026 as the current year (older years only for comparisons)", oldYears.length === 0 ? "pass" : "warn", oldYears.length ? `Mentions ${oldYears.join(", ")}. Fine only if it's historical data.` : "No outdated years"));
+  const yr = yearRule();
+  const oldYears = yearsIn(`${a.metaTitle} ${text}`).filter((y) => y < yr.current);
+  if (yr.yearEnd) {
+    // Nov–Dec: no year in the title, SEO title or slug; the content targets next year.
+    const titleYears = yearsIn(`${a.metaTitle} ${h1} ${a.slug || ""}`);
+    items.push(item("year_title", "Title & meta", "No year in the title, SEO title or slug (November–December rule)", titleYears.length ? "fail" : "pass", titleYears.length ? `Title or slug has ${titleYears.join(", ")}. Remove the year until January.` : "No year in the title", 1.5));
+    const targets = yearsIn(text).includes(yr.target);
+    items.push(item("year_rule", "Content", `Content targets ${yr.target} (older years only for comparisons)`, targets && !oldYears.length ? "pass" : "warn", !targets ? `${yr.target} isn't mentioned. Frame the plan, trends or prices for ${yr.target}.` : `Mentions ${oldYears.join(", ")}. Fine only if it's past data.`));
+  } else {
+    items.push(item("year_rule", "Title & meta", `Uses ${yr.current} as the current year (older years only for comparisons)`, oldYears.length === 0 ? "pass" : "warn", oldYears.length ? `Mentions ${oldYears.join(", ")}. Fine only if it's historical data.` : "No outdated years"));
+  }
 
   // --- Body ---
   items.push(item("word_count", "Content", "1,000–2,000 words (the brief's length)", wc >= 1000 && wc <= 2200 ? "pass" : wc >= 800 ? "warn" : "fail", `${wc.toLocaleString()} words`, 2));
@@ -274,7 +284,9 @@ export function checkArticle(a: ArticleInput, c: ClientInput, research: Research
   if (city) {
     const lastText = paras.slice(-2).join(" ");
     const introText = paras.slice(0, 2).join(" ");
-    items.push(item("local_title", "Local SEO", `City "${city}" and 2026 in the title`, hasKeyword(h1, city) && /2026/.test(h1) ? "pass" : hasKeyword(h1, city) ? "warn" : "fail", `H1: "${h1}"`, 1.5));
+    const yrL = yearRule();
+    const yearOk = yrL.titleYear ? new RegExp(`\\b${yrL.current}\\b`).test(h1) : true;
+    items.push(item("local_title", "Local SEO", yrL.titleYear ? `City "${city}" and ${yrL.current} in the title` : `City "${city}" in the title (no year until January)`, hasKeyword(h1, city) && yearOk ? "pass" : hasKeyword(h1, city) ? "warn" : "fail", `H1: "${h1}"`, 1.5));
     items.push(item("local_intro", "Local SEO", "City named in the intro", hasKeyword(introText, city) ? "pass" : "fail", hasKeyword(introText, city) ? "Found" : "Not in the first paragraphs"));
     const h2City = h2s.filter((h) => hasKeyword(h, city)).length;
     items.push(item("local_h2", "Local SEO", "City named in H2 headings", h2City >= 1 ? "pass" : "fail", `${h2City} of ${h2s.length} H2s mention ${city}`));

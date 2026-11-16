@@ -1,4 +1,5 @@
 import { db } from "./db";
+import { yearRule } from "./year";
 
 /** Default SOP, from Hamza (updated 2026-11-12, "SEO Content Writing SOPs" PDF). Super Admin can override it in the app (AppSetting "sop"). */
 export const DEFAULT_SOP = `SEO Content Writing SOPs
@@ -27,7 +28,7 @@ Title and meta
 - The title is a promise: if it says "7 Tips" or "5 Steps", the body has exactly that many numbered H2 or H3 points (1., 2., 3. …), each delivering one of them.
 - Meta description: 150–160 characters, engaging, primary keyword included.
 - URL (slug): only the primary keyword, never the blog title. Full URL including the domain under 75 characters, no years or filler words. Example: title "How Often Should You Clean Your Air Ducts? 7 Signs It's Time" → /how-often-to-clean-air-ducts/.
-- Current year: use 2026 wherever a year appears (title, intro, prices, stats). Earlier years only when comparing with or citing past data.
+- Year: follow the YEAR RULE at the end of this SOP. From January to October, use the current year wherever a year appears (title, intro, prices, stats). In November and December, the content targets next year but the title, SEO title, meta title and slug have no year at all. Earlier years only when comparing with or citing past data.
 The direct answer
 - The first line under the title answers the title's question or promise, in bold, in 1–1.5 lines.
 - The rest of the paragraph, and the rest of the blog, explains that answer.
@@ -114,7 +115,7 @@ Hit the scores without keyword stuffing. If a sentence reads badly after adding 
 Step 8: Pre-publish checks
 - Grammar: Grammarly score 90+.
 - Originality: 100% unique in Copyscape or Quetext.
-- Year check: search the post for old years and update them to 2026 (except comparisons or past data).
+- Year check: search the post for old years and update them to the target year from the YEAR RULE (except comparisons or past data).
 - Links: every internal and external link opens the right page.
 
 Step 9: Final checklist
@@ -139,7 +140,7 @@ Tick every item before the blog goes live.
 [ ] At least 4 images (1 per 500 words), alt text on all
 [ ] Table of contents added
 [ ] FAQ section with at least 5 questions
-[ ] Current year (2026) used everywhere, earlier years only for comparisons or past data
+[ ] Year follows the YEAR RULE (Nov–Dec: no year in the title, content targets next year); earlier years only for comparisons or past data
 [ ] Rank Math score 95+
 [ ] Yoast focus keyphrase set, SEO and Readability both green
 [ ] Grammarly 90+ and 100% unique (Copyscape or Quetext)
@@ -158,7 +159,7 @@ Apply these on top of SOP 1 for every blog for a local or service-area client. A
 - Reference local landmarks, climate or regulations where it fits naturally.
 
 3. Structure
-- Title: primary keyword + city + 2026, still under 60 characters (e.g. "Best Water Heater Upgrades for [City] Homes in 2026").
+- Title: primary keyword + city + the year (when the YEAR RULE allows a year in the title), still under 60 characters (e.g. "Best Water Heater Upgrades for [City] Homes in 2026").
 - URL: the primary keyword only, following SOP 1 Step 2.
 - Intro: the bold direct answer first (SOP 1, Step 2), then local context within the first 100–150 words. The first paragraph links to the service page for this blog's topic.
 - H2 sections (3–5), each targeting a supporting keyword or PAA question.
@@ -167,5 +168,6 @@ Apply these on top of SOP 1 for every blog for a local or service-area client. A
 
 export async function getSop() {
   const row = await db.appSetting.findUnique({ where: { key: "sop" } });
-  return row?.value?.trim() ? row.value : DEFAULT_SOP;
+  // The year rule changes with the date, so it's added to whichever SOP is in use.
+  return `${row?.value?.trim() ? row.value : DEFAULT_SOP}\n\n${yearRule().text}`;
 }

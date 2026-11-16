@@ -14,6 +14,7 @@ import { dataforseoConfigured } from "./dataforseo";
 import { rescoreContent, runContentScore, type ContentScore } from "./serp";
 import { cachedResearch, headingPlan, topicPlan } from "./research";
 import { briefText } from "./topic-brief";
+import { yearRule } from "./year";
 
 /** A rewrite that has been "running" this long has died (the server stops background work after 5 minutes). */
 export const REVISE_STALE_MS = 6 * 60_000;
@@ -156,7 +157,7 @@ You get the SOP, the client's brain rules, and a list of SOP checker issues. Fix
 keep the facts, voice, structure and the parts that already pass. Never invent facts about the business (prices, years in business, awards, addresses, phone numbers).
 Typical fixes: put the focus keyword in the H1/title and first 100 words, adjust keyword density, shorten long sentences and paragraphs, add bullet lists,
 add missing H2s, fix heading levels, write a 150–160 character meta description and a meta title under 60 characters (both with the keyword, and the city for local clients),
-add or complete an FAQ section (at least 5 distinct questions), add a local CTA, name the city in the intro/H2s/conclusion, replace outdated years with 2026.
+add or complete an FAQ section (at least 5 distinct questions), add a local CTA, name the city in the intro/H2s/conclusion, replace outdated years following the YEAR RULE below.
 "To check" (WARN) items count too: fix them as well, not only the FAIL ones.
 Local clients: write the location in "City, State/Province" form (e.g. "Lahore, Punjab", "Austin, TX") at least once in the title, the intro, one H2 and the conclusion.
 Links: add internal links ONLY to URLs from the "INTERNAL PAGES" list (descriptive 2–3 word anchors, first one in the intro). Add at most one external link, only to a well-known authority site (government, standards body, major publication), with target="_blank" rel="noopener".
@@ -169,6 +170,7 @@ Transition words: at least 35% of sentences must contain one (however, because, 
 Readability grade 6–8: average 12–15 words per sentence, split any sentence over 20 words, use everyday words (use, not utilise; help, not facilitate).
 Paragraphs: 50–120 words each (except the bold answer, lists and the FAQ answers). Merge paragraphs that are too short.
 People Also Ask: when PAA questions are given for subheadings, use each one as an H2 or H3 almost word for word, and answer it right below. Use the FAQ ones as FAQ questions.
+__YEAR__
 Return JSON: {"meta_title":"...","meta_description":"...","body_html":"...","image_alts":{"IMG1":"..."},"changes":["<one short line per fix>"]}`;
 
 /** Checker items the AI can't fix in text (images, the URL slug). */
@@ -280,7 +282,7 @@ Meta title: ${article.metaTitle}
 Meta description: ${article.metaDescription ?? ""}
 Body:
 ${p.body}`,
-      { system: FIX_SYSTEM, timeoutMs: 200_000, model: writerModel(), temperature: 0.3 },
+      { system: FIX_SYSTEM.replace("__YEAR__", yearRule().text), timeoutMs: 200_000, model: writerModel(), temperature: 0.3 },
     );
     let body = (out.body_html ?? "").trim();
     // The fix must not lose images: put any dropped placeholder back before the last H2.
