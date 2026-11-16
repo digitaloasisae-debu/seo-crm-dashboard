@@ -16,7 +16,7 @@ import type { Client, SocialPost, SocialProject } from "@prisma/client";
 export const W = 1080;
 export const H = 1350;
 
-import { designOf, fallbackText, formatOf, type Slide } from "./formats";
+import { designOf, fallbackText, formatOf, readTime, type Slide } from "./formats";
 export { FORMATS, FORMAT_HELP, PICTURE_FORMATS, TEXT_FORMATS, designOf, fallbackText, formatOf, isFormat, type DesignData } from "./formats";
 
 // ---------- AI pictures ----------
@@ -32,6 +32,7 @@ const imageModels = () =>
 export function imagePrompt(post: Pick<SocialPost, "imageBrief" | "idea">, project: Pick<SocialProject, "imageStyle">) {
   return [
     post.imageBrief.trim() || `A realistic, well-lit photo that clearly shows: ${post.idea}`,
+    "Style: a candid, unposed photo that looks taken by a person on a phone or simple camera: natural, slightly imperfect light, real textures and everyday clutter, muted true-to-life colours, ordinary real people if any. Not glossy, not CGI or 3D render, no glowing or floating elements, no perfect symmetry, no stock-photo smiles.",
     "No text, letters, numbers, logos or watermarks anywhere in the image.",
     project.imageStyle.trim() ? `Style notes: ${project.imageStyle.trim()}` : "",
   ]
@@ -607,7 +608,7 @@ function ReelBrand(_: { c: Ctx }) {
  * full-bleed photo, or just the theme colour) and one transparent PNG per line of text, plus the
  * brand card for the end. src/lib/social/video.ts animates them.
  */
-export async function reelLayers(d: DesignInput, scenes: string[]): Promise<{ base: Buffer; lines: Buffer[]; brand: Buffer }> {
+export async function reelLayers(d: DesignInput, scenes: string[]): Promise<{ base: Buffer; lines: Buffer[]; brand: Buffer; durations: number[] }> {
   const { c, fonts } = await lookOf(d);
   // The picture fills the frame (the words sit on solid blocks), or just the theme colour.
   const base = d.photo
@@ -617,7 +618,7 @@ export async function reelLayers(d: DesignInput, scenes: string[]): Promise<{ ba
   const lines = [];
   for (const s of scenes) lines.push(await png(<ReelText c={c} text={s} boxed={boxed} />, fonts, RW, RH));
   const brand = await png(<ReelBrand c={c} />, fonts, RW, RH);
-  return { base, lines, brand };
+  return { base, lines, brand, durations: scenes.map((s) => readTime(plain(s))) };
 }
 
 /**

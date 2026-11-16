@@ -228,7 +228,7 @@ export async function planMonth(projectId: string, month: string): Promise<numbe
   const KIND_HINT: Record<string, string> = {
     static: "one image post: one sharp point",
     carousel: "a swipeable carousel of 4-6 slides: a step-by-step, a checklist, a breakdown or a story in stages, something people save",
-    video: "a short animated Reel (8-10 seconds, 3 lines of moving text over one visual): one punchy point with a twist",
+    video: "a silent Reel (15-25 seconds, 5-7 lines of text over one visual that tell a tiny story: problem, why, 2-3 simple fixes, payoff): one practical topic a business owner instantly recognises",
   };
   const prompt = `Plan the social media posts of ${p.client.name}'s own accounts (${p.platforms.join(", ")}) for ${month}. There is one numbered slot per post; write exactly one idea for every slot.
 
@@ -355,7 +355,7 @@ export function designToText(format: string, d: DesignOut | undefined): string {
 const DESIGN_GUIDE = `THE IMAGE is the first thing people see, so it must stop the scroll on its own. One strong picture, very few words. Never fill the image with text.
 FORMATS:
 - concept (the default): an AI picture with a few words on a solid band above it. imageBrief = the PROMPT for the image model (Google Imagen). It is sent exactly as you write it, so write it as a plain, literal description of ONE real scene that directly shows this post's topic, the way the buyer would recognise it in their own life or business. RELEVANCE FIRST: someone who sees only the picture must know what the post is about. Start from the caption title: picture the one real thing the buyer sees when this topic happens to them, and show exactly that. When the topic is about a platform or tool (Amazon, Google, Instagram, a website, an app, ads), show a phone or laptop with that recognisable kind of page in a real setting. When it is about a holiday or event, show the event itself as people in the country celebrate it.
-  Write 2-4 sentences covering: the main subject and what is happening; the setting (a real place in the client's city or country when it fits); the composition and camera (e.g. close-up, eye level, shallow depth of field); the light and mood. Default style: a realistic, high-quality photograph with natural light. Use a clean 3D illustration only when the topic cannot be photographed.
+  Write 2-4 sentences covering: the main subject and what is happening; the setting (a real place in the client's city or country when it fits); the composition and camera (e.g. close-up, eye level, shallow depth of field); the light and mood. Default style: a candid, everyday photo as a real person would take it on their phone (not a polished stock or studio shot, never a 3D render or illustration).
   Good examples: "Close-up of a shop owner's hand holding a smartphone showing a Google Maps business listing with a row of empty star ratings, inside a small bakery in Dubai, warm morning light, shallow depth of field, realistic photo." / "An online shopper's laptop on a sofa with a checkout page open and a full shopping basket icon, a cup of coffee beside it, evening lamp light, realistic photo."
   Never: abstract metaphors (no rockets, lightbulbs, chess pieces, puzzle pieces, trophies, mountains, handshakes, glowing holograms, floating icons), stock-photo clichés (people in suits pointing at screens, smiling at the camera), or anything whose link to the topic needs explaining. Screens may show a recognisable layout (a map, a shop page, search results) but no readable words. No text in the image: the words go on the band.
 - photo: one of OUR REAL PHOTOS (from the library below) with a few words. Only when a library photo truly fits the post (behind the scenes, team, real work, proof). Set photoId.
@@ -423,7 +423,13 @@ ALSO, for every post:
 POST TYPES (given per post):
 - image: everything above.
 - carousel: the image above is the COVER slide (it must make people swipe). Also write slides: 3-5 slides that come after the cover, each {"title": 2-6 words, "body": 1-2 short sentences, max 28 words}. One idea per slide, building step by step, the most useful one last. Then end: one short closing line for the last slide (what to do now, e.g. "Save this for your next launch" or a call to action). Slides follow the caption title and its points, so the carousel and the caption tell the same story.
-- reel: a short, silent, animated video: the visual above with words that appear one line at a time. Write scenes: exactly 3 lines, each 3-8 words, all about this post's title and nothing else: 1 = the topic named plainly (like the title), 2 = the single most useful point from the caption's list, 3 = what to do next or how ${p.client.name} helps. Every line must make sense on its own and use the topic's own words; never vague lines like "Here's the truth", "Game changer", "Level up" or "Don't miss out". headline.main is the cover text (can match scene 1).`;
+- reel: a silent 15-25 second video. Most people watch it with the sound off and never read the caption, so THE WORDS ON SCREEN MUST CARRY THE WHOLE MESSAGE on their own. Write scenes: 5-7 lines shown one after another, each one complete thought of 4-10 words, together a tiny story the viewer can follow:
+  1. HOOK: a problem or question the viewer recognises from their own business, in their words (e.g. "Paying for Google Ads clicks that never call?").
+  2. WHY: the reason, in plain words (e.g. "Your ads may show far outside the areas you serve").
+  3-5. FIXES: 2-3 simple, concrete things to do, each a short instruction they could act on today (e.g. "Show ads only where your customers are", "Block searches that will never buy", "Spend more in your best areas").
+  6. PAYOFF: what changes for them (e.g. "Fewer wasted clicks, more real calls").
+  7. ACTION (optional): one short line (e.g. "Want a free ad check? Link in caption").
+  Write for a business owner, not a marketer: no agency jargon or insider terms (no "search term scrubbing", "bid adjustments", "CPA", "ROAS", "funnel", "SERP"); if a term is needed, say what it does instead. Never talk about how we work ("How we manage...") and never name the brand except in the last line. Each line must make sense even if the previous one was missed. headline.main is the cover text (can match line 1).`;
   const prompt = `BUSINESS: ${businessLine(p.client)}
 Main call to action: ${p.client.ctaText || "get in touch"} (${link})
 
@@ -453,7 +459,7 @@ ${posts
   })
   .join("\n")}
 
-Return JSON: {"posts":[{"id":"...","hooks":["","",""],"caption":{"emoji":"","intro":"","listTitle":"","points":[{"emoji":"","text":""}],"closing":"","hashtags":[""]},"format":"type","design":{"kicker":"","big":""},"photoId":"","headline":{"top":"","main":"","bottom":""},"imageBrief":"","altText":"","slides":[{"title":"","body":""}],"end":"","scenes":["","",""]}]} (slides and end only for a carousel, scenes only for a reel)`;
+Return JSON: {"posts":[{"id":"...","hooks":["","",""],"caption":{"emoji":"","intro":"","listTitle":"","points":[{"emoji":"","text":""}],"closing":"","hashtags":[""]},"format":"type","design":{"kicker":"","big":""},"photoId":"","headline":{"top":"","main":"","bottom":""},"imageBrief":"","altText":"","slides":[{"title":"","body":""}],"end":"","scenes":["","","","","",""]}]} (slides and end only for a carousel, scenes only for a reel)`;
   const r = await geminiJson<{ posts?: Written[] }>(prompt, { system, timeoutMs: 200_000, temperature: 0.8, model: textModel() });
   const out = r.posts ?? [];
   const urls = await serviceLinks(p, posts.map((x) => x.service));
@@ -478,7 +484,7 @@ Return JSON: {"posts":[{"id":"...","hooks":["","",""],"caption":{"emoji":"","int
       if (w.end) design.end = clean(w.end, 120);
     }
     if (x.kind === "video") {
-      const scenes = (w.scenes ?? []).map((v) => clean(v, 80)).filter(Boolean).slice(0, 4);
+      const scenes = (w.scenes ?? []).map((v) => clean(v, 90)).filter(Boolean).slice(0, 7);
       if (scenes.length) design.scenes = scenes;
     }
     const titles = (w.hooks ?? []).map((h) => clean(h, 120)).filter(Boolean).slice(0, 3);
