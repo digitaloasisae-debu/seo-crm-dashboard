@@ -154,6 +154,41 @@ export async function setAssignmentAction(clientId: string, fd: FormData) {
   revalidatePath(`/clients/${clientId}`, "layout");
 }
 
+/** Team page: give one member several clients at once. */
+export async function assignClientsAction(fd: FormData) {
+  const admin = await requireAdmin();
+  const userId = str(fd, "userId");
+  const clientIds = fd.getAll("clientId").map(String).filter(Boolean);
+  const access = str(fd, "access") as AccessLevel | "REMOVE";
+  if (!userId) throw new Error("Pick a team member");
+  if (!clientIds.length) throw new Error("Tick at least one client");
+  const member = await db.user.findUniqueOrThrow({ where: { id: userId }, select: { role: true } });
+  if (member.role === "SUPER_ADMIN") throw new Error("The Super Admin already sees every client");
+  for (const clientId of clientIds) {
+    if (access === "REMOVE") await db.clientAssignment.deleteMany({ where: { clientId, userId } });
+    else {
+      if (access === "OWNER") await db.clientAssignment.updateMany({ where: { clientId, access: "OWNER", userId: { not: userId } }, data: { access: "EDIT" } });
+      const data = { access, grantedById: admin.id, expiresAt: null };
+      await db.clientAssignment.upsert({ where: { clientId_userId: { clientId, userId } }, create: { clientId, userId, ...data }, update: data });
+    }
+    await logActivity({ actorId: admin.id, clientId, action: "assignment.set", entity: "client", entityId: clientId, after: { userId, access } });
+  }
+  revalidatePath("/", "layout");
+}
+
+/** Team page: set the one owner of a client. The previous owner keeps Edit access. */
+export async function setClientOwnerAction(clientId: string, fd: FormData) {
+  const admin = await requireAdmin();
+  const userId = str(fd, "ownerId");
+  await db.clientAssignment.updateMany({ where: { clientId, access: "OWNER", ...(userId ? { userId: { not: userId } } : {}) }, data: { access: "EDIT" } });
+  if (userId) {
+    const data = { access: "OWNER" as AccessLevel, grantedById: admin.id, expiresAt: null };
+    await db.clientAssignment.upsert({ where: { clientId_userId: { clientId, userId } }, create: { clientId, userId, ...data }, update: data });
+  }
+  await logActivity({ actorId: admin.id, clientId, action: "assignment.owner", entity: "client", entityId: clientId, after: { userId: userId || null } });
+  revalidatePath("/", "layout");
+}
+
 export async function removeAssignmentAction(clientId: string, userId: string) {
   const admin = await requireAdmin();
   await db.clientAssignment.deleteMany({ where: { clientId, userId } });

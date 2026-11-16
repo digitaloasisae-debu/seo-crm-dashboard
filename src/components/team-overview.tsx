@@ -43,6 +43,7 @@ function Member({ m }: { m: MemberWork }) {
           <div className="flex items-center gap-2"><h3 className="truncate font-semibold">{m.name}</h3>{m.role === "ADMIN" && <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold text-slate-600 uppercase">Admin</span>}</div>
           <p className="text-xs text-slate-500">{ago(m.lastActive)}</p>
         </div>
+        <Link href={`/users/assign?member=${m.id}`} className="btn-secondary shrink-0 !px-2.5 !py-1 text-xs">Assign clients</Link>
       </div>
 
       <div className="grid grid-cols-4 gap-2 text-center">
@@ -117,7 +118,7 @@ export function TeamOverview({ data }: { data: Awaited<ReturnType<typeof teamOve
             <p className="flex flex-wrap items-center gap-2 rounded-xl bg-amber-50 px-3 py-2 text-sm text-amber-900 ring-1 ring-amber-200 ring-inset">
               <Icon name="alert" className="h-4 w-4" /><b>{plural(unowned.length, "client")} with no owner:</b>
               <span>{unowned.map((c, i) => <span key={c.id}>{i > 0 && ", "}<Link href={`/clients/${c.id}`} className="underline">{c.name}</Link>{pendingOf(c) > 0 && ` (${plural(pendingOf(c), "task")} waiting)`}</span>)}</span>
-              <Link href="/users" className="ml-auto text-xs font-medium underline">Assign owners on the Team page</Link>
+              <Link href="/users/assign" className="ml-auto text-xs font-medium underline">Assign owners</Link>
             </p>
           )}
         </div>
