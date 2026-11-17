@@ -320,25 +320,25 @@ details[open] > *:not(summary) { @apply animate-fade-in; }
 .rf-brand { background: #241a40; color: #fff; }
 
 /* ---------- Client pages (design B): group tabs, page pills, animated banner ---------- */
-.rf-tone-indigo { --t1: #6a4fb3; --t2: #9a7fe0; --tsoft: #efeafb; --tink: #5a4199; }
-.rf-tone-emerald { --t1: #10b981; --t2: #06b6d4; --tsoft: #e3f8f0; --tink: #0b7a55; }
-.rf-tone-amber { --t1: #f59e0b; --t2: #f43f5e; --tsoft: #fef2e0; --tink: #a5560a; }
-.rf-tone-violet { --t1: #d946ef; --t2: #6366f1; --tsoft: #fbeafd; --tink: #9b1fae; }
+.rf-tone-indigo { --t1: #6a4fb3; --t2: #6a4fb3; --tsoft: #efeafb; --tink: #5a4199; }
+.rf-tone-emerald { --t1: #6a4fb3; --t2: #6a4fb3; --tsoft: #efeafb; --tink: #5a4199; }
+.rf-tone-amber { --t1: #6a4fb3; --t2: #6a4fb3; --tsoft: #efeafb; --tink: #5a4199; }
+.rf-tone-violet { --t1: #6a4fb3; --t2: #6a4fb3; --tsoft: #efeafb; --tink: #5a4199; }
 :root[data-theme="dark"] .rf-tone-indigo { --tsoft: #2a2140; --tink: #cbbcf7; }
-:root[data-theme="dark"] .rf-tone-emerald { --tsoft: #0f2c24; --tink: #6ee7b7; }
-:root[data-theme="dark"] .rf-tone-amber { --tsoft: #33240c; --tink: #fcd34d; }
-:root[data-theme="dark"] .rf-tone-violet { --tsoft: #34143a; --tink: #f0abfc; }
+:root[data-theme="dark"] .rf-tone-emerald { --tsoft: #2a2140; --tink: #cbbcf7; }
+:root[data-theme="dark"] .rf-tone-amber { --tsoft: #2a2140; --tink: #cbbcf7; }
+:root[data-theme="dark"] .rf-tone-violet { --tsoft: #2a2140; --tink: #cbbcf7; }
 
 .rf-gtab { background: var(--color-white); border-color: var(--color-slate-200); color: var(--color-slate-800); box-shadow: var(--shadow-card); }
 .rf-gtab:hover { border-color: var(--t1); transform: translateY(-2px); box-shadow: 0 14px 30px -18px var(--t1); }
 .rf-gtab .rf-gtab-icon { background: var(--tsoft); color: var(--tink); }
 .rf-gtab .rf-gtab-sub { color: var(--color-slate-500); }
 .rf-gtab .rf-gtab-badge { background: var(--tsoft); color: var(--tink); }
-.rf-gtab::before { content: ""; position: absolute; inset: 0; opacity: 0; transition: opacity .35s; background: linear-gradient(120deg, var(--t1), var(--t2)); }
+.rf-gtab::before { content: ""; position: absolute; inset: 0; opacity: 0; transition: opacity .35s; background: var(--t1); }
 .rf-gtab::after { content: ""; position: absolute; inset: 0; opacity: 0; background: linear-gradient(105deg, transparent 35%, rgb(255 255 255 / .35) 50%, transparent 65%); background-size: 250% 100%; }
 .rf-gtab.is-on { border-color: transparent; color: #fff; box-shadow: 0 16px 34px -16px var(--t1); }
 .rf-gtab.is-on::before { opacity: 1; }
-.rf-gtab.is-on::after { opacity: 1; animation: rf-sheen 3.2s ease-in-out infinite; }
+.rf-gtab.is-on::after { opacity: 0; }
 .rf-gtab.is-on .rf-gtab-icon { background: rgb(255 255 255 / .22); color: #fff; }
 .rf-gtab.is-on .rf-gtab-sub { color: rgb(255 255 255 / .82); }
 .rf-gtab.is-on .rf-gtab-badge { background: #fff; color: var(--t1); }
@@ -347,7 +347,7 @@ details[open] > *:not(summary) { @apply animate-fade-in; }
 .rf-pill { background: var(--color-white); border-color: var(--color-slate-200); color: var(--color-slate-600); animation: rf-pop-in .35s var(--ease-spring) both; }
 .rf-pill svg { color: var(--t1); }
 .rf-pill:hover { border-color: var(--t1); color: var(--tink); background: var(--tsoft); }
-.rf-pill.is-on { background: linear-gradient(120deg, var(--t1), var(--t2)); border-color: transparent; color: #fff; box-shadow: 0 8px 18px -10px var(--t1); }
+.rf-pill.is-on { background: var(--t1); border-color: transparent; color: #fff; box-shadow: 0 8px 18px -10px var(--t1); }
 .rf-pill.is-on svg { color: #fff; }
 .rf-pill .rf-pill-badge { background: var(--tsoft); color: var(--tink); }
 .rf-pill.is-on .rf-pill-badge { background: rgb(255 255 255 / .25); color: #fff; }
