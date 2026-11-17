@@ -1,0 +1,42 @@
+# Runs on the Hostinger VPS in /opt/rankflow, next to n8n. deploy/up.sh fills in the variables
+# (Traefik network, certificate resolver and entrypoint are read from the running n8n container).
+services:
+  app:
+    image: ${IMAGE}
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      AUTH_TRUST_HOST: "true"
+    networks: [web]
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=${TRAEFIK_NET}
+      - traefik.http.routers.rankflow.rule=Host(`${APP_DOMAIN}`)
+      - traefik.http.routers.rankflow.entrypoints=${TRAEFIK_ENTRYPOINT}
+      - traefik.http.routers.rankflow.tls=true
+      - traefik.http.routers.rankflow.tls.certresolver=${TRAEFIK_RESOLVER}
+      - traefik.http.services.rankflow.loadbalancer.server.port=3000
+
+  # The daily jobs Vercel Cron used to run (times in UTC, same as vercel.json).
+  cron:
+    image: alpine:3.20
+    restart: unless-stopped
+    env_file: .env
+    networks: [web]
+    depends_on: [app]
+    command:
+      - sh
+      - -c
+      - |
+        apk add --no-cache curl >/dev/null
+        call="curl -fsS --max-time 900 -H 'Authorization: Bearer $$CRON_SECRET' http://app:3000/api/cron"
+        printf '%s\n' \
+          "0 5 * * * $$call/gsc" \
+          "0 6 * * * $$call/audits" \
+          "0 7 * * * $$call/growth" > /etc/crontabs/root
+        exec crond -f -l 6
+
+networks:
+  web:
+    external: true
+    name: ${TRAEFIK_NET}
