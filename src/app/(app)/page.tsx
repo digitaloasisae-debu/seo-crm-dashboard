@@ -86,7 +86,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ v
     user.role === "SUPER_ADMIN" ? db.accessRequest.count({ where: { status: "PENDING" } }) : Promise.resolve(0),
     user.role !== "MEMBER" ? db.formSubmission.count({ where: { processedAt: null } }) : Promise.resolve(0),
     weeklyWins(user.id),
-    db.client.findMany({ where: { ...clientScope(user), status: "ACTIVE" }, select: { id: true, name: true, siteUrl: true, brandPrimaryColor: true }, orderBy: { name: "asc" }, take: 60 }),
+    db.client.findMany({ where: { ...clientScope(user, user.role === "ADMIN" ? "edit" : "view"), status: "ACTIVE" }, select: { id: true, name: true, siteUrl: true, brandPrimaryColor: true }, orderBy: { name: "asc" }, take: 60 }),
   ]);
   const ids = clients.map((c) => c.id);
   const win = pulseWindow();

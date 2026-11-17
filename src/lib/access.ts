@@ -3,7 +3,8 @@ import { db } from "./db";
 import type { SessionUser } from "./session";
 
 // Role decides what a person may do; client_assignments decide on which clients.
-// SUPER_ADMIN: every client. ADMIN and MEMBER: only clients they own or were granted.
+// SUPER_ADMIN: every client. ADMIN: views every client, edits the ones they own or were granted (Hamza, 2026-11-17).
+// MEMBER: only clients they own or were granted.
 
 export type Need = "view" | "edit";
 
@@ -14,6 +15,7 @@ function activeAssignmentWhere(userId: string): Prisma.ClientAssignmentWhereInpu
 /** Prisma filter for the clients this user can see. */
 export function clientScope(user: SessionUser, need: Need = "view"): Prisma.ClientWhereInput {
   if (user.role === "SUPER_ADMIN") return {};
+  if (user.role === "ADMIN" && need === "view") return {};
   const levels: AccessLevel[] = need === "edit" ? ["OWNER", "EDIT"] : ["OWNER", "EDIT", "VIEW"];
   return { assignments: { some: { ...activeAssignmentWhere(user.id), access: { in: levels } } } };
 }
@@ -21,7 +23,7 @@ export function clientScope(user: SessionUser, need: Need = "view"): Prisma.Clie
 export async function accessLevel(user: SessionUser, clientId: string): Promise<AccessLevel | "SUPER" | null> {
   if (user.role === "SUPER_ADMIN") return "SUPER";
   const a = await db.clientAssignment.findFirst({ where: { clientId, ...activeAssignmentWhere(user.id) } });
-  return a?.access ?? null;
+  return a?.access ?? (user.role === "ADMIN" ? "VIEW" : null);
 }
 
 export async function canEdit(user: SessionUser, clientId: string): Promise<boolean> {
