@@ -304,13 +304,13 @@ details[open] > *:not(summary) { @apply animate-fade-in; }
 
 /* Sidebar: light and airy (white, follows dark mode), plum for "you are here", gold marker and badges. */
 .rf-side { background: var(--color-white); color: var(--color-slate-900); border-color: var(--color-slate-200) !important; }
-.rf-side-link { color: var(--color-slate-600); }
+.rf-side-link { color: var(--color-slate-700); }
 .rf-side-link:hover { background: var(--color-slate-100); color: var(--color-slate-900); }
-.rf-side-link[aria-current="page"] { background: var(--color-indigo-50); color: var(--color-indigo-700); }
-.rf-side-link .rf-side-icon { color: var(--color-indigo-600); opacity: 0.7; }
+.rf-side-link[aria-current="page"] { background: #6a4fb3; color: #fff; box-shadow: 0 8px 18px -10px #6a4fb3; }
+.rf-side-link[aria-current="page"]:hover { background: #5a4199; color: #fff; }
+.rf-side-link .rf-side-icon { color: var(--color-indigo-600); opacity: 0.75; }
 .rf-side-link:hover .rf-side-icon { opacity: 1; }
-.rf-side-link[aria-current="page"] .rf-side-icon { opacity: 1; }
-.rf-side-link[aria-current="page"] .rf-side-icon { color: var(--color-indigo-600); }
+.rf-side-link[aria-current="page"] .rf-side-icon { color: #fff; opacity: 1; }
 .rf-side-muted { color: var(--color-slate-500); }
 .rf-side-badge { background: var(--color-indigo-50); color: var(--color-indigo-700); font-weight: 600; }
 .rf-side-link[aria-current="page"] .rf-side-badge { background: #f2b544; color: #3a2600; }

@@ -25,7 +25,6 @@ export function SideNav({ items }: { items: NavItem[] }) {
               aria-current={on ? "page" : undefined}
               className={`rf-side-link relative flex items-center gap-2.5 rounded-lg px-2.5 py-[7px] text-[13px] font-medium whitespace-nowrap transition-colors duration-100`}
             >
-              {on && <span className="rf-marker absolute top-2 bottom-2 -left-3 hidden w-[3px] rounded-r bg-[#f2b544] md:block" />}
               <Icon name={n.icon} className="rf-side-icon h-4 w-4 shrink-0" />
               {n.label}
               {!!n.badge && <span className="rf-side-badge num ml-auto rounded-md px-1.5 text-[11px] leading-5">{n.badge}</span>}
