@@ -54,7 +54,7 @@ export default async function ClientLayout({ children, params }: { children: Rea
   ];
   const initials = client.name.split(/\s+/).map((w) => w[0]).slice(0, 2).join("").toUpperCase();
   const host = client.siteUrl.replace(/^https?:\/\//, "").replace(/\/$/, "");
-  const brand = client.brandPrimaryColor && /^#[0-9a-f]{3,8}$/i.test(client.brandPrimaryColor) ? client.brandPrimaryColor : "#5b57e0";
+  const brand = client.brandPrimaryColor && /^#[0-9a-f]{3,8}$/i.test(client.brandPrimaryColor) ? client.brandPrimaryColor : "#6a4fb3";
   const GRAD = ["from-indigo-500 to-violet-500", "from-emerald-500 to-cyan-500", "from-amber-400 to-rose-500", "from-fuchsia-500 to-indigo-500", "from-sky-500 to-emerald-500"];
   const grad = (s: string) => GRAD[[...s].reduce((a, ch) => a + ch.charCodeAt(0), 0) % GRAD.length];
   const stars = [[12, 30], [22, 70], [38, 18], [55, 60], [68, 25], [80, 75], [90, 40], [46, 85]];
@@ -87,11 +87,11 @@ export default async function ClientLayout({ children, params }: { children: Rea
             </a>
             <div className="rf-team mt-3 flex items-center -space-x-1.5">
               {people.slice(0, 6).map((u) => (
-                <span key={u.id} data-tip={u.name} className={`relative grid h-8 w-8 place-items-center rounded-full bg-gradient-to-br text-[10px] font-semibold text-white ring-2 ring-[#1c1b45] ${grad(u.name)}`}>
+                <span key={u.id} data-tip={u.name} className={`relative grid h-8 w-8 place-items-center rounded-full bg-gradient-to-br text-[10px] font-semibold text-white ring-2 ring-[#21183a] ${grad(u.name)}`}>
                   {u.name.split(/\s+/).map((w) => w[0]).slice(0, 2).join("").toUpperCase()}
                 </span>
               ))}
-              {people.length > 6 && <span className="relative grid h-8 w-8 place-items-center rounded-full bg-[rgb(255_255_255/.20)] text-[10px] font-semibold text-white ring-2 ring-[#1c1b45]">+{people.length - 6}</span>}
+              {people.length > 6 && <span className="relative grid h-8 w-8 place-items-center rounded-full bg-[rgb(255_255_255/.20)] text-[10px] font-semibold text-white ring-2 ring-[#21183a]">+{people.length - 6}</span>}
               <span className="pl-4 text-xs text-[rgb(255_255_255/.65)]">{people.length} on this client</span>
             </div>
           </div>

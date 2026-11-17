@@ -57,13 +57,13 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         <div className="md:flex-1 md:overflow-y-auto">
           <SideNav items={nav} />
         </div>
-        <div className="hidden items-center gap-1 border-t border-white/10 p-3 md:flex" style={{ borderColor: "rgb(255 255 255 / 0.08)" }}>
+        <div className="hidden items-center gap-1 border-t border-slate-200 p-3 md:flex">
           <Link href="/profile" data-tip="Your profile and password" className="rf-side-hover group flex min-w-0 flex-1 items-center gap-2.5 rounded-md p-1.5 transition-colors">
-            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#f5b83d] text-[11px] font-semibold text-[#1c1b45]">
+            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#f2b544] text-[11px] font-semibold text-[#3a2600]">
               {initials}
             </span>
             <span className="min-w-0 flex-1">
-              <span className="block truncate text-[13px] leading-tight font-medium text-white">{user.name}</span>
+              <span className="block truncate text-[13px] leading-tight font-medium text-slate-900">{user.name}</span>
               <span className="rf-side-muted block text-[11px] leading-tight capitalize">{user.role.replace("_", " ").toLowerCase()}</span>
             </span>
           </Link>
@@ -77,8 +77,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       <Celebrate />
       <Toaster />
       <CommandMenu clients={clients.map((c) => ({ id: c.id, name: c.name, site: c.siteUrl }))} links={nav.map((n) => ({ href: n.href, label: n.label, icon: n.icon }))} />
-      <div className="min-w-0 flex-1">
-        <div className="sticky top-0 z-20 hidden print:!hidden items-center gap-3 border-b border-slate-200/70 bg-slate-50/85 px-8 py-2.5 backdrop-blur-md md:flex">
+      <div className="rf-main min-w-0 flex-1">
+        <div className="rf-glass-bar sticky top-0 z-20 hidden print:!hidden items-center gap-3 border-b px-8 py-2.5 md:flex">
           <SearchButton />
           <div className="ml-auto flex items-center gap-2">
             <ThemeToggle />

@@ -9,7 +9,7 @@ export function ClientLogo({ src, initials }: { src: string; initials: string })
   // The image may fail before React hydrates, so check once on mount too.
   useEffect(() => { const i = img.current; if (i && i.complete && i.naturalWidth <= 16) setOk(false); }, []);
   return (
-    <span className="relative grid h-14 w-14 place-items-center overflow-hidden rounded-[0.9rem] bg-[#fff] text-lg font-semibold text-[#1c1b45] md:h-16 md:w-16">
+    <span className="relative grid h-14 w-14 place-items-center overflow-hidden rounded-[0.9rem] bg-[#fff] text-lg font-semibold text-[#241a40] md:h-16 md:w-16">
       {initials}
       {ok && (
         // eslint-disable-next-line @next/next/no-img-element

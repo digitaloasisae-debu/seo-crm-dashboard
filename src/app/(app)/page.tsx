@@ -266,7 +266,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ v
             <span className="num text-sm text-slate-500">{wins.total} / {goal} wins</span>
           </div>
           <div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-100">
-            <span className="grow-x block h-full rounded-full" style={{ width: `${Math.min(100, (wins.total / goal) * 100)}%`, background: "linear-gradient(90deg, #4f4cc4, #f5b83d)" }} />
+            <span className="grow-x block h-full rounded-full" style={{ width: `${Math.min(100, (wins.total / goal) * 100)}%`, background: "linear-gradient(90deg, #6a4fb3, #f2b544)" }} />
           </div>
           <div className="mt-3 flex flex-wrap gap-2 text-xs font-medium">
             <span className="rounded-md bg-sky-50 px-2.5 py-1 text-sky-700">{wins.by.keywords} keywords</span>
@@ -283,7 +283,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ v
             <ol className="mt-3 space-y-2">
               {wins.leaders.slice(0, 5).map((l, i) => (
                 <li key={l.id} className="flex items-center gap-3 text-sm">
-                  <span className={`num grid h-5 w-5 place-items-center rounded text-[11px] font-semibold ${i === 0 ? "bg-[#f5b83d] text-[#1c1b45]" : i < 3 ? "bg-indigo-50 text-indigo-700" : "text-slate-400"}`}>{i + 1}</span>
+                  <span className={`num grid h-5 w-5 place-items-center rounded text-[11px] font-semibold ${i === 0 ? "bg-[#f2b544] text-[#3a2600]" : i < 3 ? "bg-indigo-50 text-indigo-700" : "text-slate-400"}`}>{i + 1}</span>
                   <span className="min-w-0 flex-1 truncate">{l.name}{l.id === user.id && <span className="ml-1 text-xs text-indigo-600">(you)</span>}</span>
                   <span className="num font-medium">{l.score}</span>
                 </li>
