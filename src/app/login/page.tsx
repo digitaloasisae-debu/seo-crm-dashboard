@@ -22,7 +22,7 @@ export default function LoginPage() {
         <div aria-hidden className="pointer-events-none absolute -bottom-40 -left-24 h-96 w-96 rounded-full" style={{ background: "radial-gradient(closest-side, rgb(242 181 68 / 0.18), transparent)" }} />
         <div className="relative flex h-full flex-col justify-center p-14 xl:p-20">
           <span className="w-fit rounded-full px-3 py-1 text-xs font-medium" style={{ background: "rgb(242 181 68 / 0.15)", color: "#f2b544" }}>{BRAND.tagline}</span>
-          <h2 className="mt-5 max-w-md text-5xl leading-[1.05] font-normal text-white" style={{ fontFamily: "var(--font-serif), Georgia, serif", letterSpacing: "-0.005em" }}>
+          <h2 className="mt-5 max-w-md text-4xl leading-tight font-semibold text-white" style={{ fontFamily: "var(--font-serif), sans-serif", letterSpacing: "-0.03em" }}>
             From keyword to <span style={{ color: "#f2b544" }}>page one</span>, for every client.
           </h2>
           <p className="rf-side-muted mt-4 max-w-md text-base" style={{ color: "rgb(232 224 250 / 0.7)" }}>
