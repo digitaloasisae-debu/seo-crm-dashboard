@@ -223,8 +223,8 @@ export function PostCard({ p }: { p: CardPost }) {
             {p.kind === "video" && (
               <label className="block">
                 <span className="label">Words in the Reel</span>
-                <textarea name="scenesText" defaultValue={p.scenesText} rows={3} className="input text-sm leading-5" disabled={locked} />
-                <span className="mt-1 block text-xs text-slate-500">One line per scene. They appear one after another over the visual (about 3 seconds each).</span>
+                <textarea name="scenesText" defaultValue={p.scenesText} rows={4} className="input text-sm leading-5" disabled={locked} />
+                <span className="mt-1 block text-xs text-slate-500">One line per scene, 3-4 short lines that tell the message on their own (most people watch without sound and skip the caption). Each stays on screen long enough to read.</span>
               </label>
             )}
             <div className="grid gap-3 xl:grid-cols-2">

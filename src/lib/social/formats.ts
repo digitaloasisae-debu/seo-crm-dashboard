@@ -64,6 +64,8 @@ export const PILLARS = [
 export const pillarOf = (k: string) => PILLARS.find((p) => p.key === k);
 
 /** The Reel's words, one line per scene. */
+/** Seconds a Reel line stays on screen: long enough to read it comfortably with the sound off. */
+export const readTime = (text: string) => Math.min(4.6, Math.max(2.4, 1.1 + 0.34 * text.split(/\s+/).filter(Boolean).length));
 export const scenesText = (d: DesignData) => (d.scenes ?? []).join("\n");
 /** Carousel slides as text: one slide per block, "Title" on the first line, the text below. */
 export const slidesText = (d: DesignData) => (d.slides ?? []).map((s) => [s.title, s.body].filter(Boolean).join("\n")).join("\n\n");

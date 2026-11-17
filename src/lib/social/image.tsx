@@ -16,7 +16,7 @@ import type { Client, SocialPost, SocialProject } from "@prisma/client";
 export const W = 1080;
 export const H = 1350;
 
-import { designOf, fallbackText, formatOf, type Slide } from "./formats";
+import { designOf, fallbackText, formatOf, readTime, type Slide } from "./formats";
 export { FORMATS, FORMAT_HELP, PICTURE_FORMATS, TEXT_FORMATS, designOf, fallbackText, formatOf, isFormat, type DesignData } from "./formats";
 
 // ---------- AI pictures ----------
@@ -32,6 +32,7 @@ const imageModels = () =>
 export function imagePrompt(post: Pick<SocialPost, "imageBrief" | "idea">, project: Pick<SocialProject, "imageStyle">) {
   return [
     post.imageBrief.trim() || `A realistic, well-lit photo that clearly shows: ${post.idea}`,
+    "Style: a candid, unposed photo that looks taken by a person on a phone or simple camera: natural, slightly imperfect light, real textures and everyday clutter, muted true-to-life colours, ordinary real people if any. Not glossy, not CGI or 3D render, no glowing or floating elements, no perfect symmetry, no stock-photo smiles.",
     "No text, letters, numbers, logos or watermarks anywhere in the image.",
     project.imageStyle.trim() ? `Style notes: ${project.imageStyle.trim()}` : "",
   ]
@@ -58,8 +59,8 @@ async function checkImage(jpeg: Buffer, topic: string): Promise<{ score: number;
   if (!key) throw new Error("GEMINI_API_KEY is not set");
   const small = await sharp(jpeg).resize(512).jpeg({ quality: 80 }).toBuffer();
   const prompt = `This picture is for a social media post about: "${topic}".
-Would someone who sees only the picture know what the post is about? Score 1-10 (10 = it obviously shows this exact topic, 1 = unrelated or a vague metaphor). Also fail it (score 3 or less) if it has garbled text, extra fingers or other obvious AI mistakes.
-If the score is below 7, write betterPrompt: a plain, literal 2-4 sentence prompt for an image model describing ONE real scene that directly shows this topic (subject, setting, camera, light, "realistic photo"), with no text in the image.
+Would someone who sees only the picture know what the post is about? Score 1-10 (10 = it obviously shows this exact topic, 1 = unrelated or a vague metaphor). Also fail it (score 3 or less) if it has garbled text, extra fingers or other obvious AI mistakes, and score it 5 or less if it looks AI-made rather than like a real photo (plastic skin, glossy CGI or 3D look, everything too perfect, clean and symmetrical, glowing light, stock-photo posing).
+If the score is below 7, write betterPrompt: a plain, literal 2-4 sentence prompt for an image model describing ONE real scene that directly shows this topic (subject, setting, camera, light), written so it comes out as a candid, ordinary phone photo of real life, with no text in the image.
 Return JSON: {"score":0,"problem":"one short line","betterPrompt":""}`;
   const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${process.env.GEMINI_MODEL || "gemini-flash-latest"}:generateContent`, {
     method: "POST",
@@ -80,6 +81,28 @@ Return JSON: {"score":0,"problem":"one short line","betterPrompt":""}`;
 /** A library photo, cropped to the post size. */
 export function fitPhoto(data: Uint8Array | Buffer) {
   return sharp(Buffer.from(data)).rotate().resize(W, H, { fit: "cover", position: "attention" }).jpeg({ quality: 88 }).toBuffer();
+}
+
+/**
+ * Make an AI picture look like a real photo (Hamza, 2026-11-17: "AI images that don't look AI").
+ * AI images are too clean: perfectly sharp, saturated, no noise. This softens the detail a touch,
+ * tones down the colour, lifts the blacks slightly and adds fine camera grain.
+ */
+export async function photoFinish(img: Buffer): Promise<Buffer> {
+  const meta = await sharp(img).metadata();
+  const w = meta.width ?? W;
+  const h = meta.height ?? H;
+  // Grain: grey noise around 128 (neutral in soft-light), so it only adds texture.
+  const noise = Buffer.alloc(w * h);
+  for (let i = 0; i < noise.length; i++) noise[i] = 128 + Math.round((Math.random() + Math.random() + Math.random() - 1.5) * 26);
+  const grain = await sharp(noise, { raw: { width: w, height: h, channels: 1 } }).blur(0.5).png().toBuffer();
+  return sharp(img)
+    .modulate({ saturation: 0.86, brightness: 1.0 })
+    .linear(0.93, 9)
+    .blur(0.45)
+    .composite([{ input: grain, blend: "soft-light" }])
+    .jpeg({ quality: 86, chromaSubsampling: "4:2:0" })
+    .toBuffer();
 }
 
 /** Ask Google's image models for a picture; returns a 1080x1350 JPEG. */
@@ -121,7 +144,7 @@ async function generateImage(prompt: string): Promise<Buffer> {
       lastErr = `${model} returned no image (${j?.predictions?.[0]?.raiFilteredReason ?? j?.candidates?.[0]?.finishReason ?? j?.promptFeedback?.blockReason ?? "no reason given"})`;
       continue;
     }
-    return sharp(Buffer.from(b64, "base64")).resize(W, H, { fit: "cover", position: "attention" }).jpeg({ quality: 88 }).toBuffer();
+    return photoFinish(await sharp(Buffer.from(b64, "base64")).resize(W, H, { fit: "cover", position: "attention" }).toBuffer());
   }
   throw new Error(`No image made: ${lastErr}`);
 }
@@ -607,7 +630,7 @@ function ReelBrand(_: { c: Ctx }) {
  * full-bleed photo, or just the theme colour) and one transparent PNG per line of text, plus the
  * brand card for the end. src/lib/social/video.ts animates them.
  */
-export async function reelLayers(d: DesignInput, scenes: string[]): Promise<{ base: Buffer; lines: Buffer[]; brand: Buffer }> {
+export async function reelLayers(d: DesignInput, scenes: string[]): Promise<{ base: Buffer; lines: Buffer[]; brand: Buffer; durations: number[] }> {
   const { c, fonts } = await lookOf(d);
   // The picture fills the frame (the words sit on solid blocks), or just the theme colour.
   const base = d.photo
@@ -617,7 +640,7 @@ export async function reelLayers(d: DesignInput, scenes: string[]): Promise<{ ba
   const lines = [];
   for (const s of scenes) lines.push(await png(<ReelText c={c} text={s} boxed={boxed} />, fonts, RW, RH));
   const brand = await png(<ReelBrand c={c} />, fonts, RW, RH);
-  return { base, lines, brand };
+  return { base, lines, brand, durations: scenes.map((s) => readTime(plain(s))) };
 }
 
 /**
