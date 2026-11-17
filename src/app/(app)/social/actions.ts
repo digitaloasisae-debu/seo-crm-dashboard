@@ -205,7 +205,7 @@ async function saveEdits(postId: string, f: FormData) {
   let mediaChanged = false;
   if (post.kind === "carousel" && slidesIn !== null && String(slidesIn).trim() !== slidesText(next).trim()) { next.slides = parseSlides(String(slidesIn)); mediaChanged = true; }
   if (post.kind === "carousel" && endIn !== null && String(endIn).trim() !== (next.end ?? "").trim()) { next.end = String(endIn).trim().slice(0, 120); mediaChanged = true; }
-  if (post.kind === "video" && scenesIn !== null && String(scenesIn).trim() !== scenesText(next).trim()) { next.scenes = String(scenesIn).split("\n").map((x) => x.trim()).filter(Boolean).slice(0, 7); mediaChanged = true; }
+  if (post.kind === "video" && scenesIn !== null && String(scenesIn).trim() !== scenesText(next).trim()) { next.scenes = String(scenesIn).split("\n").map((x) => x.trim()).filter(Boolean).slice(0, 4); mediaChanged = true; }
   if (mediaChanged) {
     designChanged = true;
     await db.socialPost.update({ where: { id: postId }, data: { design: next as Prisma.InputJsonValue } });

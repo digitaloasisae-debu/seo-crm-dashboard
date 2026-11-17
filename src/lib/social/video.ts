@@ -1,7 +1,7 @@
 /**
  * Animated Reels: the post's visual with a slow push-in, and the post's lines of text appearing
  * one after another (fade + small rise), then the brand card. Silent (a quiet audio track is added
- * because some apps reject videos without one). 1080x1920 H.264 MP4, 15-30 seconds (each line stays long enough to read).
+ * because some apps reject videos without one). 1080x1920 H.264 MP4, 10-16 seconds (each line stays long enough to read).
  */
 import { spawn } from "node:child_process";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";

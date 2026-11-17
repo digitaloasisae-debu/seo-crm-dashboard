@@ -228,7 +228,7 @@ export async function planMonth(projectId: string, month: string): Promise<numbe
   const KIND_HINT: Record<string, string> = {
     static: "one image post: one sharp point",
     carousel: "a swipeable carousel of 4-6 slides: a step-by-step, a checklist, a breakdown or a story in stages, something people save",
-    video: "a silent Reel (15-25 seconds, 5-7 lines of text over one visual that tell a tiny story: problem, why, 2-3 simple fixes, payoff): one practical topic a business owner instantly recognises",
+    video: "a silent Reel (10-14 seconds, 3 lines of text over one visual: a problem the viewer recognises, the one simple fix, the payoff): one practical topic a business owner instantly recognises",
   };
   const prompt = `Plan the social media posts of ${p.client.name}'s own accounts (${p.platforms.join(", ")}) for ${month}. There is one numbered slot per post; write exactly one idea for every slot.
 
@@ -423,13 +423,12 @@ ALSO, for every post:
 POST TYPES (given per post):
 - image: everything above.
 - carousel: the image above is the COVER slide (it must make people swipe). Also write slides: 3-5 slides that come after the cover, each {"title": 2-6 words, "body": 1-2 short sentences, max 28 words}. One idea per slide, building step by step, the most useful one last. Then end: one short closing line for the last slide (what to do now, e.g. "Save this for your next launch" or a call to action). Slides follow the caption title and its points, so the carousel and the caption tell the same story.
-- reel: a silent 15-25 second video. Most people watch it with the sound off and never read the caption, so THE WORDS ON SCREEN MUST CARRY THE WHOLE MESSAGE on their own. Write scenes: 5-7 lines shown one after another, each one complete thought of 4-10 words, together a tiny story the viewer can follow:
+- reel: a short silent video (about 10-14 seconds). Most people watch it with the sound off and never read the caption, so THE WORDS ON SCREEN MUST CARRY THE MESSAGE on their own. Write scenes: 3 lines (4 at most), shown one after another, each one complete thought of 4-9 words:
   1. HOOK: a problem or question the viewer recognises from their own business, in their words (e.g. "Paying for Google Ads clicks that never call?").
-  2. WHY: the reason, in plain words (e.g. "Your ads may show far outside the areas you serve").
-  3-5. FIXES: 2-3 simple, concrete things to do, each a short instruction they could act on today (e.g. "Show ads only where your customers are", "Block searches that will never buy", "Spend more in your best areas").
-  6. PAYOFF: what changes for them (e.g. "Fewer wasted clicks, more real calls").
-  7. ACTION (optional): one short line (e.g. "Want a free ad check? Link in caption").
-  Write for a business owner, not a marketer: no agency jargon or insider terms (no "search term scrubbing", "bid adjustments", "CPA", "ROAS", "funnel", "SERP"); if a term is needed, say what it does instead. Never talk about how we work ("How we manage...") and never name the brand except in the last line. Each line must make sense even if the previous one was missed. headline.main is the cover text (can match line 1).`;
+  2. THE FIX: the one simple thing to do, as a short instruction (e.g. "Show your ads only where your customers are").
+  3. PAYOFF or ACTION: what changes for them, or what to do now (e.g. "Fewer wasted clicks, more real calls").
+  (An optional 4th line only when the fix needs a second step.)
+  Write for a business owner, not a marketer: no agency jargon or insider terms (no "search term scrubbing", "bid adjustments", "CPA", "ROAS", "funnel", "SERP"); if a term is needed, say what it does instead. Never talk about how we work ("How we manage...") and never name the brand. Each line must make sense even if the previous one was missed. headline.main is the cover text (can match line 1).`;
   const prompt = `BUSINESS: ${businessLine(p.client)}
 Main call to action: ${p.client.ctaText || "get in touch"} (${link})
 
@@ -459,7 +458,7 @@ ${posts
   })
   .join("\n")}
 
-Return JSON: {"posts":[{"id":"...","hooks":["","",""],"caption":{"emoji":"","intro":"","listTitle":"","points":[{"emoji":"","text":""}],"closing":"","hashtags":[""]},"format":"type","design":{"kicker":"","big":""},"photoId":"","headline":{"top":"","main":"","bottom":""},"imageBrief":"","altText":"","slides":[{"title":"","body":""}],"end":"","scenes":["","","","","",""]}]} (slides and end only for a carousel, scenes only for a reel)`;
+Return JSON: {"posts":[{"id":"...","hooks":["","",""],"caption":{"emoji":"","intro":"","listTitle":"","points":[{"emoji":"","text":""}],"closing":"","hashtags":[""]},"format":"type","design":{"kicker":"","big":""},"photoId":"","headline":{"top":"","main":"","bottom":""},"imageBrief":"","altText":"","slides":[{"title":"","body":""}],"end":"","scenes":["","",""]}]} (slides and end only for a carousel, scenes only for a reel)`;
   const r = await geminiJson<{ posts?: Written[] }>(prompt, { system, timeoutMs: 200_000, temperature: 0.8, model: textModel() });
   const out = r.posts ?? [];
   const urls = await serviceLinks(p, posts.map((x) => x.service));
@@ -484,7 +483,7 @@ Return JSON: {"posts":[{"id":"...","hooks":["","",""],"caption":{"emoji":"","int
       if (w.end) design.end = clean(w.end, 120);
     }
     if (x.kind === "video") {
-      const scenes = (w.scenes ?? []).map((v) => clean(v, 90)).filter(Boolean).slice(0, 7);
+      const scenes = (w.scenes ?? []).map((v) => clean(v, 90)).filter(Boolean).slice(0, 4);
       if (scenes.length) design.scenes = scenes;
     }
     const titles = (w.hooks ?? []).map((h) => clean(h, 120)).filter(Boolean).slice(0, 3);
