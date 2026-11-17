@@ -54,45 +54,40 @@ export default async function ClientLayout({ children, params }: { children: Rea
   ];
   const initials = client.name.split(/\s+/).map((w) => w[0]).slice(0, 2).join("").toUpperCase();
   const host = client.siteUrl.replace(/^https?:\/\//, "").replace(/\/$/, "");
-  const brand = client.brandPrimaryColor && /^#[0-9a-f]{3,8}$/i.test(client.brandPrimaryColor) ? client.brandPrimaryColor : "#6a4fb3";
-  const GRAD = ["from-indigo-500 to-violet-500", "from-emerald-500 to-cyan-500", "from-amber-400 to-rose-500", "from-fuchsia-500 to-indigo-500", "from-sky-500 to-emerald-500"];
-  const grad = (s: string) => GRAD[[...s].reduce((a, ch) => a + ch.charCodeAt(0), 0) % GRAD.length];
-  const stars = [[12, 30], [22, 70], [38, 18], [55, 60], [68, 25], [80, 75], [90, 40], [46, 85]];
   const stat = (n: number, label: string, href: string) => (
-    <Link href={href} className="rf-glass group rounded-xl px-3 py-2 transition hover:bg-[rgb(255_255_255/.20)]">
-      <div className="num text-lg leading-tight font-semibold text-white"><CountUp value={n} /></div>
-      <div className="text-[11px] text-[rgb(255_255_255/.70)] group-hover:text-[#fff]">{label}</div>
+    <Link href={href} className="group rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 transition hover:border-indigo-200 hover:bg-indigo-50">
+      <div className="num rf-num-serif text-[26px] leading-tight text-slate-900"><CountUp value={n} /></div>
+      <div className="text-[11px] text-slate-500 group-hover:text-indigo-700">{label}</div>
     </Link>
   );
   return (
     <>
-      <section className="rf-banner mb-5 p-5 md:p-6 print:hidden" style={{ ["--brand" as string]: brand }}>
-        <span className="blob b1" /><span className="blob b2" /><span className="blob b3" /><span className="grid-fx" />
-        <span className="stars" aria-hidden>{stars.map(([x, y], i) => <span key={i} style={{ left: `${x}%`, top: `${y}%`, animationDelay: `${i * 0.6}s` }} />)}</span>
+      {/* Client header: calm and professional (white card, plum accents). No per-client colours or animation. */}
+      <section className="card mb-5 !p-5 md:!p-6 print:hidden">
         <div className="flex flex-wrap items-center gap-4 md:gap-5">
-          <span className="rf-avatar-ring shrink-0">
+          <span className="shrink-0 rounded-[1.05rem] border border-slate-200 p-0.5">
             <ClientLogo src={client.logoUrl || `https://www.google.com/s2/favicons?domain=${encodeURIComponent(host)}&sz=128`} initials={initials} />
           </span>
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
-              <h1 className="font-display text-2xl font-semibold tracking-tight text-white md:text-3xl">{client.name}</h1>
-              <span className="rf-glass inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium text-white">
-                <span className={`relative h-1.5 w-1.5 rounded-full ${client.status === "ACTIVE" ? "rf-live bg-emerald-400" : "bg-[rgb(255_255_255/.60)]"}`} />
+              <h1 className="font-display text-2xl font-semibold tracking-tight text-slate-900 md:text-3xl">{client.name}</h1>
+              <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium ${client.status === "ACTIVE" ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-600"}`}>
+                <span className={`h-1.5 w-1.5 rounded-full ${client.status === "ACTIVE" ? "bg-emerald-500" : "bg-slate-400"}`} />
                 {client.status === "ACTIVE" ? "Active" : client.status.charAt(0) + client.status.slice(1).toLowerCase()}
               </span>
-              {level === "VIEW" && <span className="rf-glass rounded-full px-2.5 py-0.5 text-xs text-white">View only</span>}
+              {level === "VIEW" && <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs text-slate-600">View only</span>}
             </div>
-            <a className="mt-1 inline-flex items-center gap-1.5 text-sm text-[rgb(255_255_255/.75)] transition-colors hover:text-[#fff]" href={client.siteUrl} target="_blank" rel="noreferrer">
+            <a className="mt-1 inline-flex items-center gap-1.5 text-sm text-slate-500 transition-colors hover:text-indigo-700" href={client.siteUrl} target="_blank" rel="noreferrer">
               <Icon name="globe" className="h-3.5 w-3.5" />{host}<Icon name="external" className="h-3 w-3" />
             </a>
-            <div className="rf-team mt-3 flex items-center -space-x-1.5">
+            <div className="mt-3 flex items-center -space-x-1.5">
               {people.slice(0, 6).map((u) => (
-                <span key={u.id} data-tip={u.name} className={`relative grid h-8 w-8 place-items-center rounded-full bg-gradient-to-br text-[10px] font-semibold text-white ring-2 ring-[#21183a] ${grad(u.name)}`}>
+                <span key={u.id} data-tip={u.name} className="relative grid h-8 w-8 place-items-center rounded-full bg-indigo-600 text-[10px] font-semibold text-white ring-2 ring-white">
                   {u.name.split(/\s+/).map((w) => w[0]).slice(0, 2).join("").toUpperCase()}
                 </span>
               ))}
-              {people.length > 6 && <span className="relative grid h-8 w-8 place-items-center rounded-full bg-[rgb(255_255_255/.20)] text-[10px] font-semibold text-white ring-2 ring-[#21183a]">+{people.length - 6}</span>}
-              <span className="pl-4 text-xs text-[rgb(255_255_255/.65)]">{people.length} on this client</span>
+              {people.length > 6 && <span className="relative grid h-8 w-8 place-items-center rounded-full bg-indigo-100 text-[10px] font-semibold text-indigo-700 ring-2 ring-white">+{people.length - 6}</span>}
+              <span className="pl-4 text-xs text-slate-500">{people.length} on this client</span>
             </div>
           </div>
           <div className="grid w-full grid-cols-3 gap-2 sm:w-auto">
