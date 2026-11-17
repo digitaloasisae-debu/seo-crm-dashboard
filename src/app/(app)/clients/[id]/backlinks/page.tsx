@@ -18,7 +18,7 @@ function Tile({ label, value, hint, tone }: { label: string; value: string; hint
   return (
     <div className="card p-4">
       <div className="text-xs font-medium text-slate-500">{label}</div>
-      <div className={`mt-1 text-2xl font-semibold ${tone === "bad" ? "text-red-600" : tone === "good" ? "text-emerald-600" : "text-slate-900"}`}>{value}</div>
+      <div className={`rf-num-serif mt-1 text-[34px] leading-none ${tone === "bad" ? "text-red-600" : tone === "good" ? "text-emerald-600" : "text-slate-900"}`}>{value}</div>
       {hint && <div className="mt-0.5 text-xs text-slate-400">{hint}</div>}
     </div>
   );

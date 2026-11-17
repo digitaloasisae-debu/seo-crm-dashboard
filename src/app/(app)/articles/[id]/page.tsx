@@ -147,9 +147,9 @@ export default async function ArticleReview({ params, searchParams }: { params: 
               <h2 className="font-semibold">Google ranking</h2>
               {gaData && (
                 <div className="grid grid-cols-3 gap-2 text-center">
-                  <div className="rounded-xl bg-emerald-50/70 p-2"><div className="text-[11px] text-slate-500">Google visits (28d)</div><div className="text-xl font-semibold tabular-nums">{traffic?.sessions ?? 0}</div></div>
-                  <div className="rounded-xl bg-emerald-50/70 p-2"><div className="text-[11px] text-slate-500">Visitors</div><div className="text-xl font-semibold tabular-nums">{traffic?.users ?? 0}</div></div>
-                  <div className="rounded-xl bg-emerald-50/70 p-2"><div className="text-[11px] text-slate-500">Conversions</div><div className="text-xl font-semibold tabular-nums">{traffic?.keyEvents ?? 0}</div></div>
+                  <div className="rounded-xl bg-emerald-50/70 p-2"><div className="text-[11px] text-slate-500">Google visits (28d)</div><div className="rf-num-serif text-[26px] leading-tight tabular-nums">{traffic?.sessions ?? 0}</div></div>
+                  <div className="rounded-xl bg-emerald-50/70 p-2"><div className="text-[11px] text-slate-500">Visitors</div><div className="rf-num-serif text-[26px] leading-tight tabular-nums">{traffic?.users ?? 0}</div></div>
+                  <div className="rounded-xl bg-emerald-50/70 p-2"><div className="text-[11px] text-slate-500">Conversions</div><div className="rf-num-serif text-[26px] leading-tight tabular-nums">{traffic?.keyEvents ?? 0}</div></div>
                 </div>
               )}
               {!article.client.gscProperty ? null : history.length === 0 ? (
@@ -157,9 +157,9 @@ export default async function ArticleReview({ params, searchParams }: { params: 
               ) : (
                 <>
                   <div className="grid grid-cols-3 gap-2 text-center">
-                    <div className="rounded-xl bg-indigo-50/60 p-2"><div className="text-[11px] text-slate-500">Position (4w)</div><div className="text-xl font-semibold tabular-nums">{rankNow != null ? rankNow.toFixed(1) : "—"}</div>{rankNow != null && <RankChange position={rankNow} prev={rankPrev} />}</div>
-                    <div className="rounded-xl bg-indigo-50/60 p-2"><div className="text-[11px] text-slate-500">Clicks (4w)</div><div className="text-xl font-semibold tabular-nums">{last4.reduce((s, p) => s + p.clicks, 0)}</div></div>
-                    <div className="rounded-xl bg-indigo-50/60 p-2"><div className="text-[11px] text-slate-500">Best week</div><div className="text-xl font-semibold tabular-nums">{best?.toFixed(1)}</div></div>
+                    <div className="rounded-xl bg-indigo-50/60 p-2"><div className="text-[11px] text-slate-500">Position (4w)</div><div className="rf-num-serif text-[26px] leading-tight tabular-nums">{rankNow != null ? rankNow.toFixed(1) : "—"}</div>{rankNow != null && <RankChange position={rankNow} prev={rankPrev} />}</div>
+                    <div className="rounded-xl bg-indigo-50/60 p-2"><div className="text-[11px] text-slate-500">Clicks (4w)</div><div className="rf-num-serif text-[26px] leading-tight tabular-nums">{last4.reduce((s, p) => s + p.clicks, 0)}</div></div>
+                    <div className="rounded-xl bg-indigo-50/60 p-2"><div className="text-[11px] text-slate-500">Best week</div><div className="rf-num-serif text-[26px] leading-tight tabular-nums">{best?.toFixed(1)}</div></div>
                   </div>
                   <div>
                     <RankSparkline points={history} width={320} height={56} />

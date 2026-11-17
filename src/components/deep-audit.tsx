@@ -139,7 +139,7 @@ export function DeepAudit({ d }: { d: CrawlDeep }) {
           <h2 className="font-semibold">Visibility in Google</h2>
           {d.indexing ? (
             <>
-              <div className="flex items-baseline gap-2"><span className="text-3xl font-semibold tabular-nums">{d.indexing.withImpressions}</span><span className="text-sm text-slate-500">of {d.indexing.crawledOk} live pages showed up in Google in the last 28 days</span></div>
+              <div className="flex items-baseline gap-2"><span className="rf-num-serif text-[38px] tabular-nums">{d.indexing.withImpressions}</span><span className="text-sm text-slate-500">of {d.indexing.crawledOk} live pages showed up in Google in the last 28 days</span></div>
               <PageList title="Pages Google isn't showing" items={d.indexing.noImpressions} fmt={(v) => `${v} link${v === 1 ? "" : "s"} in`} empty="Every page got impressions." hint="Check they're indexed (Search Console → URL Inspection), improve them, link to them, or noindex/merge ones with no value." />
               <PageList title="Pages getting impressions that the crawl didn't find" items={d.indexing.notCrawled} fmt={(v) => `${v.toLocaleString()} impr.`} empty="None." hint="Usually old URLs or orphan pages. Redirect old ones (301) or link to the live ones." />
             </>
