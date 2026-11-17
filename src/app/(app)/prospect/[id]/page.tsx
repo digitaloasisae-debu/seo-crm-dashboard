@@ -17,7 +17,7 @@ function Fact({ label, value, sub, bad }: { label: string; value: React.ReactNod
   return (
     <div className="rounded-xl border border-slate-200 p-3">
       <div className="text-xs text-slate-500">{label}</div>
-      <div className={`num mt-0.5 text-xl font-semibold ${bad ? "text-red-600" : "text-slate-900"}`}>{value}</div>
+      <div className={`num rf-num-serif mt-0.5 text-[28px] leading-none ${bad ? "text-red-600" : "text-slate-900"}`}>{value}</div>
       {sub && <div className="mt-0.5 text-xs text-slate-500">{sub}</div>}
     </div>
   );

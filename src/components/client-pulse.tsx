@@ -73,7 +73,7 @@ export function ClientPulse({ c }: { c: Pulse }) {
           <div className="mt-4 flex items-end justify-between gap-3">
             <div className="min-w-0">
               <div className="text-xs text-slate-500">Visits from Google, last 4 weeks</div>
-              <div className="leading-none"><b className="num text-3xl font-semibold text-slate-900">{fmt(clicksNow)}</b> <span className="text-sm text-slate-500">a week</span></div>
+              <div className="leading-none"><b className="num rf-num-serif text-[38px] text-slate-900">{fmt(clicksNow)}</b> <span className="text-sm text-slate-500">a week</span></div>
             </div>
             {pct != null && (
               <span data-why className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold ${chip}`}>

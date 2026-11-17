@@ -48,8 +48,8 @@ function Member({ m }: { m: MemberWork }) {
 
       <div className="grid grid-cols-4 gap-2 text-center">
         {[[owned.length === 1 ? "Client they own" : "Clients they own", owned.length, "text-slate-900"], ["Tasks waiting", m.pending, m.pending > 10 ? "text-amber-600" : "text-slate-900"], ["Tasks done this week", m.week.total, "text-emerald-600"], ["Tasks done this month", m.month.total, "text-emerald-600"]].map(([l, v, t]) => (
-          <div key={l as string} className="rounded-xl bg-slate-50 p-2">
-            <div className={`num text-xl font-semibold ${t}`}>{v as number}</div>
+          <div key={l as string} className="flex flex-col gap-1.5 rounded-xl bg-slate-50 p-3">
+            <div className={`num rf-num-serif text-[30px] leading-none ${t}`}>{v as number}</div>
             <div className="text-[11px] leading-tight text-slate-500">{l as string}</div>
           </div>
         ))}
@@ -106,9 +106,10 @@ export function TeamOverview({ data }: { data: Awaited<ReturnType<typeof teamOve
           ["Tasks done this week", totals.doneWeek, "check"],
           ["Blogs sent this month", totals.sentMonth, "send"],
         ].map(([l, v, i]) => (
-          <div key={l as string} className="card flex items-center gap-3 !py-3">
-            <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-indigo-50 text-indigo-600"><Icon name={i as never} className="h-4 w-4" /></span>
-            <div><div className="num text-xl font-semibold">{v as number}</div><div className="text-xs text-slate-500">{l as string}</div></div>
+          <div key={l as string} className="card !p-5">
+            <span className="grid h-8 w-8 place-items-center rounded-lg bg-indigo-50 text-indigo-600"><Icon name={i as never} className="h-4 w-4" /></span>
+            <div className="num rf-bignum mt-4">{v as number}</div>
+            <div className="mt-1.5 text-[13px] text-slate-500">{l as string}</div>
           </div>
         ))}
       </div>

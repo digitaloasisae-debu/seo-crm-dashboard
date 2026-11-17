@@ -27,7 +27,7 @@ function Tile({ label, value, now, before, help }: { label: string; value: strin
   return (
     <div className="card p-4" title={help}>
       <div className="text-xs font-medium text-slate-500">{label}</div>
-      <div className="mt-1 text-2xl font-semibold tabular-nums text-slate-900">{value}</div>
+      <div className="rf-num-serif mt-1 text-[34px] leading-none tabular-nums text-slate-900">{value}</div>
       <Change now={now} before={before} />
     </div>
   );
