@@ -23,7 +23,7 @@ export const ANGLES = [
   { key: "versus", label: "This vs that", layout: "concept", hint: "Compare two options the buyer is choosing between, and say who each one suits." },
   { key: "behind", label: "Behind the scenes", layout: "photo", hint: "How the work is really done: a step, a tool, a check most providers skip." },
   { key: "proof", label: "Proof", layout: "photo", hint: "A result, a before/after or a client situation, using only facts from the service card." },
-  { key: "checklist", label: "Checklist", layout: "type", hint: "A short checklist or framework the reader will save (3-5 points)." },
+  { key: "checklist", label: "Checklist", layout: "type", hint: "A short checklist of signs the reader needs this service, or of what the service covers (3-5 points)." },
   { key: "moment", label: "Local moment", layout: "concept", hint: "Tie the service to a real season, event or moment for this audience and location (e.g. a sale season, Ramadan, summer heat, year end, a holiday)." },
   { key: "opinion", label: "Bold opinion", layout: "type", hint: "A confident, slightly contrarian take an expert in this service would defend." },
   { key: "offer", label: "Call to action", layout: "concept", hint: "A direct reason to get in touch now, without inventing discounts or prices." },
@@ -228,7 +228,7 @@ export async function planMonth(projectId: string, month: string): Promise<numbe
   const KIND_HINT: Record<string, string> = {
     static: "one image post: one sharp point",
     carousel: "a swipeable carousel of 4-6 slides: a step-by-step, a checklist, a breakdown or a story in stages, something people save",
-    video: "a silent Reel (10-14 seconds, 3 lines of text over one visual: a problem the viewer recognises, the one simple fix, the payoff): one practical topic a business owner instantly recognises",
+    video: "a silent Reel (10-14 seconds, 3 lines of text over one visual: a problem the viewer recognises, how the business solves it for them, the payoff): one practical topic a business owner instantly recognises",
   };
   const prompt = `Plan the social media posts of ${p.client.name}'s own accounts (${p.platforms.join(", ")}) for ${month}. There is one numbered slot per post; write exactly one idea for every slot.
 
@@ -264,6 +264,7 @@ RULES
 - Use the competitor research indirectly: aim at the pains and buyers that win attention, borrow the shape of what works, and lean into the gaps they leave. Never copy a competitor's idea or wording, and never mention or hint at a competitor.
 - Spread the slots evenly across the services, and vary the angles (event slots use "moment").
 - No invented numbers, prices, discounts, awards, client names or guarantees.
+- Every idea pairs a buyer problem with what ${p.client.name} does to solve it. We sell the service, we don't teach DIY: no how-to tips the buyer would do themselves.
 - Do not repeat or lightly reword these recent posts:
 ${recent.map((r) => `  - [${r.service} / ${r.angle}] ${r.idea}`).join("\n") || "  (none yet)"}
 - Hamza rejected these, so avoid what made them weak:
@@ -354,10 +355,11 @@ export function designToText(format: string, d: DesignOut | undefined): string {
 
 const DESIGN_GUIDE = `THE IMAGE is the first thing people see, so it must stop the scroll on its own. One strong picture, very few words. Never fill the image with text.
 FORMATS:
-- concept (the default): an AI picture with a few words on a solid band above it. imageBrief = the PROMPT for the image model (Google Imagen). It is sent exactly as you write it, so write it as a plain, literal description of ONE real scene that directly shows this post's topic, the way the buyer would recognise it in their own life or business. RELEVANCE FIRST: someone who sees only the picture must know what the post is about. Start from the caption title: picture the one real thing the buyer sees when this topic happens to them, and show exactly that. When the topic is about a platform or tool (Amazon, Google, Instagram, a website, an app, ads), show a phone or laptop with that recognisable kind of page in a real setting. When it is about a holiday or event, show the event itself as people in the country celebrate it.
+- concept (the default): an AI picture with a few words on a solid band above it. imageBrief = the PROMPT for the image model (Google Imagen). It is sent exactly as you write it, so write it as a plain, literal description of ONE real scene that directly shows this post's topic, the way the buyer would recognise it in their own life or business. RELEVANCE FIRST: someone who sees only the picture must know what the post is about. Start from the caption title: picture the one real thing the buyer sees when this topic happens to them, and show exactly that. When the topic is about a platform or tool (Amazon, Google, Instagram, a website, an app, ads), show a phone or laptop with that recognisable kind of page in a real setting. When it is about a holiday or event, show its decorations, places or objects as they look in the country.
+  NO PEOPLE: never show people, faces, hands or bodies, not even in the background. Show the place, the objects, the screen or the product on its own.
   Write 2-4 sentences covering: the main subject and what is happening; the setting (a real place in the client's city or country when it fits); the composition and camera (e.g. close-up, eye level, shallow depth of field); the light and mood. Default style: a candid, everyday photo as a real person would take it on their phone (not a polished stock or studio shot, never a 3D render or illustration).
-  Good examples: "Close-up of a shop owner's hand holding a smartphone showing a Google Maps business listing with a row of empty star ratings, inside a small bakery in Dubai, warm morning light, shallow depth of field, realistic photo." / "An online shopper's laptop on a sofa with a checkout page open and a full shopping basket icon, a cup of coffee beside it, evening lamp light, realistic photo."
-  Never: abstract metaphors (no rockets, lightbulbs, chess pieces, puzzle pieces, trophies, mountains, handshakes, glowing holograms, floating icons), stock-photo clichés (people in suits pointing at screens, smiling at the camera), or anything whose link to the topic needs explaining. Screens may show a recognisable layout (a map, a shop page, search results) but no readable words. No text in the image: the words go on the band.
+  Good examples: "Close-up of a smartphone lying on a bakery counter in Dubai, its screen showing a Google Maps business listing with a row of empty star ratings, fresh bread in the background, warm morning light, shallow depth of field, realistic photo." / "An online shopper's laptop on a sofa with a checkout page open and a full shopping basket icon, a cup of coffee beside it, evening lamp light, realistic photo."
+  Never: abstract metaphors (no rockets, lightbulbs, chess pieces, puzzle pieces, trophies, mountains, handshakes, glowing holograms, floating icons), stock-photo clichés (desks with glowing screens, perfect empty offices), or anything whose link to the topic needs explaining. Screens may show a recognisable layout (a map, a shop page, search results) but no readable words. No text in the image: the words go on the band.
 - photo: one of OUR REAL PHOTOS (from the library below) with a few words. Only when a library photo truly fits the post (behind the scenes, team, real work, proof). Set photoId.
 - type: big bold words only, for a sharp opinion or a line strong enough on its own. design.kicker = 1-4 small words on top. design.big = 3-8 words. Put *stars* around 1-2 words to highlight them.
 WORDS ON THE IMAGE: headline.main = 2-6 words that name the topic plainly, so someone scrolling knows at once what the post is about: a short version of the caption title that uses the topic's own words (e.g. "Amazon retargeting has changed", "Is your Google listing complete?"). No riddles, puns or vague teasers ("The secret nobody tells you", "Game changer", "Here's the truth"). headline.top = 0-4 small words of setup, or empty. headline.bottom = empty unless it is truly needed. No invented numbers.`;
@@ -391,7 +393,8 @@ export async function writePosts(posts: SocialPost[]) {
 
 VOICE
 - Conversational and punchy. Short sentences. Talk to "you". Confident, a little bold, never corporate.
-- Every line earns its place: a surprising, useful point, a relatable pain, a clear tip. No filler, no warm-up.
+- Every line earns its place: a relatable problem and what ${p.client.name} does about it. No filler, no warm-up.
+- We sell ${p.client.name}'s services, we don't teach DIY. Name the buyer's problem, then show how ${p.client.name} solves it for them (what ${p.client.name} does and what the buyer gets). Never hand out a do-it-yourself fix or step-by-step instructions.
 - Banned words and phrases: ${BANNED}. No em dashes. No "Did you know".
 - Never invent statistics, prices, timelines, awards, reviews, client names or guarantees. Use only facts from the service card and brand profile.
 - Keywords must read like natural English, with the small words a person would say ("SEO services in Dubai", not "seo services dubai").
@@ -402,9 +405,9 @@ TITLES (hooks): write 3 different caption titles: 4-10 words each, a headline th
 
 CAPTION: one caption in Hamza's layout, used on every platform (we put it together, so return the parts in "caption"):
 - emoji: one emoji that fits the topic, shown before the title.
-- intro: 1-2 short sentences (max 35 words) that explain the point in plain words.
-- listTitle: 2-6 words that lead into the list (e.g. "Modern retargeting now relies on", "What to check first").
-- points: 3-5 items, each {"emoji": one emoji that matches that item, "text": 2-9 words}. Concrete and useful, one idea each.
+- intro: 1-2 short sentences (max 35 words) on the problem the buyer has, in plain words.
+- listTitle: 2-6 words that lead into what ${p.client.name} does (e.g. "How ${p.client.name} fixes it", "What ${p.client.name} handles for you").
+- points: 3-5 items, each {"emoji": one emoji that matches that item, "text": 2-9 words}: what ${p.client.name} does to solve it or what the buyer gets, from the service card. Concrete, one idea each, never a DIY tip.
 - closing: one sentence on how ${p.client.name} helps with exactly this, naming ${p.client.name} (e.g. "${p.client.name} helps brands adapt to the future of Amazon advertising.").
 - hashtags: 12-15 real hashtags that people actually search and follow on Instagram, Facebook and LinkedIn, so the post gets found. Mix them: 4-5 big, popular tags for the field (e.g. #DigitalMarketing, #GoogleAds, #AmazonSeller, #Ecommerce, #SmallBusiness), 4-5 mid-size tags for this exact topic or service (e.g. #PPCTips, #LocalSEO, #AmazonFBA), 2-3 local tags people in the area use (e.g. #DubaiBusiness, #UAEBusiness, #Dubai), then #${p.client.name.replace(/[^\p{L}\p{N}]+/gu, "")}. Put the most relevant first (LinkedIn uses only the first 5). Only well-known, existing hashtags of 1-3 words; never invent long or made-up tags, never stuff the keyword into tags nobody searches, no generic filler (#love, #instagood, #success).
 The service page link and the line breaks are added for you, so do not put links, "link in bio" or hashtags in the other parts. A carousel's intro can end by telling people to swipe; a reel's should be short.
@@ -422,13 +425,13 @@ ALSO, for every post:
 
 POST TYPES (given per post):
 - image: everything above.
-- carousel: the image above is the COVER slide (it must make people swipe). Also write slides: 3-5 slides that come after the cover, each {"title": 2-6 words, "body": 1-2 short sentences, max 28 words}. One idea per slide, building step by step, the most useful one last. Then end: one short closing line for the last slide (what to do now, e.g. "Save this for your next launch" or a call to action). Slides follow the caption title and its points, so the carousel and the caption tell the same story.
+- carousel: the image above is the COVER slide (it must make people swipe). Also write slides: 3-5 slides that come after the cover, each {"title": 2-6 words, "body": 1-2 short sentences, max 28 words}. One idea per slide: first the problem and what it costs the buyer, then what ${p.client.name} does about it. Then end: one short closing line for the last slide, a call to action to get ${p.client.name}'s help. Slides follow the caption title and its points, so the carousel and the caption tell the same story.
 - reel: a short silent video (about 10-14 seconds). Most people watch it with the sound off and never read the caption, so THE WORDS ON SCREEN MUST CARRY THE MESSAGE on their own. Write scenes: 3 lines (4 at most), shown one after another, each one complete thought of 4-9 words:
   1. HOOK: a problem or question the viewer recognises from their own business, in their words (e.g. "Paying for Google Ads clicks that never call?").
-  2. THE FIX: the one simple thing to do, as a short instruction (e.g. "Show your ads only where your customers are").
-  3. PAYOFF or ACTION: what changes for them, or what to do now (e.g. "Fewer wasted clicks, more real calls").
-  (An optional 4th line only when the fix needs a second step.)
-  Write for a business owner, not a marketer: no agency jargon or insider terms (no "search term scrubbing", "bid adjustments", "CPA", "ROAS", "funnel", "SERP"); if a term is needed, say what it does instead. Never talk about how we work ("How we manage...") and never name the brand. Each line must make sense even if the previous one was missed. headline.main is the cover text (can match line 1).`;
+  2. HOW WE SOLVE IT: what ${p.client.name} does for them, said as "we" because the Reel is on ${p.client.name}'s own account (e.g. "We show your ads only to real buyers"). Never a DIY instruction, and no brand name on screen (the caption carries it).
+  3. PAYOFF or ACTION: what changes for them, or a call to get in touch (e.g. "Fewer wasted clicks, more real calls").
+  (An optional 4th line only when it needs a second thing ${p.client.name} does.)
+  Write for a business owner, not a marketer: no agency jargon or insider terms (no "search term scrubbing", "bid adjustments", "CPA", "ROAS", "funnel", "SERP"); if a term is needed, say what it does instead. Say what ${p.client.name} does in the buyer's words (what it fixes for them), not our internal process ("How we manage..."). Each line must make sense even if the previous one was missed. headline.main is the cover text (can match line 1).`;
   const prompt = `BUSINESS: ${businessLine(p.client)}
 Main call to action: ${p.client.ctaText || "get in touch"} (${link})
 

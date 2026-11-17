@@ -32,7 +32,8 @@ const imageModels = () =>
 export function imagePrompt(post: Pick<SocialPost, "imageBrief" | "idea">, project: Pick<SocialProject, "imageStyle">) {
   return [
     post.imageBrief.trim() || `A realistic, well-lit photo that clearly shows: ${post.idea}`,
-    "Style: a candid, unposed photo that looks taken by a person on a phone or simple camera: natural, slightly imperfect light, real textures and everyday clutter, muted true-to-life colours, ordinary real people if any. Not glossy, not CGI or 3D render, no glowing or floating elements, no perfect symmetry, no stock-photo smiles.",
+    "Style: a candid, unposed photo that looks taken by a person on a phone or simple camera: natural, slightly imperfect light, real textures and everyday clutter, muted true-to-life colours. Not glossy, not CGI or 3D render, no glowing or floating elements, no perfect symmetry, no stock-photo smiles.",
+    "No people at all: no faces, hands, arms or bodies, not even in the background or reflections. Show the place, the objects, the screen or the product on its own.",
     "No text, letters, numbers, logos or watermarks anywhere in the image.",
     project.imageStyle.trim() ? `Style notes: ${project.imageStyle.trim()}` : "",
   ]
@@ -59,8 +60,8 @@ async function checkImage(jpeg: Buffer, topic: string): Promise<{ score: number;
   if (!key) throw new Error("GEMINI_API_KEY is not set");
   const small = await sharp(jpeg).resize(512).jpeg({ quality: 80 }).toBuffer();
   const prompt = `This picture is for a social media post about: "${topic}".
-Would someone who sees only the picture know what the post is about? Score 1-10 (10 = it obviously shows this exact topic, 1 = unrelated or a vague metaphor). Also fail it (score 3 or less) if it has garbled text, extra fingers or other obvious AI mistakes, and score it 5 or less if it looks AI-made rather than like a real photo (plastic skin, glossy CGI or 3D look, everything too perfect, clean and symmetrical, glowing light, stock-photo posing).
-If the score is below 7, write betterPrompt: a plain, literal 2-4 sentence prompt for an image model describing ONE real scene that directly shows this topic (subject, setting, camera, light), written so it comes out as a candid, ordinary phone photo of real life, with no text in the image.
+Would someone who sees only the picture know what the post is about? Score 1-10 (10 = it obviously shows this exact topic, 1 = unrelated or a vague metaphor). Also fail it (score 3 or less) if any person, face, hand or body part is visible, or if it has garbled text, extra fingers or other obvious AI mistakes, and score it 5 or less if it looks AI-made rather than like a real photo (plastic skin, glossy CGI or 3D look, everything too perfect, clean and symmetrical, glowing light, stock-photo posing).
+If the score is below 7, write betterPrompt: a plain, literal 2-4 sentence prompt for an image model describing ONE real scene that directly shows this topic (subject, setting, camera, light), written so it comes out as a candid, ordinary phone photo of real life, with no people, faces or hands and no text in the image.
 Return JSON: {"score":0,"problem":"one short line","betterPrompt":""}`;
   const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${process.env.GEMINI_MODEL || "gemini-flash-latest"}:generateContent`, {
     method: "POST",
@@ -117,7 +118,7 @@ async function generateImage(prompt: string): Promise<Buffer> {
       headers: { "Content-Type": "application/json", "x-goog-api-key": key },
       body: JSON.stringify(
         imagen
-          ? { instances: [{ prompt }], parameters: { sampleCount: 1, aspectRatio: "3:4", personGeneration: "allow_adult" } }
+          ? { instances: [{ prompt }], parameters: { sampleCount: 1, aspectRatio: "3:4", personGeneration: "dont_allow" } }
           : { contents: [{ role: "user", parts: [{ text: prompt }] }], generationConfig: { responseModalities: ["IMAGE"], imageConfig: { aspectRatio: "4:5" } } },
       ),
       signal: AbortSignal.timeout(150_000),
