@@ -259,6 +259,8 @@ ${plan.map((x, n) => `${n + 1}. ${x.day} (${new Date(`${x.day}T00:00:00Z`).toLoc
 
 RULES
 - Each idea must fit its slot's pillar and format. An event slot is about that event, posted on that day.
+- STAY ON THE SERVICES: every non-event idea is about a concrete part of one targeted service (what it is, what goes wrong without it, how it works, what it gets the buyer). No general business, mindset, leadership, productivity or client-relationship topics (no "how to keep clients happy", "building trust with customers", "communication with your agency").
+- NOTHING SENSITIVE: no religion, politics, wars or tragedies, health, money trouble, layoffs, legal disputes, criticism of customers or of other businesses, and nothing that could upset or embarrass a client.
 - An idea is one specific, concrete post, not a topic. Bad: "Benefits of SEO". Good: "Your Google Business Profile category is probably wrong, and it is costing you map calls".
 - Think like the buyer scrolling a feed: a fear, a surprise, a mistake they might be making, a decision they are stuck on, a moment in their week or season.
 - Use the competitor research indirectly: aim at the pains and buyers that win attention, borrow the shape of what works, and lean into the gaps they leave. Never copy a competitor's idea or wording, and never mention or hint at a competitor.

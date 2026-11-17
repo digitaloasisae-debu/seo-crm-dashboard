@@ -57,9 +57,9 @@ export const POSTS_PER_WEEK = Object.values(WEEK_MIX).reduce((a, b) => a + b, 0)
 export const PILLARS = [
   { key: "informative", label: "Informative", share: 0.4, hint: "Teach something useful about the service: a tip, a myth, a mistake, a how-to, a checklist. No selling." },
   { key: "soft", label: "Hidden promo", share: 0.2, hint: "Looks like a helpful or interesting post, but quietly shows why this business is the one to call (how we work, what we check, a problem we solve). No hard sell, no offer." },
-  { key: "journey", label: "Brand / client journey", share: 0.2, hint: "A real story: how a client's situation changed step by step, or the brand's own story, values and way of working. Only facts from the service card, no invented clients or numbers." },
+  { key: "journey", label: "Service in action", share: 0.2, hint: "One of the services from start to result: what we set up or fix, step by step, and what the buyer gets. About the service itself, never about client relationships, trust, communication or personal stories. Only facts from the service card, no invented clients or numbers." },
   { key: "promo", label: "Promotional", share: 0.2, hint: "A direct reason to choose this service now and a clear call to action. No invented discounts or prices." },
-  { key: "event", label: "Holiday / event", share: 0, hint: "A national holiday, observance or big event on this date for the audience's country, tied naturally to the brand. Greeting first, light link to the service." },
+  { key: "event", label: "Holiday / event", share: 0, hint: "A national holiday, observance or big event on this date for the audience's country, tied naturally to the brand. A short, respectful greeting first, then a light link to the service. No religious, political or cultural commentary." },
 ] as const;
 export const pillarOf = (k: string) => PILLARS.find((p) => p.key === k);
 
