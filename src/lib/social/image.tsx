@@ -32,7 +32,7 @@ const imageModels = () =>
 export function imagePrompt(post: Pick<SocialPost, "imageBrief" | "idea">, project: Pick<SocialProject, "imageStyle">) {
   return [
     post.imageBrief.trim() || `A realistic, well-lit photo that clearly shows: ${post.idea}`,
-    "Style: a candid, unposed photo that looks taken by a person on a phone or simple camera: natural, slightly imperfect light, real textures and everyday clutter, muted true-to-life colours. Not glossy, not CGI or 3D render, no glowing or floating elements, no perfect symmetry, no stock-photo smiles.",
+    "Style: a candid, unposed photo that looks taken by a person on a phone or simple camera: natural, slightly imperfect light, real textures and everyday clutter, colours true to the scene (when the scene is bright and colourful, keep it bright, vivid and full of colour). Not glossy, not CGI or 3D render, no glowing or floating elements, no perfect symmetry, no stock-photo smiles.",
     "No people at all: no faces, hands, arms or bodies, not even in the background or reflections. Show the place, the objects, the screen or the product on its own.",
     "No text, letters, numbers, logos or watermarks anywhere in the image.",
     project.imageStyle.trim() ? `Style notes: ${project.imageStyle.trim()}` : "",
@@ -60,8 +60,8 @@ async function checkImage(jpeg: Buffer, topic: string): Promise<{ score: number;
   if (!key) throw new Error("GEMINI_API_KEY is not set");
   const small = await sharp(jpeg).resize(512).jpeg({ quality: 80 }).toBuffer();
   const prompt = `This picture is for a social media post about: "${topic}".
-Would someone who sees only the picture know what the post is about? Score 1-10 (10 = it obviously shows this exact topic, 1 = unrelated or a vague metaphor). Also fail it (score 3 or less) if any person, face, hand or body part is visible, or if it has garbled text, extra fingers or other obvious AI mistakes, and score it 5 or less if it looks AI-made rather than like a real photo (plastic skin, glossy CGI or 3D look, everything too perfect, clean and symmetrical, glowing light, stock-photo posing).
-If the score is below 7, write betterPrompt: a plain, literal 2-4 sentence prompt for an image model describing ONE real scene that directly shows this topic (subject, setting, camera, light), written so it comes out as a candid, ordinary phone photo of real life, with no people, faces or hands and no text in the image.
+Would someone who sees only the picture know what the post is about? Score 1-10 (10 = it obviously shows this exact topic, 1 = unrelated or a vague metaphor). Also fail it (score 3 or less) if any person, face, hand or body part is visible, or if it has garbled text, extra fingers or other obvious AI mistakes, score it 5 or less if the topic is about something colourful (paint, colours, decor, flowers, food, celebrations) and the picture looks dull, grey or washed out, and score it 5 or less if it looks AI-made rather than like a real photo (plastic skin, glossy CGI or 3D look, everything too perfect, clean and symmetrical, glowing light, stock-photo posing).
+If the score is below 7, write betterPrompt: a plain, literal 2-4 sentence prompt for an image model describing ONE real scene that directly shows this topic (subject, setting, camera, light), written so it comes out as a candid, ordinary phone photo of real life (bright, vivid and colourful when the topic is about colour), with no people, faces or hands and no text in the image.
 Return JSON: {"score":0,"problem":"one short line","betterPrompt":""}`;
   const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${process.env.GEMINI_MODEL || "gemini-flash-latest"}:generateContent`, {
     method: "POST",
@@ -89,7 +89,7 @@ export function fitPhoto(data: Uint8Array | Buffer) {
  * AI images are too clean: perfectly sharp, saturated, no noise. This softens the detail a touch,
  * tones down the colour, lifts the blacks slightly and adds fine camera grain.
  */
-export async function photoFinish(img: Buffer): Promise<Buffer> {
+export async function photoFinish(img: Buffer, vivid = false): Promise<Buffer> {
   const meta = await sharp(img).metadata();
   const w = meta.width ?? W;
   const h = meta.height ?? H;
@@ -98,13 +98,17 @@ export async function photoFinish(img: Buffer): Promise<Buffer> {
   for (let i = 0; i < noise.length; i++) noise[i] = 128 + Math.round((Math.random() + Math.random() + Math.random() - 1.5) * 26);
   const grain = await sharp(noise, { raw: { width: w, height: h, channels: 1 } }).blur(0.5).png().toBuffer();
   return sharp(img)
-    .modulate({ saturation: 0.86, brightness: 1.0 })
-    .linear(0.93, 9)
+    // Colourful businesses (painting, decor, food, events) keep full, bright colour; the rest get a calmer, real-photo grade.
+    .modulate(vivid ? { saturation: 1.12, brightness: 1.04 } : { saturation: 0.86, brightness: 1.0 })
+    .linear(vivid ? 1 : 0.93, vivid ? 0 : 9)
     .blur(0.45)
     .composite([{ input: grain, blend: "soft-light" }])
     .jpeg({ quality: 86, chromaSubsampling: "4:2:0" })
     .toBuffer();
 }
+
+/** The copywriter asks for colour in the prompt when the business calls for it (e.g. a painting company). */
+const isVivid = (prompt: string) => /\b(vivid|vibrant|colou?rful|bright colou?rs?|bold colou?rs?|saturated)\b/i.test(prompt.replace(/^Style: .*$/m, ""));
 
 /** Ask Google's image models for a picture; returns a 1080x1350 JPEG. */
 async function generateImage(prompt: string): Promise<Buffer> {
@@ -145,7 +149,7 @@ async function generateImage(prompt: string): Promise<Buffer> {
       lastErr = `${model} returned no image (${j?.predictions?.[0]?.raiFilteredReason ?? j?.candidates?.[0]?.finishReason ?? j?.promptFeedback?.blockReason ?? "no reason given"})`;
       continue;
     }
-    return photoFinish(await sharp(Buffer.from(b64, "base64")).resize(W, H, { fit: "cover", position: "attention" }).toBuffer());
+    return photoFinish(await sharp(Buffer.from(b64, "base64")).resize(W, H, { fit: "cover", position: "attention" }).toBuffer(), isVivid(prompt));
   }
   throw new Error(`No image made: ${lastErr}`);
 }
