@@ -79,7 +79,8 @@ export async function KeywordCheck({ articleId, clientId, keyword, bodyHtml, tit
   const same = used.filter((u) => u.match === "same");
   return (
     <section id="keyword" className="card scroll-mt-20 space-y-3">
-      <h3 className="font-sans text-sm font-semibold tracking-normal">Keyword check</h3>
+      <h2 className="font-semibold">Keyword and links</h2>
+      <div className="text-xs font-medium text-slate-500">1. Is the focus keyword already used by another blog?</div>
       {used.length === 0 ? (
         <p className="flex items-start gap-2 rounded-md bg-emerald-50 p-2.5 text-sm text-emerald-800"><Icon name="check" className="mt-0.5 h-4 w-4 shrink-0" /> No other blog on this site targets &ldquo;{keyword}&rdquo;.</p>
       ) : (
@@ -101,7 +102,7 @@ export async function KeywordCheck({ articleId, clientId, keyword, bodyHtml, tit
         </div>
       )}
       <div className={`rounded-md p-2.5 text-sm ${!svc ? "bg-slate-50 text-slate-600" : svcLinked ? "bg-emerald-50 text-emerald-800" : "bg-rose-50 text-rose-800"}`}>
-        <div className="text-xs font-medium opacity-80">Service page for the first paragraph</div>
+        <div className="text-xs font-medium opacity-80">2. Service page to link in the first paragraph</div>
         {svc ? (
           <>
             <a href={svc.url} target="_blank" rel="noreferrer" className="block truncate font-medium hover:underline">{svc.title || path(svc.url)}</a>
@@ -113,7 +114,7 @@ export async function KeywordCheck({ articleId, clientId, keyword, bodyHtml, tit
       </div>
       <div>
         <div className="mb-1 flex items-baseline justify-between gap-2">
-          <span className="text-xs font-medium text-slate-500">Internal links to add in this blog</span>
+          <span className="text-xs font-medium text-slate-500">3. Other pages to link from this blog</span>
           <span className="text-[11px] text-slate-400">most related live pages first</span>
         </div>
         {ideas.length === 0 ? (

@@ -17,6 +17,7 @@ import { Icon } from "@/components/icons";
 import { dataforseoConfigured } from "@/lib/dataforseo";
 import type { ContentScore } from "@/lib/serp";
 import { NoteForm } from "./note-form";
+import { SideTabs } from "./side-tabs";
 import { InternalLinks } from "./links";
 import { CompetitorResearch, KeywordCheck, Sources } from "./research";
 import { clientArticles, usageIn } from "@/lib/keyword-usage";
@@ -66,7 +67,7 @@ export default async function ArticleReview({ params, searchParams }: { params: 
   const kwHits = article.focusKeyword ? (plain.toLowerCase().match(new RegExp(article.focusKeyword.toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "g")) ?? []).length : 0;
   const siteHost = article.client.siteUrl.replace(/^https?:\/\//, "").replace(/\/+$/, "");
   const titleLen = article.metaTitle.length, descLen = article.metaDescription?.length ?? 0;
-  const lenTone = (n: number, lo: number, hi: number) => (n >= lo && n <= hi ? "text-emerald-600" : n === 0 ? "text-red-600" : "text-amber-600");
+  const lenBadge = (n: number, lo: number, hi: number) => (n >= lo && n <= hi ? "bg-emerald-50 text-emerald-700" : n === 0 ? "bg-red-50 text-red-700" : "bg-amber-50 text-amber-700");
   const kwUsed = article.focusKeyword ? usageIn(await clientArticles(article.clientId), article.focusKeyword, article.id) : [];
   const kwSame = kwUsed.filter((u) => u.match === "same").length;
   const approver = article.approvedById ? await db.user.findUnique({ where: { id: article.approvedById }, select: { name: true } }) : null;
@@ -108,40 +109,65 @@ export default async function ArticleReview({ params, searchParams }: { params: 
           <div dangerouslySetInnerHTML={{ __html: article.bodyHtml }} />
         </article>
 
-        <aside className="space-y-6 lg:col-span-2">
+        <aside className="lg:col-span-2">
+          <SideTabs
+            initial={sp.links || sp.linkErr ? "overview" : undefined}
+            tabs={[
+              {
+                id: "overview", label: "Overview", icon: "eye", anchors: ["links"],
+                intro: "The next step, how the post shows on Google, and its details.",
+                content: (
+                  <>
+          {editable && !locked && (
+            <section className="card space-y-3">
+              <h2 className="font-semibold">Next step</h2>
+              <p className="text-xs text-slate-500">{article.status === "APPROVED" || article.status === "PUSH_FAILED" ? "Approved. Send it to WordPress as a draft." : "Read the article on the left, then approve it or leave notes in the Edit tab."}</p>
+              {article.status !== "APPROVED" && article.status !== "PUSH_FAILED" && (
+                <form action={reviewArticleAction.bind(null, id, "APPROVED")}>
+                  <SubmitButton data-celebrate="approved" className="btn-primary w-full">Approve</SubmitButton>
+                </form>
+              )}
+              {(article.status === "APPROVED" || article.status === "PUSH_FAILED") && (
+                <form action={pushArticleAction.bind(null, id)}>
+                  <SubmitButton data-celebrate="pushed" className="btn-primary w-full" disabled={!hasCred}>{article.status === "PUSH_FAILED" ? "Retry push to WordPress" : article.wpPostId ? "Push the update to WordPress" : "Push to WordPress as draft"}</SubmitButton>
+                  {!hasCred && <p className="mt-1 text-xs text-red-600">No WordPress access saved for this client.</p>}
+                </form>
+              )}
+            </section>
+          )}
           <section className="card space-y-3 text-sm">
-            <div>
-              <div className="mb-1.5 flex items-center justify-between text-xs font-medium text-slate-500"><span>Google preview</span><span className="num"><span className={lenTone(titleLen, 30, 60)}>title {titleLen}/60</span> · <span className={lenTone(descLen, 120, 160)}>description {descLen}/160</span></span></div>
-              <div className="rounded-xl border border-slate-200 p-3">
-                <div className="truncate text-xs text-slate-500">{siteHost} › {article.slug}</div>
-                <div className="mt-0.5 line-clamp-2 text-base leading-snug text-[#1a0dab] dark:text-indigo-400">{article.metaTitle}</div>
-                <div className="mt-1 line-clamp-2 text-xs leading-relaxed text-slate-600">{article.metaDescription || <span className="text-red-600">No meta description yet.</span>}</div>
+            <div className="flex items-center justify-between gap-2">
+              <h2 className="font-semibold">How it looks on Google</h2>
+              <div className="flex gap-1.5 text-[11px]">
+                <span className={`num rounded-md px-1.5 py-0.5 ${lenBadge(titleLen, 30, 60)}`} data-tip="Best between 30 and 60 characters">Title {titleLen}/60</span>
+                <span className={`num rounded-md px-1.5 py-0.5 ${lenBadge(descLen, 120, 160)}`} data-tip="Best between 120 and 160 characters">Description {descLen}/160</span>
               </div>
             </div>
-            <dl className="grid grid-cols-[auto_minmax(0,1fr)] items-baseline gap-x-3 gap-y-1.5">
-              <dt className="text-slate-500">Focus keyword</dt><dd><CopyChip text={article.focusKeyword} label="focus keyword" className="-ml-1.5 font-medium text-slate-900" /></dd>
-              <dt className="text-slate-500">Slug</dt><dd><CopyChip text={`/${article.slug}/`} label="slug" className="-ml-1.5 font-mono text-xs" /></dd>
-              {article.metaDescription && <><dt className="text-slate-500">Meta</dt><dd><CopyChip text={article.metaDescription} label="meta description" className="-ml-1.5 text-xs text-slate-600" /></dd></>}
-            </dl>
-            <div className="space-y-2 border-t border-slate-100 pt-3">
-            {article.topic && !article.importedAt ? <div><span className="text-slate-500">Topic:</span> {article.topic.title}</div> : <div><span className="text-slate-500">Source:</span> imported from WordPress ({article.wpType ?? "post"}){article.importedAt && ` on ${fmtDate(article.importedAt)}`}</div>}
-            {article.topic?.angle && <div><span className="text-slate-500">Angle:</span> {article.topic.angle}</div>}
-            {article.wpBuilder && <div className="rounded-lg bg-amber-50 p-2 text-xs text-amber-800">Built with a page builder, so Rankflow won&apos;t rewrite or push it. Edit it in WordPress.</div>}
-            {!article.importedAt && <div><span className="text-slate-500">Scheduled:</span> {fmtDate(article.postingSlot?.scheduledDate) || "next open slot at push time"}</div>}
-            {approver && <div><span className="text-slate-500">Approved by:</span> {approver.name} on {fmtDate(article.approvedAt)}</div>}
-            {article.wpPostUrl && <div><a className="text-indigo-600 hover:underline" href={article.wpPostUrl} target="_blank" rel="noreferrer">{article.importedAt ? "Open the live page" : `Open WordPress draft #${article.wpPostId}`}</a></div>}
-            {article.lastPushError && article.status === "PUSH_FAILED" && <div className="rounded bg-red-50 p-2 text-red-700">Push failed: {article.lastPushError}</div>}
+            <div className="rounded-xl border border-slate-200 p-3">
+              <div className="truncate text-xs text-slate-500">{siteHost} › {article.slug}</div>
+              <div className="mt-0.5 line-clamp-2 text-base leading-snug text-[#1a0dab] dark:text-indigo-400">{article.metaTitle}</div>
+              <div className="mt-1 line-clamp-2 text-xs leading-relaxed text-slate-600">{article.metaDescription || <span className="text-red-600">No meta description yet.</span>}</div>
             </div>
+            <p className="text-xs text-slate-400">Click any value below to copy it.</p>
+            <dl className="divide-y divide-slate-100 rounded-xl border border-slate-100">
+              <Row label="Focus keyword"><CopyChip text={article.focusKeyword} label="focus keyword" className="-ml-1.5 font-medium text-slate-900" /></Row>
+              <Row label="Link (slug)"><CopyChip text={`/${article.slug}/`} label="slug" className="-ml-1.5 font-mono text-xs" /></Row>
+              {article.metaDescription && <Row label="Description"><CopyChip text={article.metaDescription} label="meta description" className="-ml-1.5 text-xs text-slate-600" /></Row>}
+            </dl>
           </section>
 
-          {article.focusKeyword && <KeywordCheck articleId={article.id} clientId={article.clientId} keyword={article.focusKeyword} bodyHtml={article.bodyHtml} title={article.topic?.title ?? article.metaTitle} topicId={article.topicId} />}
-          {article.focusKeyword && !article.importedAt && <CompetitorResearch clientId={article.clientId} keyword={article.focusKeyword} bodyHtml={article.bodyHtml} topicId={article.topicId} />}
-          <Sources sources={article.sources as never} bodyHtml={article.bodyHtml} siteUrl={article.client.siteUrl} competitors={article.client.competitors} writtenHere={!article.importedAt} />
-
-          {["APPROVED", "PUSHING", "PUSHED_DRAFT", "PUSH_FAILED"].includes(article.status) && (
-            <InternalLinks articleId={article.id} editable={editable} ai={geminiConfigured()} hasCred={hasCred} note={sp.linkErr ? `err:${sp.linkErr}` : sp.links ? (sp.links === "0" ? "No good matches on the site yet." : `${sp.links} link${sp.links === "1" ? "" : "s"} suggested.`) : undefined} />
-          )}
-
+          <section className="card space-y-3 text-sm">
+            <h2 className="font-semibold">About this post</h2>
+            <dl className="divide-y divide-slate-100 rounded-xl border border-slate-100">
+              {article.topic && !article.importedAt ? <Row label="Topic">{article.topic.title}</Row> : <Row label="Source">Imported from WordPress ({article.wpType ?? "post"}){article.importedAt && ` on ${fmtDate(article.importedAt)}`}</Row>}
+              {article.topic?.angle && <Row label="Angle"><span className="text-slate-700">{article.topic.angle}</span></Row>}
+              {!article.importedAt && <Row label="Goes live">{fmtDate(article.postingSlot?.scheduledDate) || "Next open slot when pushed"}</Row>}
+              {approver && <Row label="Approved by">{approver.name} on {fmtDate(article.approvedAt)}</Row>}
+              {article.wpPostUrl && <Row label="WordPress"><a className="text-indigo-600 hover:underline" href={article.wpPostUrl} target="_blank" rel="noreferrer">{article.importedAt ? "Open the live page" : `Open draft #${article.wpPostId}`}</a></Row>}
+            </dl>
+            {article.wpBuilder && <div className="rounded-lg bg-amber-50 p-2 text-xs text-amber-800">Built with a page builder, so Rankflow won&apos;t rewrite or push it. Edit it in WordPress.</div>}
+            {article.lastPushError && article.status === "PUSH_FAILED" && <div className="rounded bg-red-50 p-2 text-red-700">Push failed: {article.lastPushError}</div>}
+          </section>
           {article.status === "PUSHED_DRAFT" && (article.client.gscProperty || gaData) && (
             <section className="card space-y-3">
               <h2 className="font-semibold">Google ranking</h2>
@@ -169,25 +195,60 @@ export default async function ArticleReview({ params, searchParams }: { params: 
               )}
             </section>
           )}
-
-          {editable && !locked && (
-            <section className="card space-y-3">
-              <h2 className="font-semibold">Review</h2>
-              {article.status !== "APPROVED" && article.status !== "PUSH_FAILED" && (
-                <form action={reviewArticleAction.bind(null, id, "APPROVED")}>
-                  <SubmitButton data-celebrate="approved" className="btn-primary w-full">Approve</SubmitButton>
-                </form>
-              )}
-              {(article.status === "APPROVED" || article.status === "PUSH_FAILED") && (
-                <form action={pushArticleAction.bind(null, id)}>
-                  <SubmitButton data-celebrate="pushed" className="btn-primary w-full" disabled={!hasCred}>{article.status === "PUSH_FAILED" ? "Retry push to WordPress" : article.wpPostId ? "Push the update to WordPress" : "Push to WordPress as draft"}</SubmitButton>
-                  {!hasCred && <p className="mt-1 text-xs text-red-600">No WordPress access saved for this client.</p>}
-                </form>
-              )}
-            </section>
+          {["APPROVED", "PUSHING", "PUSHED_DRAFT", "PUSH_FAILED"].includes(article.status) && (
+            <InternalLinks articleId={article.id} editable={editable} ai={geminiConfigured()} hasCred={hasCred} note={sp.linkErr ? `err:${sp.linkErr}` : sp.links ? (sp.links === "0" ? "No good matches on the site yet." : `${sp.links} link${sp.links === "1" ? "" : "s"} suggested.`) : undefined} />
           )}
-
-          <section className="card space-y-4">
+                  </>
+                ),
+              },
+              {
+                id: "checks", label: "Checks", icon: "check", anchors: ["sop", "top10", "keyword"],
+                badge: article.qualityScore, tone: article.qualityScore == null ? undefined : article.qualityScore >= 85 ? "good" : article.qualityScore >= 65 ? "warn" : "bad",
+                intro: "Does the article follow the SOP, cover what the top 10 cover, and link to the right pages?",
+                content: (
+                  <>
+          <div id="sop" className="scroll-mt-24" />
+          <QualityCard
+            score={article.qualityScore}
+            report={article.qualityReport as unknown as QualityReport | null}
+            checkedAt={article.qualityCheckedAt}
+            aiAction={runAiReviewAction.bind(null, id)}
+            fixAction={!locked ? fixSopAction.bind(null, id) : undefined}
+            fix={{ from: article.sopFixFrom, at: article.sopFixAt, note: article.sopFixNote }}
+            busy={revising}
+            canRun={editable}
+            aiReady={geminiConfigured()}
+          />
+          <div id="top10" className="scroll-mt-24" />
+          <ContentScoreCard
+            report={article.contentReport as unknown as ContentScore | null}
+            checkedAt={article.contentCheckedAt}
+            runAction={contentScoreAction.bind(null, id, false)}
+            refreshAction={contentScoreAction.bind(null, id, true)}
+            ready={dataforseoConfigured()}
+            canRun={editable}
+          />
+          {article.focusKeyword && <KeywordCheck articleId={article.id} clientId={article.clientId} keyword={article.focusKeyword} bodyHtml={article.bodyHtml} title={article.topic?.title ?? article.metaTitle} topicId={article.topicId} />}
+                  </>
+                ),
+              },
+              {
+                id: "research", label: "Research", icon: "search", anchors: ["sources"],
+                intro: "What the AI studied on Google before writing, and the links it used.",
+                content: (
+                  <>
+          {article.focusKeyword && !article.importedAt && <CompetitorResearch clientId={article.clientId} keyword={article.focusKeyword} bodyHtml={article.bodyHtml} topicId={article.topicId} />}
+          <Sources sources={article.sources as never} bodyHtml={article.bodyHtml} siteUrl={article.client.siteUrl} competitors={article.client.competitors} writtenHere={!article.importedAt} />
+                  </>
+                ),
+              },
+              {
+                id: "edit", label: "Edit", icon: "pencil", anchors: ["notes"],
+                badge: pendingNotes ? `${pendingNotes} new` : null, tone: "warn",
+                intro: "Leave notes, let the AI rewrite, or change the text yourself.",
+                content: (
+                  <>
+          <section id="notes" className="card scroll-mt-32 space-y-4">
             <div className="flex items-center justify-between">
               <h2 className="font-semibold">Notes</h2>
               <span className="text-xs text-slate-400">{article.notes.length} note{article.notes.length === 1 ? "" : "s"}</span>
@@ -218,7 +279,7 @@ export default async function ArticleReview({ params, searchParams }: { params: 
             <section className="card space-y-4">
               <div>
                 <h2 className="font-semibold">Rewrite with AI</h2>
-                <p className="mt-0.5 text-xs text-slate-500">Uses this client&apos;s brain, the SOP and the notes above. The current version is saved, so you can undo.</p>
+                <p className="mt-0.5 text-xs text-slate-500">Uses this client&apos;s brain, the SOP and your notes. The current version is saved, so you can undo.</p>
               </div>
               {revising ? (
                 <p className="flex items-center gap-2 text-sm text-indigo-700"><Spinner /> Rewriting now…</p>
@@ -253,32 +314,10 @@ export default async function ArticleReview({ params, searchParams }: { params: 
               )}
             </section>
           )}
-          <div id="sop" className="scroll-mt-24" />
-          <QualityCard
-            score={article.qualityScore}
-            report={article.qualityReport as unknown as QualityReport | null}
-            checkedAt={article.qualityCheckedAt}
-            aiAction={runAiReviewAction.bind(null, id)}
-            fixAction={!locked ? fixSopAction.bind(null, id) : undefined}
-            fix={{ from: article.sopFixFrom, at: article.sopFixAt, note: article.sopFixNote }}
-            busy={revising}
-            canRun={editable}
-            aiReady={geminiConfigured()}
-          />
-
-          <div id="top10" className="scroll-mt-24" />
-          <ContentScoreCard
-            report={article.contentReport as unknown as ContentScore | null}
-            checkedAt={article.contentCheckedAt}
-            runAction={contentScoreAction.bind(null, id, false)}
-            refreshAction={contentScoreAction.bind(null, id, true)}
-            ready={dataforseoConfigured()}
-            canRun={editable}
-          />
-
           {editable && !locked && (
             <form action={saveArticleAction.bind(null, id)} className="card space-y-3">
-              <h2 className="font-semibold">Edit before publishing</h2>
+              <h2 className="font-semibold">Edit by hand</h2>
+              <p className="-mt-2 text-xs text-slate-500">Change the title, link, description or text yourself, then save.</p>
               <Field label="Meta title"><input className="input" name="metaTitle" defaultValue={article.metaTitle} required /></Field>
               <Field label="Slug"><input className="input" name="slug" defaultValue={article.slug} /></Field>
               <Field label="Meta description"><textarea className="input" name="metaDescription" rows={3} defaultValue={article.metaDescription ?? ""} /></Field>
@@ -288,8 +327,22 @@ export default async function ArticleReview({ params, searchParams }: { params: 
               <SubmitButton className="btn-secondary">Save changes</SubmitButton>
             </form>
           )}
+                  </>
+                ),
+              },
+            ]}
+          />
         </aside>
       </div>
     </>
+  );
+}
+
+function Row({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="grid grid-cols-[96px_minmax(0,1fr)] items-baseline gap-3 px-3 py-2">
+      <dt className="text-xs text-slate-500">{label}</dt>
+      <dd className="min-w-0">{children}</dd>
+    </div>
   );
 }
