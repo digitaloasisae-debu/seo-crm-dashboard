@@ -79,12 +79,15 @@ function clientFields(fd: FormData) {
 }
 
 export async function createClientAction(fd: FormData) {
-  const user = await requireSuperAdmin();
+  // Admins can add clients too (Hamza, 2026-11-17); the Tally onboarding form stays as the other way in.
+  const user = await requireAdmin();
   const data = clientFields(fd);
   if (!data.name || !data.siteUrl) throw new Error("Name and website URL are required");
   let slug = slugify(data.name) || "client";
   for (let i = 2; await db.client.findUnique({ where: { slug } }); i++) slug = `${slugify(data.name)}-${i}`;
   const client = await db.client.create({ data: { ...data, slug } });
+  // An admin only sees clients they are assigned to, so they own the client they add.
+  if (user.role === "ADMIN") await db.clientAssignment.create({ data: { clientId: client.id, userId: user.id, access: "OWNER" } });
   await logActivity({ actorId: user.id, clientId: client.id, action: "client.create", entity: "client", entityId: client.id });
   await ensureSlots(client.id);
   redirect(`/clients/${client.id}/settings`);
@@ -106,7 +109,9 @@ export async function updateClientAction(clientId: string, fd: FormData) {
 }
 
 export async function saveWordpressCredentialAction(clientId: string, fd: FormData) {
-  const user = await requireSuperAdmin();
+  // Super Admin, or an Admin who can edit this client (they add clients now, WordPress login included).
+  const user = await requireAdmin();
+  await requireClientAccess(user, clientId, "edit");
   const endpoint = stripTrailingSlash(str(fd, "endpoint"));
   const username = str(fd, "username");
   const password = str(fd, "password");
