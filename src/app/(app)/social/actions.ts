@@ -149,7 +149,7 @@ export async function generateMonthAction(formData: FormData) {
   const made = results.reduce((a, r) => a + (r.ok ? r.n : 0), 0);
   const errs = results.flatMap((r) => (r.ok ? [] : [r.err]));
   after(() => socialWork(200_000).catch((e) => console.error("social.work_failed", e)));
-  redirect(`/social?month=${month}&planned=${made}${errs.length ? `&err=${encodeURIComponent(errs.join(" · "))}` : ""}`);
+  redirect(`/social?month=${month}${ids.length === 1 ? `&project=${ids[0]}` : ""}&planned=${made}${errs.length ? `&err=${encodeURIComponent(errs.join(" · "))}` : ""}`);
 }
 
 /** Called by the page while drafts are still being made. */
