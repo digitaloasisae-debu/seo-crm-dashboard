@@ -75,6 +75,7 @@ async function servicePage(siteUrl: string, service: string, known: string[] = [
 /** Draft the fact card for one targeted service from the website. */
 export async function draftServiceCard(projectId: string, service: string) {
   const p = await db.socialProject.findUniqueOrThrow({ where: { id: projectId }, include: { client: { include: { brandProfile: true } } } });
+  p.client.name = brandName(p.client.name);
   const site = await servicePage(p.client.siteUrl, service);
   const prompt = `You are preparing a social media strategist. Write a fact card about ONE service of this business, from its website text.
 Only use facts that are on the website or the brand profile. Never invent prices, numbers, awards, client names or guarantees. If something is unknown, leave it out.
@@ -105,8 +106,24 @@ export async function ensureServiceCards(projectId: string) {
   for (const s of missing) await draftServiceCard(projectId, s).catch((e) => console.error("social.card_failed", s, e));
 }
 
+/**
+ * The brand as people say it: "Digital Oasis AE" -> "Digital Oasis". Hamza (2026-11-17): no country or
+ * city tags like "AE" in content. Only a trailing place tag is dropped, never the whole name.
+ */
+export function brandName(name: string) {
+  const geo = /[\s,|·-]+(AE|UAE|KSA|SA|UK|US|USA|PK|Dubai|Abu Dhabi|Sharjah|Ajman|Riyadh|Doha|Qatar|Pakistan|Karachi|Lahore)\.?$/i;
+  let out = name.trim();
+  for (let i = 0; i < 2; i++) {
+    const next = out.replace(geo, "").trim();
+    if (!next || next === out) break;
+    out = next;
+  }
+  return out || name;
+}
+
 async function projectContext(projectId: string) {
   const p = await db.socialProject.findUniqueOrThrow({ where: { id: projectId }, include: { client: { include: { brandProfile: true } }, serviceCards: true } });
+  p.client.name = brandName(p.client.name);
   const cards = p.services
     .map((s) => `### ${s}\n${p.serviceCards.find((c) => c.service === s)?.card || "(no card yet: stick to general, true statements about this service)"}`)
     .join("\n\n");
@@ -402,6 +419,7 @@ VOICE
 - Never invent statistics, prices, timelines, awards, reviews, client names or guarantees. Use only facts from the service card and brand profile.
 - Keywords must read like natural English, with the small words a person would say ("SEO services in Dubai", not "seo services dubai").
 - Spelling of the client's country.
+- Write the brand name exactly as "${p.client.name}". Never add a country or city tag or slogan to it or to the copy ("AE", "UAE", "Dubai's #1...", "${p.client.name} AE"), even if the website or brand profile does.
 - Competitor research is for learning patterns only: never copy their lines, never mention or hint at a competitor.
 
 TITLES (hooks): write 3 different caption titles: 4-10 words each, a headline that states the post's main message in plain words and names the topic (e.g. "Retargeting is no longer basic audience chasing", "Your Google Business Profile is losing you calls"). Bold, specific to this idea, never generic, never a question that hides the topic. hooks[0] is the one used.
@@ -541,6 +559,7 @@ Return JSON: {"design":{...the fields for ${format}...}}`;
  */
 export async function updateBrain(projectId: string) {
   const p = await db.socialProject.findUniqueOrThrow({ where: { id: projectId }, include: { client: { select: { name: true } } } });
+  p.client.name = brandName(p.client.name);
   const fb = await db.socialFeedback.findMany({ where: { projectId }, orderBy: { createdAt: "desc" }, take: 60, include: { post: { select: { idea: true, angle: true, service: true } } } });
   if (!fb.length) return p.brain;
   const lines = fb.map((f) => {
