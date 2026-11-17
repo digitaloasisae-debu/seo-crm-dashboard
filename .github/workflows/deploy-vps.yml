@@ -42,13 +42,17 @@ jobs:
   deploy:
     needs: build
     runs-on: ubuntu-latest
+    env:
+      # Until the VPS is set up (deploy/HOSTINGER.md), the image is still built but nothing is deployed.
+      HAS_VPS: ${{ secrets.VPS_HOST != '' && secrets.VPS_SSH_KEY != '' }}
     steps:
+      - name: VPS not set up yet
+        if: env.HAS_VPS != 'true'
+        run: echo "::notice::Skipping deploy. Add the VPS_HOST and VPS_SSH_KEY secrets (deploy/HOSTINGER.md)."
       - uses: actions/checkout@v4
-      - name: Check the VPS secrets are set
-        env:
-          HOST: ${{ secrets.VPS_HOST }}
-        run: test -n "$HOST" || { echo "Add the VPS_HOST and VPS_SSH_KEY secrets (deploy/HOSTINGER.md)"; exit 1; }
+        if: env.HAS_VPS == 'true'
       - name: Copy the compose file and deploy script
+        if: env.HAS_VPS == 'true'
         uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.VPS_HOST }}
@@ -58,6 +62,7 @@ jobs:
           target: /opt/rankflow
           strip_components: 1
       - name: Pull and restart
+        if: env.HAS_VPS == 'true'
         uses: appleboy/ssh-action@v1.2.0
         with:
           host: ${{ secrets.VPS_HOST }}
