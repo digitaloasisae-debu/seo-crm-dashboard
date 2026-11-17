@@ -19,11 +19,11 @@ export function SideNav({ items }: { items: NavItem[] }) {
         const on = active(n.href);
         return (
           <div key={n.href} className="contents">
-            {header && <div className="rf-side-muted mt-5 mb-1 hidden px-2.5 text-[11px] font-semibold tracking-wide md:block">{header}</div>}
+            {header && <div className="rf-side-muted mt-5 mb-1 hidden px-2.5 text-[11px] font-semibold tracking-wider uppercase md:block">{header}</div>}
             <Link
               href={n.href}
               aria-current={on ? "page" : undefined}
-              className={`rf-side-link relative flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm whitespace-nowrap transition-colors duration-100 ${on ? "font-medium" : ""}`}
+              className={`rf-side-link relative flex items-center gap-2.5 rounded-lg px-2.5 py-[7px] text-[13px] font-medium whitespace-nowrap transition-colors duration-100`}
             >
               {on && <span className="rf-marker absolute top-2 bottom-2 -left-3 hidden w-[3px] rounded-r bg-[#f2b544] md:block" />}
               <Icon name={n.icon} className="rf-side-icon h-4 w-4 shrink-0" />

@@ -93,6 +93,7 @@ h1.font-display { font-family: var(--font-serif), var(--font-geist), sans-serif;
 h1.font-display.text-2xl { font-size: 1.85rem; }
 .rf-num-serif { font-family: var(--font-serif), var(--font-geist), sans-serif; font-weight: 300 !important; letter-spacing: -0.03em; }
 .rf-bignum { font-family: var(--font-serif), var(--font-geist), sans-serif; font-weight: 300; font-size: 2.5rem; line-height: 1; letter-spacing: -0.04em; }
+.rf-wordmark { font-family: var(--font-serif), var(--font-geist), sans-serif; font-weight: 600 !important; letter-spacing: -0.03em; }
 .num { font-variant-numeric: tabular-nums; }
 ::view-transition-old(root), ::view-transition-new(root) { animation-duration: 0.25s; }
 ::selection { @apply bg-indigo-100 text-indigo-950; }
