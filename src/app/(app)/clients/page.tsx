@@ -28,7 +28,7 @@ export default async function ClientsPage({ searchParams }: { searchParams: Prom
       <PageHeader
         title="Clients"
         subtitle={`${clients.length} ${user.role === "SUPER_ADMIN" ? "in total" : "you can see"}`}
-        actions={user.role === "SUPER_ADMIN" && <Link className="btn-primary" href="/clients/new">Add client</Link>}
+        actions={user.role !== "MEMBER" && <Link className="btn-primary" href="/clients/new">Add client</Link>}
       />
       {clients.length === 0 ? (
         <Empty>No clients yet. They appear here when the onboarding Tally form is submitted.</Empty>

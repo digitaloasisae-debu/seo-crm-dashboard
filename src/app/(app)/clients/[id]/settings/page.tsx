@@ -28,7 +28,7 @@ export default async function ClientSettings({ params }: { params: Promise<{ id:
           {cred?.lastVerifiedAt ? <Badge color="green">verified {fmtDate(cred.lastVerifiedAt)}</Badge> : cred ? <Badge color="yellow">not verified</Badge> : <Badge color="red">not set</Badge>}
         </div>
         {cred?.lastError && <p className="rounded bg-red-50 p-2 text-sm text-red-700">{cred.lastError}</p>}
-        {isSuper ? (
+        {isAdmin && editable ? (
           <form action={saveWordpressCredentialAction.bind(null, id)} className="grid gap-4 md:grid-cols-3">
             <Field label="Draft API endpoint"><input className="input" name="endpoint" defaultValue={cred?.endpoint ?? `${client.siteUrl}/wp-json/wp/v2/posts`} required /></Field>
             <Field label="Username"><input className="input" name="username" defaultValue={cred?.username ?? ""} required /></Field>
@@ -38,7 +38,7 @@ export default async function ClientSettings({ params }: { params: Promise<{ id:
             <div className="md:col-span-3"><SubmitButton className="btn-primary">Save</SubmitButton></div>
           </form>
         ) : (
-          <p className="text-sm text-slate-600">{cred ? `${cred.endpoint} as ${cred.username}` : "Ask the Super Admin to add WordPress access."}</p>
+          <p className="text-sm text-slate-600">{cred ? `${cred.endpoint} as ${cred.username}` : "Ask an admin to add WordPress access."}</p>
         )}
         {cred && editable && (
           <form action={testWordpressAction.bind(null, id)}><SubmitButton className="btn-secondary">Test connection</SubmitButton></form>
