@@ -16,16 +16,16 @@ export default function LoginPage() {
         </div>
         <p className="text-xs text-slate-400">{BRAND.tagline}</p>
       </div>
-      <div className="rf-side relative hidden overflow-hidden lg:block">
+      <div className="rf-brand relative hidden overflow-hidden lg:block">
         {/* Rankflow, in four steps: what the team does here every day. */}
-        <div aria-hidden className="pointer-events-none absolute -top-32 -right-32 h-96 w-96 rounded-full" style={{ background: "radial-gradient(closest-side, rgb(100 97 214 / 0.55), transparent)" }} />
-        <div aria-hidden className="pointer-events-none absolute -bottom-40 -left-24 h-96 w-96 rounded-full" style={{ background: "radial-gradient(closest-side, rgb(245 184 61 / 0.18), transparent)" }} />
+        <div aria-hidden className="pointer-events-none absolute -top-32 -right-32 h-96 w-96 rounded-full" style={{ background: "radial-gradient(closest-side, rgb(128 102 201 / 0.6), transparent)" }} />
+        <div aria-hidden className="pointer-events-none absolute -bottom-40 -left-24 h-96 w-96 rounded-full" style={{ background: "radial-gradient(closest-side, rgb(242 181 68 / 0.18), transparent)" }} />
         <div className="relative flex h-full flex-col justify-center p-14 xl:p-20">
-          <span className="w-fit rounded-full px-3 py-1 text-xs font-medium" style={{ background: "rgb(245 184 61 / 0.15)", color: "#f5b83d" }}>{BRAND.tagline}</span>
+          <span className="w-fit rounded-full px-3 py-1 text-xs font-medium" style={{ background: "rgb(242 181 68 / 0.15)", color: "#f2b544" }}>{BRAND.tagline}</span>
           <h2 className="mt-5 max-w-md font-display text-4xl leading-tight font-semibold tracking-tight text-white">
-            From keyword to <span style={{ color: "#f5b83d" }}>page one</span>, for every client.
+            From keyword to <span style={{ color: "#f2b544" }}>page one</span>, for every client.
           </h2>
-          <p className="rf-side-muted mt-4 max-w-md text-base" style={{ color: "rgb(226 226 248 / 0.7)" }}>
+          <p className="rf-side-muted mt-4 max-w-md text-base" style={{ color: "rgb(232 224 250 / 0.7)" }}>
             Rankflow runs your agency&apos;s SEO content in one place, so nothing gets lost in a spreadsheet.
           </p>
           <ol className="mt-10 max-w-md space-y-3">
@@ -36,10 +36,10 @@ export default function LoginPage() {
               ["Track and grow", "Watch rankings, catch pages losing traffic and win them back."],
             ].map(([t, d], i) => (
               <li key={t} className="flex gap-4 rounded-xl p-4" style={{ background: "rgb(255 255 255 / 0.05)", border: "1px solid rgb(255 255 255 / 0.08)" }}>
-                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-sm font-semibold" style={{ background: i === 3 ? "#f5b83d" : "rgb(255 255 255 / 0.1)", color: i === 3 ? "#1c1b45" : "#fff" }}>{i + 1}</span>
+                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-sm font-semibold" style={{ background: i === 3 ? "#f2b544" : "rgb(255 255 255 / 0.1)", color: i === 3 ? "#3a2600" : "#fff" }}>{i + 1}</span>
                 <span>
                   <span className="block text-sm font-semibold text-white">{t}</span>
-                  <span className="mt-0.5 block text-sm" style={{ color: "rgb(226 226 248 / 0.65)" }}>{d}</span>
+                  <span className="mt-0.5 block text-sm" style={{ color: "rgb(232 224 250 / 0.65)" }}>{d}</span>
                 </span>
               </li>
             ))}

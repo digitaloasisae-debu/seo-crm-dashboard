@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 
-const COLORS = ["#4f4cc4", "#8482e3", "#f5b83d", "#10b981", "#18181b"];
+const COLORS = ["#6a4fb3", "#9f88dc", "#f2b544", "#10b981", "#18181b"];
 // Short, plain confirmations. Confetti is saved for the big moment (sending to WordPress).
 const CHEERS: Record<string, string> = { approved: "Approved", pushed: "Sent to WordPress" };
 
