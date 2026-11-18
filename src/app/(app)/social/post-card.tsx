@@ -71,7 +71,7 @@ export function PostCard({ p }: { p: CardPost }) {
   const tone =
     p.status === "APPROVED" ? "border-emerald-300" : p.status === "REJECTED" ? "border-red-200 opacity-75" : p.status === "PUBLISHED" ? "border-sky-200" : p.status === "FAILED" ? "border-red-300" : "border-slate-200";
   return (
-    <article className={`card grid gap-5 border-2 p-4 lg:grid-cols-[360px_1fr] ${tone}`}>
+    <article id={`post-${p.id}`} className={`scroll-mt-20 card grid gap-5 border-2 p-4 lg:grid-cols-[360px_1fr] ${tone}`}>
       <div className="space-y-2">
         <div className={`relative overflow-hidden rounded-xl bg-slate-100 ${p.kind === "video" && p.hasVideo ? "aspect-[9/16]" : "aspect-[4/5]"}`}>
           {p.kind === "video" && p.hasVideo ? (

@@ -353,3 +353,10 @@ export async function deleteUnapprovedAction(formData: FormData) {
   await db.socialPost.deleteMany({ where: { month, ...(project ? { projectId: project } : {}), status: { in: ["DRAFT", "REJECTED", "FAILED"] } } });
   refresh();
 }
+
+/** Delete the drafts that failed 3 times (only ones not approved or live). */
+export async function deleteFailedAction() {
+  await requireSuperAdmin();
+  await db.socialPost.deleteMany({ where: { stage: "error", status: { in: ["DRAFT", "REJECTED", "FAILED"] } } });
+  refresh();
+}
