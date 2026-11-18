@@ -51,13 +51,28 @@ jobs:
         run: echo "::notice::Skipping deploy. Add the VPS_HOST and VPS_SSH_KEY secrets (deploy/HOSTINGER.md)."
       - uses: actions/checkout@v4
         if: env.HAS_VPS == 'true'
+      # VPS_SSH_KEY may be the key file as-is, the key with its line breaks lost (copied from a
+      # browser terminal), or one line from `base64 -w0 /root/.ssh/github_deploy`. Rebuild it.
+      - name: Prepare the SSH key
+        if: env.HAS_VPS == 'true'
+        env:
+          RAW_KEY: ${{ secrets.VPS_SSH_KEY }}
+        run: |
+          k="$RAW_KEY"
+          if ! printf '%s' "$k" | grep -q 'BEGIN OPENSSH PRIVATE KEY'; then
+            k=$(printf '%s' "$k" | tr -d ' \r\n\t' | base64 -d 2>/dev/null || true)
+          fi
+          body=$(printf '%s' "$k" | sed 's/-----BEGIN OPENSSH PRIVATE KEY-----//; s/-----END OPENSSH PRIVATE KEY-----//' | tr -d ' \r\n\t')
+          { echo '-----BEGIN OPENSSH PRIVATE KEY-----'; printf '%s' "$body" | fold -w70; echo; echo '-----END OPENSSH PRIVATE KEY-----'; } > .deploy_key
+          chmod 600 .deploy_key
+          ssh-keygen -y -f .deploy_key >/dev/null || { echo "::error::The VPS_SSH_KEY secret is not a valid private key. Set it again (deploy/HOSTINGER.md step 2)."; exit 1; }
       - name: Copy the compose file and deploy script
         if: env.HAS_VPS == 'true'
         uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.VPS_HOST }}
           username: root
-          key: ${{ secrets.VPS_SSH_KEY }}
+          key_path: .deploy_key
           source: deploy/docker-compose.yml,deploy/up.sh
           target: /opt/rankflow
           strip_components: 1
@@ -67,7 +82,7 @@ jobs:
         with:
           host: ${{ secrets.VPS_HOST }}
           username: root
-          key: ${{ secrets.VPS_SSH_KEY }}
+          key_path: .deploy_key
           script: |
             echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
             IMAGE="${{ env.IMAGE }}:${{ github.sha }}" sh /opt/rankflow/up.sh
