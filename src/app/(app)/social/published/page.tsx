@@ -28,7 +28,7 @@ export default async function SocialPublished() {
               values: { img: "", project: p.project.client.name, post: p.idea, when: (p.publishedAt ?? p.scheduledAt)?.toISOString() ?? null, platforms: Object.keys(res).join(", ") },
               cells: {
                 // eslint-disable-next-line @next/next/no-img-element
-                img: <img src={`/api/social/image/${p.id}.jpg?v=${p.imageVersion}&w=120`} alt="" className="h-16 w-13 rounded object-cover" />,
+                img: <img loading="lazy" decoding="async" src={`/api/social/image/${p.id}.jpg?v=${p.imageVersion}&w=120`} alt="" className="h-16 w-13 rounded object-cover" />,
                 project: <span className="text-sm font-medium">{p.project.client.name}</span>,
                 post: <div className="max-w-md text-sm">{p.idea}</div>,
                 when: <span className="text-xs whitespace-nowrap text-slate-500">{fmtLocal(p.publishedAt ?? p.scheduledAt, p.project.timezone)}</span>,

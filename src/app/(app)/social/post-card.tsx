@@ -78,7 +78,7 @@ export function PostCard({ p }: { p: CardPost }) {
             <video key={p.imageVersion} src={`/api/social/video/${p.id}.mp4?v=${p.imageVersion}`} poster={`/api/social/image/${p.id}.jpg?v=${p.imageVersion}`} controls muted loop playsInline className="h-full w-full bg-black object-contain" />
           ) : p.hasImage ? (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={`/api/social/image/${p.id}.jpg?v=${p.imageVersion}`} alt={p.headlineMain} className="h-full w-full object-cover" />
+            <img loading="lazy" decoding="async" src={`/api/social/image/${p.id}.jpg?v=${p.imageVersion}&w=720`} alt={p.headlineMain} className="h-full w-full object-cover" />
           ) : (
             <div className="flex h-full items-center justify-center p-6 text-center text-sm text-slate-500">
               {p.stage === "error" ? <span className="text-red-700">Couldn&apos;t make this one: {p.stageError}</span> : p.stage === "idea" || p.stage === "writing" ? "Writing captions…" : "Designing the image…"}
@@ -91,7 +91,7 @@ export function PostCard({ p }: { p: CardPost }) {
             {Array.from({ length: p.slideCount }, (_, i) => (
               <a key={i} href={`/api/social/image/${p.id}-${i + 2}.jpg?v=${p.imageVersion}`} target="_blank" rel="noreferrer" className="shrink-0">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={`/api/social/image/${p.id}-${i + 2}.jpg?v=${p.imageVersion}&w=240`} alt={`Slide ${i + 2}`} className="h-28 w-[90px] rounded-md object-cover ring-1 ring-slate-200" />
+                <img loading="lazy" decoding="async" src={`/api/social/image/${p.id}-${i + 2}.jpg?v=${p.imageVersion}&w=240`} alt={`Slide ${i + 2}`} className="h-28 w-[90px] rounded-md object-cover ring-1 ring-slate-200" />
               </a>
             ))}
           </div>

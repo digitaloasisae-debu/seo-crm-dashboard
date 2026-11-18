@@ -46,7 +46,7 @@ export default async function SocialCalendar({ searchParams }: { searchParams: P
                 <Link key={p.id} href={`/social?month=${month}&show=all`} title={`${p.project.client.name}: ${p.headlineMain} (${p.status.toLowerCase()})`} className={`block h-14 w-11 overflow-hidden rounded-md bg-slate-100 ring-2 ${DOT[p.status] ?? ""}`}>
                   {p.imageVersion > 0 && (
                     // eslint-disable-next-line @next/next/no-img-element
-                    <img src={`/api/social/image/${p.id}.jpg?v=${p.imageVersion}&w=120`} alt="" className="h-full w-full object-cover" />
+                    <img loading="lazy" decoding="async" src={`/api/social/image/${p.id}.jpg?v=${p.imageVersion}&w=120`} alt="" className="h-full w-full object-cover" />
                   )}
                 </Link>
               ))}
