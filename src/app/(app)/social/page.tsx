@@ -6,7 +6,7 @@ import { SubmitButton } from "@/components/submit-button";
 import { geminiConfigured } from "@/lib/gemini";
 import { socialBacklog } from "@/lib/social/work";
 import { monthKey, monthLabel, nextMonthKey, prevMonthKey } from "@/lib/social/schedule";
-import { deleteUnapprovedAction, generateMonthAction, retryFailedAction } from "./actions";
+import { deleteFailedAction, deleteUnapprovedAction, generateMonthAction, retryFailedAction } from "./actions";
 import { ConfirmButton } from "@/components/confirm-button";
 import { PostCard } from "./post-card";
 import { SocialWorker } from "./worker";
@@ -69,6 +69,9 @@ export default async function SocialReviewPage({ searchParams }: { searchParams:
   const flags = rows.length
     ? await db.$queryRaw<{ id: string; has_image: boolean; has_photo: boolean; slides: number; has_video: boolean }[]>`SELECT id, image IS NOT NULL AS has_image, photo IS NOT NULL AS has_photo, coalesce(array_length(slides, 1), 0)::int AS slides, video IS NOT NULL AS has_video FROM "SocialPost" WHERE id = ANY(${rows.map((r) => r.id)})`
     : [];
+  const failedPosts = backlog.failed
+    ? await db.socialPost.findMany({ where: { stage: "error" }, select: { id: true, projectId: true, month: true, idea: true, stageError: true, project: { select: { client: { select: { name: true } } } } }, orderBy: { scheduledAt: "asc" }, take: 10 })
+    : [];
   const flag = new Map(flags.map((f) => [f.id, f]));
 
   const countOf = (statuses: readonly string[]) => counts.filter((c) => !statuses.length || statuses.includes(c.status)).reduce((n, c) => n + c._count, 0);
@@ -93,11 +96,24 @@ export default async function SocialReviewPage({ searchParams }: { searchParams:
       {sp.err && <p className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{sp.err}</p>}
       {sp.planned && <p className="rounded-lg bg-emerald-50 p-3 text-sm text-emerald-800">{Number(sp.planned) ? `${sp.planned} post ideas planned. Captions and images are being made now.` : "This month already has its posts."}</p>}
       <SocialWorker toWrite={backlog.toWrite} toDraw={backlog.toDraw} />
-      {backlog.failed > 0 && (
-        <form action={retryFailedAction} className="flex items-center gap-3 rounded-lg bg-red-50 p-3 text-sm text-red-800">
-          <span className="flex-1">{backlog.failed} draft{backlog.failed > 1 ? "s" : ""} failed 3 times (see the message on the card).</span>
-          <SubmitButton className="btn-secondary text-xs">Try again</SubmitButton>
-        </form>
+      {failedPosts.length > 0 && (
+        <div className="space-y-2 rounded-lg bg-red-50 p-3 text-sm text-red-800">
+          <div className="flex flex-wrap items-center gap-3">
+            <span className="flex-1">{failedPosts.length} draft{failedPosts.length > 1 ? "s" : ""} couldn&apos;t be made after 3 tries. Try again, or delete {failedPosts.length > 1 ? "them" : "it"} if you don&apos;t need {failedPosts.length > 1 ? "them" : "it"}.</span>
+            <form action={retryFailedAction}><SubmitButton className="btn-secondary text-xs">Try again</SubmitButton></form>
+            <form action={deleteFailedAction}>
+              <ConfirmButton message={`Delete the ${failedPosts.length} failed draft${failedPosts.length > 1 ? "s" : ""}? Approved and live posts are never touched.`} className="btn-secondary text-xs">Delete</ConfirmButton>
+            </form>
+          </div>
+          <ul className="space-y-1 text-xs">
+            {failedPosts.map((f) => (
+              <li key={f.id}>
+                <Link className="font-medium underline" href={`/social?project=${f.projectId}&month=${f.month}&show=all#post-${f.id}`}>{f.project.client.name} · {monthLabel(f.month)}</Link>
+                {" "}· {f.idea.slice(0, 90)}{f.stageError ? <span className="opacity-75"> ({f.stageError.slice(0, 120)})</span> : null}
+              </li>
+            ))}
+          </ul>
+        </div>
       )}
 
       {/* 1. Account: always exactly one open. */}
