@@ -66,6 +66,8 @@ jobs:
           { echo '-----BEGIN OPENSSH PRIVATE KEY-----'; printf '%s' "$body" | fold -w70; echo; echo '-----END OPENSSH PRIVATE KEY-----'; } > .deploy_key
           chmod 600 .deploy_key
           ssh-keygen -y -f .deploy_key >/dev/null || { echo "::error::The VPS_SSH_KEY secret is not a valid private key. Set it again (deploy/HOSTINGER.md step 2)."; exit 1; }
+          # The scp/ssh actions run in a container as another user; this runner is thrown away after the job.
+          chmod 644 .deploy_key
       - name: Copy the compose file and deploy script
         if: env.HAS_VPS == 'true'
         uses: appleboy/scp-action@v0.1.7
