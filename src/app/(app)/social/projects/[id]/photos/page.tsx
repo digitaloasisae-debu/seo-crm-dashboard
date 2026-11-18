@@ -26,7 +26,7 @@ export default async function SocialPhotosPage({ params }: { params: Promise<{ i
             {media.map((m) => (
               <div key={m.id} className="card space-y-2 p-3">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={`/api/social/media/${m.id}.jpg?w=600`} alt={m.description} className="aspect-[4/5] w-full rounded-md bg-slate-100 object-cover" />
+                <img loading="lazy" decoding="async" src={`/api/social/media/${m.id}.jpg?w=600`} alt={m.description} className="aspect-[4/5] w-full rounded-md bg-slate-100 object-cover" />
                 <form action={saveMediaAction.bind(null, m.id)} className="space-y-2">
                   <textarea name="description" defaultValue={m.description} rows={3} className="input text-xs leading-5" placeholder="Being described by the AI… you can also write what it shows." />
                   <div className="flex items-center gap-2">
