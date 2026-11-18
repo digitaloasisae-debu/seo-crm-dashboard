@@ -10,6 +10,7 @@ import { deleteUnapprovedAction, generateMonthAction, retryFailedAction } from "
 import { ConfirmButton } from "@/components/confirm-button";
 import { PostCard } from "./post-card";
 import { SocialWorker } from "./worker";
+import { PlanProgress } from "./plan-progress";
 import { POST_SELECT, toCard } from "./data";
 
 export const maxDuration = 300;
@@ -172,6 +173,7 @@ export default async function SocialReviewPage({ searchParams }: { searchParams:
           <input type="hidden" name="project" value={project.id} />
           <span className="flex-1 text-sm text-slate-600">No posts planned for {name} in {monthLabel(month)} yet.</span>
           <SubmitButton className="btn-primary" disabled={!geminiConfigured() || !project.active}>Plan {monthLabel(month)} for {name}</SubmitButton>
+          <PlanProgress />
         </form>
       ) : rows.length === 0 ? (
         <Empty>{filter.key === "review" ? `Nothing left to review for ${name} in ${monthLabel(month)}.` : "No posts here."}</Empty>
@@ -199,6 +201,7 @@ export default async function SocialReviewPage({ searchParams }: { searchParams:
             ))}
           </fieldset>
           <SubmitButton className="btn-primary" disabled={!geminiConfigured()}>Plan the month</SubmitButton>
+          <PlanProgress />
         </form>
         <p className="mt-2 text-xs text-slate-500">Each week Monday to Saturday gets 1 carousel, 2 Reels and 2 images from each account&apos;s targeted services, with holidays and events on their day. Days that already have a post are kept. Planning takes about a minute; captions and images are then made one by one.</p>
       </details>
