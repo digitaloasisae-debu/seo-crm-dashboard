@@ -12,7 +12,7 @@ export default async function IntakePage({ searchParams }: { searchParams: Promi
   const { all } = await searchParams;
   const [subs, clients] = await Promise.all([
     db.formSubmission.findMany({ where: all ? {} : { processedAt: null }, orderBy: { receivedAt: "desc" }, take: 100 }),
-    db.client.findMany({ select: { id: true, name: true }, orderBy: { name: "asc" } }),
+    db.client.findMany({ where: { socialOnly: false }, select: { id: true, name: true }, orderBy: { name: "asc" } }),
   ]);
   const clientName = new Map(clients.map((c) => [c.id, c.name]));
 

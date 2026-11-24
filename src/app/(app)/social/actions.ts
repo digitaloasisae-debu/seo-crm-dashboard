@@ -1,4 +1,5 @@
 "use server";
+import { slugify } from "@/lib/utils";
 import { after } from "next/server";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
@@ -38,9 +39,20 @@ function projectData(f: FormData) {
 
 export async function createProjectAction(formData: FormData) {
   await requireSuperAdmin();
-  const clientId = String(formData.get("clientId") ?? "");
+  let clientId = String(formData.get("clientId") ?? "");
   const data = projectData(formData);
-  if (!clientId) redirect("/social/projects/new?err=Pick+a+client");
+  if (!clientId) {
+    // A business that's only here for social posts: a hidden client record carries its brand profile.
+    const name = String(formData.get("newName") ?? "").trim().slice(0, 120);
+    let siteUrl = String(formData.get("newSite") ?? "").trim();
+    if (!name) redirect("/social/projects/new?err=Pick+a+client+or+type+the+new+business+name");
+    if (siteUrl && !/^https?:\/\//i.test(siteUrl)) siteUrl = `https://${siteUrl}`;
+    if (await db.client.findFirst({ where: { name: { equals: name, mode: "insensitive" } } })) redirect("/social/projects/new?err=A+client+with+that+name+already+exists:+pick+it+from+the+list");
+    const base = slugify(name) || "social";
+    let slug = base;
+    for (let i = 2; await db.client.findUnique({ where: { slug } }); i++) slug = `${base}-${i}`;
+    clientId = (await db.client.create({ data: { name, slug, siteUrl: siteUrl.replace(/\/+$/, ""), socialOnly: true }, select: { id: true } })).id;
+  }
   if (await db.socialProject.findUnique({ where: { clientId } })) redirect("/social/projects/new?err=That+client+already+has+a+social+project");
   const p = await db.socialProject.create({ data: { ...data, active: true, clientId } });
   after(async () => {

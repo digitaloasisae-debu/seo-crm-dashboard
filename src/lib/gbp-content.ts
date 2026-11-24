@@ -181,7 +181,7 @@ export async function dailyGbp(budgetMs = 30_000) {
     if (await queueReviewFetch(p.id).then(() => true, () => false)) queued++;
   }
   const wk = weekOf();
-  const needPosts = await db.client.findMany({ where: { status: "ACTIVE", gbpProfiles: { some: { data: { not: { equals: null } }, posts: { none: { weekOf: wk } } } } }, select: { id: true }, take: 10 });
+  const needPosts = await db.client.findMany({ where: { status: "ACTIVE", socialOnly: false, gbpProfiles: { some: { data: { not: { equals: null } }, posts: { none: { weekOf: wk } } } } }, select: { id: true }, take: 10 });
   for (const c of needPosts) {
     if (Date.now() - started > budgetMs) break;
     posts += await draftWeeklyPosts(c.id).catch(() => 0);

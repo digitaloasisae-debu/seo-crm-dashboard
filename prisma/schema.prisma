@@ -198,6 +198,8 @@ model Client {
   name                String       @unique
   slug                String       @unique
   status              ClientStatus @default(ACTIVE)
+  /// Only used for Social Studio: hidden from the client lists, SEO, Today and n8n (Hamza, 2026-11-24)
+  socialOnly          Boolean      @default(false)
   siteUrl             String
   businessType        String?
   targetCountry       String?

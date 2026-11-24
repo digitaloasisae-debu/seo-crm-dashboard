@@ -14,10 +14,11 @@ function activeAssignmentWhere(userId: string): Prisma.ClientAssignmentWhereInpu
 
 /** Prisma filter for the clients this user can see. */
 export function clientScope(user: SessionUser, need: Need = "view"): Prisma.ClientWhereInput {
-  if (user.role === "SUPER_ADMIN") return {};
-  if (user.role === "ADMIN" && need === "view") return {};
+  // Social-only businesses live in Social Studio, never in the client lists.
+  if (user.role === "SUPER_ADMIN") return { socialOnly: false };
+  if (user.role === "ADMIN" && need === "view") return { socialOnly: false };
   const levels: AccessLevel[] = need === "edit" ? ["OWNER", "EDIT"] : ["OWNER", "EDIT", "VIEW"];
-  return { assignments: { some: { ...activeAssignmentWhere(user.id), access: { in: levels } } } };
+  return { socialOnly: false, assignments: { some: { ...activeAssignmentWhere(user.id), access: { in: levels } } } };
 }
 
 export async function accessLevel(user: SessionUser, clientId: string): Promise<AccessLevel | "SUPER" | null> {

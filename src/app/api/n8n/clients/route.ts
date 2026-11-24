@@ -9,7 +9,7 @@ export async function GET(req: NextRequest) {
   if (denied) return denied;
   const activeOnly = req.nextUrl.searchParams.get("active") !== "false";
   const clients = await db.client.findMany({
-    where: activeOnly ? { status: "ACTIVE" } : {},
+    where: activeOnly ? { status: "ACTIVE", socialOnly: false } : { socialOnly: false },
     orderBy: { name: "asc" },
     include: { brain: true, brandProfile: true },
   });

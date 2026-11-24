@@ -51,7 +51,7 @@ export async function teamOverview() {
       select: { id: true, name: true, role: true, assignments: { where: { access: { in: ["OWNER", "EDIT"] }, OR: [{ expiresAt: null }, { expiresAt: { gt: now } }], client: { status: "ACTIVE" } }, select: { clientId: true, access: true } } },
       orderBy: { name: "asc" },
     }),
-    db.client.findMany({ where: { status: "ACTIVE" }, select: { id: true, name: true, assignments: { where: { access: "OWNER" }, select: { userId: true } } }, orderBy: { name: "asc" } }),
+    db.client.findMany({ where: { status: "ACTIVE", socialOnly: false }, select: { id: true, name: true, assignments: { where: { access: "OWNER" }, select: { userId: true } } }, orderBy: { name: "asc" } }),
   ]);
   const ids = clients.map((c) => c.id);
   const inC = { clientId: { in: ids } };
