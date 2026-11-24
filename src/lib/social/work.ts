@@ -109,6 +109,8 @@ async function drawStep(only?: string[], parallel = 2) {
 export async function socialWork(budgetMs: number, only?: string[]) {
   const end = Date.now() + budgetMs;
   await releaseStale();
+  // No more carousels (Hamza, 2026-11-24): unapproved ones are remade from scratch as single images.
+  await db.socialPost.updateMany({ where: { kind: "carousel", status: "DRAFT" }, data: { kind: "static", stage: "idea", attempts: 0, slides: [] } });
   let written = 0;
   let drawn = 0;
   while (Date.now() < end - 75_000) {

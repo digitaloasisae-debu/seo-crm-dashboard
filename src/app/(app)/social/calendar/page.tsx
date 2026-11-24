@@ -15,7 +15,7 @@ export default async function SocialCalendar({ searchParams }: { searchParams: P
   const [y, m] = month.split("-").map(Number);
   const prev = m === 1 ? `${y - 1}-12` : `${y}-${String(m - 1).padStart(2, "0")}`;
   const posts = await db.socialPost.findMany({
-    where: { month, status: { not: "REJECTED" } },
+    where: { month, status: { in: ["APPROVED", "PUBLISHING", "PUBLISHED", "FAILED"] } },
     select: { id: true, status: true, headlineMain: true, scheduledAt: true, imageVersion: true, project: { select: { timezone: true, client: { select: { name: true } } } } },
     orderBy: { scheduledAt: "asc" },
   });
@@ -32,7 +32,7 @@ export default async function SocialCalendar({ searchParams }: { searchParams: P
     <>
       <PageHeader
         title={`Calendar · ${monthLabel(month)}`}
-        subtitle="Amber = waiting for you, green = approved, blue = live, red = failed. Change a date on the post card."
+        subtitle="Only approved posts. Green = approved, blue = live, red = failed to publish. Change a date on the post card."
         actions={<><Link className="btn-secondary" href={`/social/calendar?month=${prev}`}>←</Link><Link className="btn-secondary" href={`/social/calendar?month=${nextMonthKey(month)}`}>→</Link></>}
       />
       <div className="grid grid-cols-7 gap-1.5 text-xs">
