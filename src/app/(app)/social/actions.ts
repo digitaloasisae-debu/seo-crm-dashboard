@@ -29,12 +29,19 @@ function projectData(f: FormData) {
     platforms: PLATFORMS.filter((p) => f.get(`platform_${p}`) === "on"),
     postFromHour: int("postFromHour", 10, 0, 23),
     postToHour: int("postToHour", 19, 1, 24),
-    timezone: String(f.get("timezone") ?? "Asia/Dubai").trim() || "Asia/Dubai",
+    timezone: validZone(String(f.get("timezone") ?? "").trim()),
     fbPageId: opt("fbPageId"),
     igUserId: opt("igUserId"),
     linkedinOrgId: opt("linkedinOrgId")?.replace(/\D/g, "") || null,
     imageStyle: String(f.get("imageStyle") ?? "").trim().slice(0, 1000),
   };
+}
+
+function validZone(z: string) {
+  try {
+    if (z) { new Intl.DateTimeFormat("en", { timeZone: z }); return z; }
+  } catch {}
+  return "Asia/Dubai";
 }
 
 export async function createProjectAction(formData: FormData) {
