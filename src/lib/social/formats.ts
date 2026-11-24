@@ -49,8 +49,8 @@ export const KINDS: [string, string][] = [
   ["video", "Reel"],
 ];
 export const kindLabel = (k: string) => KINDS.find(([x]) => x === k)?.[1] ?? "Image";
-/** Every week (Monday to Saturday, never Sunday): 1 carousel, 2 Reels, 2 images. */
-export const WEEK_MIX: Record<string, number> = { carousel: 1, video: 2, static: 2 };
+/** Every week (Monday to Saturday, never Sunday): 2 Reels, 3 images. No carousels (Hamza, 2026-11-24). */
+export const WEEK_MIX: Record<string, number> = { video: 2, static: 3 };
 export const POSTS_PER_WEEK = Object.values(WEEK_MIX).reduce((a, b) => a + b, 0);
 
 /** Content pillars and their share of the month (events come on top, on their real dates). */

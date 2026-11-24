@@ -177,7 +177,7 @@ function pillarPlan(n: number, seed: number): string[] {
 
 /**
  * Plan a whole month for one project, Monday to Saturday (never Sunday): every week gets the
- * WEEK_MIX of formats (1 carousel, 2 Reels, 2 images). The posts are balanced over the content
+ * WEEK_MIX of formats (2 Reels, 3 images). The posts are balanced over the content
  * PILLARS (informative, hidden promo, client journey, promotional), and holidays and events go out
  * on their real date. Days that already have a post are kept (the month is only topped up).
  * Returns how many posts were added.
