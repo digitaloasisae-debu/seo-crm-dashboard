@@ -24,7 +24,11 @@ export function ProjectFields({ p }: { p?: Partial<SocialProject> }) {
       <div className="grid grid-cols-3 gap-2">
         <label><span className="label">From hour</span><input type="number" name="postFromHour" min={0} max={23} defaultValue={p?.postFromHour ?? 10} className="input" /></label>
         <label><span className="label">To hour</span><input type="number" name="postToHour" min={1} max={24} defaultValue={p?.postToHour ?? 19} className="input" /></label>
-        <label><span className="label">Time zone</span><input name="timezone" defaultValue={p?.timezone ?? "Asia/Dubai"} className="input" /></label>
+        <label><span className="label">Time zone</span>
+          <select name="timezone" defaultValue={zoneOk(p?.timezone) ? p!.timezone! : "Asia/Dubai"} className="input">
+            {[...new Set([...(zoneOk(p?.timezone) ? [p!.timezone!] : []), ...TIMEZONES.map(([z]) => z)])].map((z) => <option key={z} value={z}>{TIMEZONES.find(([x]) => x === z)?.[1] ?? z}</option>)}
+          </select>
+        </label>
       </div>
       <label>
         <span className="label">Facebook Page ID</span>
@@ -45,4 +49,26 @@ export function ProjectFields({ p }: { p?: Partial<SocialProject> }) {
       <label className="flex items-center gap-2 text-sm"><input type="checkbox" name="active" defaultChecked={p?.active ?? true} /> Active (included when you generate a month)</label>
     </div>
   );
+}
+
+const TIMEZONES: [string, string][] = [
+  ["Asia/Dubai", "UAE (Dubai)"],
+  ["Asia/Karachi", "Pakistan (Karachi)"],
+  ["Asia/Riyadh", "Saudi Arabia (Riyadh)"],
+  ["Asia/Qatar", "Qatar"],
+  ["Europe/London", "UK (London)"],
+  ["Europe/Berlin", "Central Europe (Berlin, Paris)"],
+  ["America/New_York", "USA Eastern (New York)"],
+  ["America/Chicago", "USA Central (Chicago)"],
+  ["America/Denver", "USA Mountain (Denver)"],
+  ["America/Los_Angeles", "USA Pacific (Los Angeles)"],
+  ["America/Toronto", "Canada Eastern (Toronto)"],
+  ["Australia/Sydney", "Australia (Sydney)"],
+  ["Asia/Kolkata", "India"],
+  ["Asia/Singapore", "Singapore"],
+];
+
+function zoneOk(z?: string | null) {
+  if (!z) return false;
+  try { new Intl.DateTimeFormat("en", { timeZone: z }); return true; } catch { return false; }
 }
