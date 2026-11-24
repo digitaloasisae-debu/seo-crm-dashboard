@@ -13,7 +13,7 @@ export default async function AssignClientsPage({ searchParams }: { searchParams
   const [team, clients] = await Promise.all([
     db.user.findMany({ where: { active: true, role: { in: ["ADMIN", "MEMBER"] } }, select: { id: true, name: true, role: true }, orderBy: { name: "asc" } }),
     db.client.findMany({
-      where: { status: { not: "ARCHIVED" } },
+      where: { status: { not: "ARCHIVED" }, socialOnly: false },
       select: { id: true, name: true, status: true, assignments: { select: { userId: true, access: true, user: { select: { name: true } } } } },
       orderBy: { name: "asc" },
     }),

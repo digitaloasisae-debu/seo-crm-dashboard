@@ -54,7 +54,7 @@ export default async function AccessPage() {
   // ADMIN: request access to clients outside their scope (names only).
   const [visible, all, mine] = await Promise.all([
     db.client.findMany({ where: clientScope(user, "edit"), select: { id: true } }),
-    db.client.findMany({ where: { status: { not: "ARCHIVED" } }, select: { id: true, name: true }, orderBy: { name: "asc" } }),
+    db.client.findMany({ where: { status: { not: "ARCHIVED" }, socialOnly: false }, select: { id: true, name: true }, orderBy: { name: "asc" } }),
     db.accessRequest.findMany({ where: { requesterId: user.id }, include: { client: { select: { name: true } } }, orderBy: { createdAt: "desc" }, take: 50 }),
   ]);
   const have = new Set(visible.map((c) => c.id));

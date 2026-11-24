@@ -18,7 +18,7 @@ export function addMonth(d: Date) {
 /** Starts scheduled audits that are due (a few per run). */
 export async function startDueAudits(limit = 3) {
   const due = await db.client.findMany({
-    where: { auditSchedule: "monthly", status: "ACTIVE", siteUrl: { not: "" }, auditNextAt: { lte: new Date() }, crawls: { none: { status: "RUNNING" } } },
+    where: { auditSchedule: "monthly", status: "ACTIVE", socialOnly: false, siteUrl: { not: "" }, auditNextAt: { lte: new Date() }, crawls: { none: { status: "RUNNING" } } },
     orderBy: { auditNextAt: "asc" }, take: limit, select: { id: true, name: true, auditNextAt: true },
   });
   const started: string[] = [];
