@@ -61,6 +61,8 @@ export async function createProjectAction(formData: FormData) {
     clientId = (await db.client.create({ data: { name, slug, siteUrl: siteUrl.replace(/\/+$/, ""), socialOnly: true }, select: { id: true } })).id;
   }
   if (await db.socialProject.findUnique({ where: { clientId } })) redirect("/social/projects/new?err=That+client+already+has+a+social+project");
+  const country = String(formData.get("country") ?? "").trim().slice(0, 60);
+  if (country) await db.client.update({ where: { id: clientId }, data: { targetCountry: country } });
   const p = await db.socialProject.create({ data: { ...data, active: true, clientId } });
   after(async () => {
     for (const s of p.services) await draftServiceCard(p.id, s).catch((e) => console.error("social.card_failed", e));
@@ -72,7 +74,9 @@ export async function saveProjectAction(projectId: string, formData: FormData) {
   await requireSuperAdmin();
   const data = projectData(formData);
   const before = await db.socialProject.findUniqueOrThrow({ where: { id: projectId }, select: { services: true } });
-  await db.socialProject.update({ where: { id: projectId }, data });
+  const updated = await db.socialProject.update({ where: { id: projectId }, data });
+  const country = String(formData.get("country") ?? "").trim().slice(0, 60);
+  if (country) await db.client.update({ where: { id: updated.clientId }, data: { targetCountry: country } });
   const added = data.services.filter((s) => !before.services.includes(s));
   if (added.length) after(async () => {
     for (const s of added) await draftServiceCard(projectId, s).catch((e) => console.error("social.card_failed", e));

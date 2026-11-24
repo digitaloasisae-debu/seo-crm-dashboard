@@ -143,8 +143,18 @@ type MonthEvent = { date: string; name: string; why: string };
  * National holidays, observances and big events in `month` that this audience cares about, with their
  * dates in the country. Hamza approves every post, so a wrong date is caught in review.
  */
-async function monthEvents(c: Client, month: string): Promise<MonthEvent[]> {
-  const country = c.targetCountry || "United Arab Emirates";
+/** The audience's country: the client's target country, else guessed from the project's time zone. */
+export function countryOf(c: Pick<Client, "targetCountry">, timezone?: string | null) {
+  if (c.targetCountry) return c.targetCountry;
+  const z = timezone ?? "";
+  if (/^America\/(New_York|Chicago|Denver|Los_Angeles|Phoenix|Detroit|Anchorage)|^US\//.test(z)) return "United States";
+  if (/^America\/(Toronto|Vancouver|Edmonton|Winnipeg|Halifax)/.test(z)) return "Canada";
+  const map: Record<string, string> = { "Asia/Karachi": "Pakistan", "Asia/Riyadh": "Saudi Arabia", "Asia/Qatar": "Qatar", "Europe/London": "United Kingdom", "Europe/Berlin": "Germany", "Australia/Sydney": "Australia", "Asia/Kolkata": "India", "Asia/Singapore": "Singapore" };
+  return map[z] ?? "United Arab Emirates";
+}
+
+async function monthEvents(c: Client, month: string, timezone?: string): Promise<MonthEvent[]> {
+  const country = countryOf(c, timezone);
   const prompt = `List the national holidays, public observances and big shared moments in ${country} during ${month} (YYYY-MM) that a ${c.businessType ?? "local business"} could post about on social media (for example national day, religious holidays and their eves, Mother's Day, back to school, White Friday / Black Friday, Dubai Shopping Festival, New Year, Earth Hour). Include international days only if people in ${country} really mark them and they fit this business.
 Give the date as it is observed in ${country} in that year. For moon-sighted holidays give the expected first day. Leave out anything you are not sure falls in ${month}.
 Return JSON: {"events":[{"date":"YYYY-MM-DD","name":"short name","why":"why this business can post about it, one short line"}]} (at most 6, most important first).`;
@@ -195,7 +205,7 @@ export async function planMonth(projectId: string, month: string): Promise<numbe
   if (!slots.length) return 0;
 
   // Holidays and events: move the nearest post of that week onto the day (Sunday events go out on Saturday).
-  const events = await monthEvents(p.client, month);
+  const events = await monthEvents(p.client, month, p.timezone);
   const eventOf = new Map<number, MonthEvent>();
   const hadEvent = existing.filter((e) => e.pillar === "event").length;
   for (const ev of events.slice(0, Math.max(0, 4 - hadEvent))) {

@@ -2,7 +2,7 @@ import type { SocialProject } from "@prisma/client";
 import { PLATFORMS, PLATFORM_LABEL } from "@/lib/social/ai";
 
 /** The settings form fields of a social project (the old "Projects Config" columns, plus account ids). */
-export function ProjectFields({ p }: { p?: Partial<SocialProject> }) {
+export function ProjectFields({ p, country }: { p?: Partial<SocialProject>; country?: string | null }) {
   const platforms = p?.platforms ?? ["facebook", "instagram", "linkedin"];
   return (
     <div className="grid gap-4 md:grid-cols-2">
@@ -24,6 +24,7 @@ export function ProjectFields({ p }: { p?: Partial<SocialProject> }) {
       <div className="grid grid-cols-3 gap-2">
         <label><span className="label">From hour</span><input type="number" name="postFromHour" min={0} max={23} defaultValue={p?.postFromHour ?? 10} className="input" /></label>
         <label><span className="label">To hour</span><input type="number" name="postToHour" min={1} max={24} defaultValue={p?.postToHour ?? 19} className="input" /></label>
+        <label><span className="label">Country (for holidays and local moments)</span><input name="country" defaultValue={country ?? ""} placeholder="e.g. United States" className="input" /></label>
         <label><span className="label">Time zone</span>
           <select name="timezone" defaultValue={zoneOk(p?.timezone) ? p!.timezone! : "Asia/Dubai"} className="input">
             {[...new Set([...(zoneOk(p?.timezone) ? [p!.timezone!] : []), ...TIMEZONES.map(([z]) => z)])].map((z) => <option key={z} value={z}>{TIMEZONES.find(([x]) => x === z)?.[1] ?? z}</option>)}
