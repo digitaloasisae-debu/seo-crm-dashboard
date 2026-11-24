@@ -18,7 +18,7 @@ export default async function SocialProjectPage({ params, searchParams }: { para
   const sp = await searchParams;
   const p = await db.socialProject.findUnique({
     where: { id },
-    include: { client: { select: { name: true, siteUrl: true, logoUrl: true, brandPrimaryColor: true, brandAccentColor: true, brandSecondaryColor: true } }, serviceCards: true, feedback: { orderBy: { createdAt: "desc" }, take: 30, include: { post: { select: { idea: true } } } } },
+    include: { client: { select: { targetCountry: true, name: true, siteUrl: true, logoUrl: true, brandPrimaryColor: true, brandAccentColor: true, brandSecondaryColor: true } }, serviceCards: true, feedback: { orderBy: { createdAt: "desc" }, take: 30, include: { post: { select: { idea: true } } } } },
   });
   if (!p) notFound();
   return (
@@ -31,7 +31,7 @@ export default async function SocialProjectPage({ params, searchParams }: { para
       <div className="space-y-6">
         <form action={saveProjectAction.bind(null, p.id)} className="card space-y-4">
           <h2 className="text-lg font-semibold">Settings</h2>
-          <ProjectFields p={p} />
+          <ProjectFields p={p} country={p.client.targetCountry} />
           <p className="text-xs text-slate-500">
             Brand colours and logo come from the client settings: {p.client.logoUrl ? "logo set" : "no logo yet (the name is shown instead)"}, colours {[p.client.brandPrimaryColor, p.client.brandSecondaryColor, p.client.brandAccentColor].filter(Boolean).join(", ") || "not set (default blue)"}.
           </p>
