@@ -116,7 +116,7 @@ export type WeekSlot = { at: Date; kind: string; day: string };
 
 /**
  * The month's posting plan, week by week (Monday to Saturday, never Sunday): each week gets
- * POSTS_PER_WEEK posts in the WEEK_MIX (1 carousel, 2 Reels, 2 images), one per day, so one weekday
+ * POSTS_PER_WEEK posts in the WEEK_MIX (2 Reels, 3 images), one per day, so one weekday
  * stays free. Weeks cut off by the month's start or end, or by `notBefore`, get as many posts as
  * they have days left, with the kinds that are furthest behind the mix. Kinds never sit next to the
  * same kind when it can be helped. Days in `skipDays` ("YYYY-MM-DD", already posted) are left out.

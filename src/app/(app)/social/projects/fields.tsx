@@ -19,7 +19,7 @@ export function ProjectFields({ p, country }: { p?: Partial<SocialProject>; coun
         </div>
       </fieldset>
       <div className="rounded-lg bg-slate-50 p-3 text-sm text-slate-600 md:col-span-2">
-        <b>Posting plan:</b> Monday to Saturday, never Sunday. Each week: 1 carousel, 2 Reels and 2 images (about 21 posts a month), balanced across informative, hidden promo, client journey and promotional posts, plus holidays and events on their day.
+        <b>Posting plan:</b> Monday to Saturday, never Sunday. Each week: 2 Reels and 3 images (about 21 posts a month), balanced across informative, hidden promo, service in action and promotional posts, plus holidays and events on their day.
       </div>
       <div className="grid grid-cols-3 gap-2">
         <label><span className="label">From hour</span><input type="number" name="postFromHour" min={0} max={23} defaultValue={p?.postFromHour ?? 10} className="input" /></label>
