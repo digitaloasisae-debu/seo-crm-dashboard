@@ -8,6 +8,7 @@ import { geminiJson } from "../gemini";
 import { brandProfileText } from "../brand-profile";
 import { toLocalInput, weeklySlots, zoned } from "./schedule";
 import { ensureResearch, researchText } from "./research";
+import { learnOwnStyle, styleText } from "./own-style";
 import { buildCaption, cardUrl, titleLine, type CaptionParts } from "./caption";
 import { PICTURE_FORMATS, PILLARS, WEEK_MIX, designOf, formatOf, pillarOf, type DesignData, type Slide } from "./formats";
 
@@ -195,6 +196,8 @@ function pillarPlan(n: number, seed: number): string[] {
 export async function planMonth(projectId: string, month: string): Promise<number> {
   await ensureServiceCards(projectId);
   await ensureResearch(projectId);
+  const own = await db.socialProject.findUniqueOrThrow({ where: { id: projectId }, select: { ownStyle: true, styleAt: true } });
+  if (own.ownStyle && !own.styleAt) await learnOwnStyle(projectId).catch((e) => console.error("social.own_style_failed", e));
   const { p, cards, brand, brain } = await projectContext(projectId);
   const research = researchText(p.research, "ideas");
   if (!p.services.length) throw new Error(`${p.client.name}: add at least one targeted service first`);
@@ -476,6 +479,8 @@ ${brain}
 ${researchText(p.research, "captions")}
 
 ${researchText(p.research, "visuals")}
+
+${styleText(p)}
 
 OUR REAL PHOTO LIBRARY (id: what it shows; least used first):
 ${library.map((m) => `- ${m.id}: ${m.description.slice(0, 220)}${m.usedCount ? ` (used ${m.usedCount}x)` : ""}`).join("\n") || "(empty, so do not use the photo format)"}

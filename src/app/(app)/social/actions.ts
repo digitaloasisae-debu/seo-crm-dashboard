@@ -11,6 +11,7 @@ import { PICTURE_FORMATS, designOf, formatOf, isFormat, parseSlides, scenesText,
 import { addMedia, describeMedia, nextMedia } from "@/lib/social/media";
 import { cleanHandles, runResearch } from "@/lib/social/research";
 import { finishPost, socialWork } from "@/lib/social/work";
+import { learnOwnStyle } from "@/lib/social/own-style";
 import { fromLocalInput } from "@/lib/social/schedule";
 
 const msg = (e: unknown) => (e instanceof Error ? e.message : String(e));
@@ -34,6 +35,7 @@ function projectData(f: FormData) {
     igUserId: opt("igUserId"),
     linkedinOrgId: opt("linkedinOrgId")?.replace(/\D/g, "") || null,
     imageStyle: String(f.get("imageStyle") ?? "").trim().slice(0, 1000),
+    ownStyle: f.get("ownStyle") === "on",
   };
 }
 
@@ -166,7 +168,7 @@ export async function generateMonthAction(formData: FormData) {
   const month = String(formData.get("month") ?? "");
   if (!/^\d{4}-\d{2}$/.test(month)) redirect("/social?err=Pick+a+month");
   const ids = formData.getAll("project").map(String);
-  const projects = await db.socialProject.findMany({ where: { active: true, ...(ids.length ? { id: { in: ids } } : {}) }, include: { client: { select: { name: true } } } });
+  const projects = await db.socialProject.findMany({ omit: { styleRefs: true }, where: { active: true, ...(ids.length ? { id: { in: ids } } : {}) }, include: { client: { select: { name: true } } } });
   if (!projects.length) redirect("/social?err=No+active+projects");
   const results = await Promise.all(projects.map((p) => planMonth(p.id, month).then((n) => ({ ok: true as const, n })).catch((e) => ({ ok: false as const, err: `${p.client.name}: ${msg(e)}` }))));
   const made = results.reduce((a, r) => a + (r.ok ? r.n : 0), 0);
@@ -382,4 +384,27 @@ export async function deleteFailedAction() {
   await requireSuperAdmin();
   await db.socialPost.deleteMany({ where: { stage: "error", status: { in: ["DRAFT", "REJECTED", "FAILED"] } } });
   refresh();
+}
+
+/** "Copy my page's style": study the account's best posts (or the images uploaded here). */
+export async function learnStyleAction(projectId: string, formData: FormData) {
+  await requireSuperAdmin();
+  const files = formData.getAll("refs").filter((f): f is File => f instanceof Blob && f.size > 0).slice(0, 15);
+  let err = "";
+  try {
+    await learnOwnStyle(projectId, await Promise.all(files.map(async (f) => Buffer.from(await f.arrayBuffer()))));
+  } catch (e) {
+    err = msg(e);
+  }
+  refresh();
+  redirect(`/social/projects/${projectId}?${err ? `err=${encodeURIComponent(err)}` : "saved=1"}#style`);
+}
+
+/** Remake the images of this account's posts that still wait for review (after the style changed). */
+export async function redrawUnapprovedAction(projectId: string) {
+  await requireSuperAdmin();
+  await db.socialPost.updateMany({ where: { projectId, status: "DRAFT", stage: { in: ["ready", "error"] }, kind: { not: "video" } }, data: { stage: "written", attempts: 0 } });
+  after(() => socialWork(200_000).catch((e) => console.error("social.work_failed", e)));
+  refresh();
+  redirect(`/social?project=${projectId}`);
 }

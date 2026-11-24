@@ -32,7 +32,7 @@ export default async function SocialReviewPage({ searchParams }: { searchParams:
   await superAdminOnly();
   const sp = await searchParams;
   const thisMonth = monthKey(new Date(), "Asia/Dubai");
-  const projects = await db.socialProject.findMany({ include: { client: { select: { name: true } } }, orderBy: { client: { name: "asc" } } });
+  const projects = await db.socialProject.findMany({ omit: { styleRefs: true }, include: { client: { select: { name: true } } }, orderBy: { client: { name: "asc" } } });
 
   if (projects.length === 0) {
     return (

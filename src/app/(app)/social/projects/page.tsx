@@ -5,7 +5,7 @@ import { PageHeader, Empty } from "@/components/ui";
 
 export default async function SocialProjects() {
   await superAdminOnly();
-  const projects = await db.socialProject.findMany({ include: { client: { select: { name: true, siteUrl: true } }, _count: { select: { posts: true, feedback: true } } }, orderBy: { client: { name: "asc" } } });
+  const projects = await db.socialProject.findMany({ omit: { styleRefs: true }, include: { client: { select: { name: true, siteUrl: true } }, _count: { select: { posts: true, feedback: true } } }, orderBy: { client: { name: "asc" } } });
   return (
     <>
       <PageHeader title="Social projects" subtitle="Your own accounts. Each one uses its client's brand profile, colours and logo." actions={<Link className="btn-primary" href="/social/projects/new">Add project</Link>} />

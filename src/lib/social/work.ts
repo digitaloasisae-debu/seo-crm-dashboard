@@ -8,6 +8,7 @@ import { db } from "../db";
 import { writePosts } from "./ai";
 import { designInput, designOf, drawAI, fitPhoto, formatOf, reelLayers, renderDesign, renderSlides } from "./image";
 import { renderReel } from "./video";
+import { drawInOwnStyle } from "./own-style";
 
 const MAX_TRIES = 3;
 const STALE_MS = 6 * 60_000;
@@ -61,6 +62,12 @@ export async function drawOne(postId: string) {
   if (!post) return false;
   try {
     const project = await db.socialProject.findUniqueOrThrow({ where: { id: post.projectId }, include: { client: true } });
+    // "Copy my page's style": the whole image is made in the look of the account's own best posts.
+    if (project.ownStyle && project.styleRefs.length && post.kind !== "video") {
+      const image = await drawInOwnStyle(post, project);
+      await db.socialPost.update({ where: { id: post.id }, data: { image: new Uint8Array(image), slides: [], video: null, imageVersion: { increment: 1 }, stage: "ready", stageError: null } });
+      return true;
+    }
     const format = formatOf(post.imageLayout);
     const d = designOf(post.design);
     let photo: Buffer | null = null;
