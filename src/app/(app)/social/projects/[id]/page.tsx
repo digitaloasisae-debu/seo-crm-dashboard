@@ -4,7 +4,8 @@ import { db } from "@/lib/db";
 import { PageHeader } from "@/components/ui";
 import { SubmitButton } from "@/components/submit-button";
 import { fmtDate } from "@/lib/utils";
-import { redraftCardAction, relearnAction, saveBrainAction, saveCardAction, saveProjectAction } from "../../actions";
+import { learnStyleAction, redraftCardAction, redrawUnapprovedAction, relearnAction, saveBrainAction, saveCardAction, saveProjectAction } from "../../actions";
+import sharp from "sharp";
 import { ProjectFields } from "../fields";
 import { ProjectTabs } from "./tabs";
 
@@ -21,6 +22,7 @@ export default async function SocialProjectPage({ params, searchParams }: { para
     include: { client: { select: { targetCountry: true, name: true, siteUrl: true, logoUrl: true, brandPrimaryColor: true, brandAccentColor: true, brandSecondaryColor: true } }, serviceCards: true, feedback: { orderBy: { createdAt: "desc" }, take: 30, include: { post: { select: { idea: true } } } } },
   });
   if (!p) notFound();
+  const thumbs = await Promise.all(p.styleRefs.map((b) => sharp(Buffer.from(b)).resize({ width: 220 }).jpeg({ quality: 70 }).toBuffer().then((x) => `data:image/jpeg;base64,${x.toString("base64")}`).catch(() => "")));
   return (
     <>
       <PageHeader title={p.client.name} subtitle={p.client.siteUrl} />
@@ -37,6 +39,35 @@ export default async function SocialProjectPage({ params, searchParams }: { para
           </p>
           <SubmitButton className="btn-primary">Save settings</SubmitButton>
         </form>
+
+        <section id="style" className="card scroll-mt-24 space-y-3">
+          <div>
+            <h2 className="text-lg font-semibold">Your page&apos;s style</h2>
+            <p className="text-sm text-slate-500">
+              {p.ownStyle ? "On: new images copy the look of this account's own best posts; only the topic and title change." : "Off. Tick \"Copy my page's style\" in Settings to use it."}
+              {p.styleAt && <> Last studied {fmtDate(p.styleAt)}.</>}
+            </p>
+          </div>
+          {p.styleError && <p className="rounded-lg bg-amber-50 p-2 text-xs text-amber-900">{p.styleError}</p>}
+          {thumbs.some(Boolean) && (
+            <div className="flex flex-wrap gap-2">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              {thumbs.filter(Boolean).map((t, i) => <img key={i} src={t} alt={`Style reference ${i + 1}`} className="h-36 w-auto rounded-lg ring-1 ring-slate-200" />)}
+            </div>
+          )}
+          {p.styleNotes && <details><summary className="text-sm text-slate-600">What the AI saw</summary><pre className="mt-2 whitespace-pre-wrap text-xs leading-5 text-slate-700">{p.styleNotes}</pre></details>}
+          <form action={learnStyleAction.bind(null, p.id)} className="flex flex-wrap items-end gap-3">
+            <label className="text-sm">
+              <span className="label">Optional: upload your best posts instead (up to 15 images)</span>
+              <input type="file" name="refs" accept="image/*" multiple className="text-xs" />
+            </label>
+            <SubmitButton className="btn-secondary text-xs">{p.styleAt ? "Study again" : "Study my best posts"}</SubmitButton>
+          </form>
+          <p className="text-xs text-slate-500">With no upload, it reads the top posts of the Facebook Page (and linked Instagram) set in Settings. Takes about a minute.</p>
+          {p.ownStyle && p.styleRefs.length > 0 && (
+            <form action={redrawUnapprovedAction.bind(null, p.id)}><SubmitButton className="btn-primary text-xs">Remake images of posts waiting for review in this style</SubmitButton></form>
+          )}
+        </section>
 
         <section id="brain" className="card scroll-mt-24 space-y-3">
           <div className="flex flex-wrap items-start gap-3">

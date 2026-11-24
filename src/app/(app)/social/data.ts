@@ -13,7 +13,7 @@ export const POST_SELECT = {
 
 type Row = Pick<SocialPost, keyof typeof POST_SELECT> & { hasImage: boolean; hasPhoto: boolean; slideCount: number; hasVideo: boolean };
 
-export function toCard(p: Row, project: SocialProject & { client: Pick<Client, "name"> }): CardPost {
+export function toCard(p: Row, project: Omit<SocialProject, "styleRefs"> & { client: Pick<Client, "name"> }): CardPost {
   const format = formatOf(p.imageLayout);
   return {
     id: p.id,

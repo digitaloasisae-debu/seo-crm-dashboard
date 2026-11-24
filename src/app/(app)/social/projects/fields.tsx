@@ -47,6 +47,7 @@ export function ProjectFields({ p, country }: { p?: Partial<SocialProject>; coun
         <span className="label">Image style notes (optional)</span>
         <input name="imageStyle" defaultValue={p?.imageStyle ?? ""} className="input" placeholder="e.g. Dubai settings, modern offices, no stock-photo handshakes" />
       </label>
+      <label className="flex items-start gap-2 text-sm md:col-span-2"><input type="checkbox" name="ownStyle" defaultChecked={p?.ownStyle ?? false} className="mt-1" /> <span><b>Copy my page&apos;s style.</b> New images copy the look of this account&apos;s own 10-15 best posts (layout, fonts, colours, photos); only the topic and title change. Reels keep the normal look.</span></label>
       <label className="flex items-center gap-2 text-sm"><input type="checkbox" name="active" defaultChecked={p?.active ?? true} /> Active (included when you generate a month)</label>
     </div>
   );

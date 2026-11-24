@@ -11,7 +11,7 @@ const nextConfig: NextConfig = {
     "/api/n8n/social/**": ["./node_modules/ffmpeg-static/ffmpeg"],
   },
   experimental: {
-    serverActions: { bodySizeLimit: "5mb" },
+    serverActions: { bodySizeLimit: "20mb" },
   },
 };
 

@@ -899,6 +899,14 @@ model SocialProject {
   research        Json?
   researchAt      DateTime?
   researchError   String?
+  /// "Copy my page's style": new images copy the look of this account's own best posts (Hamza, 2026-11-24)
+  ownStyle        Boolean   @default(false)
+  /// Up to 4 of the account's best post images, used as style references for the image model
+  styleRefs       Bytes[]
+  /// What the account's best posts look like and how their captions read (from the AI)
+  styleNotes      String    @default("")
+  styleAt         DateTime?
+  styleError      String?
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 
