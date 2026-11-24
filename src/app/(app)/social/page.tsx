@@ -219,7 +219,7 @@ export default async function SocialReviewPage({ searchParams }: { searchParams:
           <SubmitButton className="btn-primary" disabled={!geminiConfigured()}>Plan the month</SubmitButton>
           <PlanProgress />
         </form>
-        <p className="mt-2 text-xs text-slate-500">Each week Monday to Saturday gets 1 carousel, 2 Reels and 2 images from each account&apos;s targeted services, with holidays and events on their day. Days that already have a post are kept. Planning takes about a minute; captions and images are then made one by one.</p>
+        <p className="mt-2 text-xs text-slate-500">Each week Monday to Saturday gets 2 Reels and 3 images from each account&apos;s targeted services, with holidays and events on their day. Days that already have a post are kept. Planning takes about a minute; captions and images are then made one by one.</p>
       </details>
     </>
   );
