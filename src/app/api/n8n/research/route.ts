@@ -17,7 +17,7 @@ export async function GET(req: NextRequest) {
   const denied = checkN8nAuth(req);
   if (denied) return denied;
   const sp = req.nextUrl.searchParams;
-  const topic = await db.topic.findUnique({ where: { id: sp.get("topic_id") ?? "" }, select: { id: true, clientId: true, keyword: true, title: true, angle: true, seoTitle: true, metaDescription: true, outline: true } });
+  const topic = await db.topic.findUnique({ where: { id: sp.get("topic_id") ?? "" }, select: { id: true, clientId: true, keyword: true, title: true, angle: true, seoTitle: true, metaDescription: true, outline: true, targetCity: true } });
   if (!topic) return NextResponse.json({ error: "Topic not found" }, { status: 404 });
 
   const [sop, recent, links, research] = await Promise.all([

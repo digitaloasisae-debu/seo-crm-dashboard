@@ -388,6 +388,8 @@ model Topic {
   briefAt           DateTime?
   briefingAt        DateTime?
   briefError        String?
+  /// Local clients: the city or service area this blog targets (null = the client's primary city).
+  targetCity        String?
 
   client     Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
   keywordRow Keyword? @relation(fields: [keywordId], references: [id], onDelete: SetNull)

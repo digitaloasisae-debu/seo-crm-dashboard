@@ -52,6 +52,7 @@ export async function GET(req: NextRequest) {
       seo_title: t.seoTitle ?? "",
       meta_description: t.metaDescription ?? "",
       outline: t.outline ?? [],
+      target_city: t.targetCity ?? "",
       brief: briefText(t),
       internal_link_suggestions: links[i].map((l) => ({ url: l.url, anchor: l.anchor, title: l.title })),
       recent_blogs: recentBy.get(t.clientId) ?? [],

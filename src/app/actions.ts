@@ -293,12 +293,30 @@ export async function editTopicAction(topicId: string, fd: FormData) {
     where: { id: topicId },
     data: {
       title: str(fd, "title"), angle: str(fd, "angle") || null, category: str(fd, "category") || null, status: "GENERATED",
+      ...(fd.has("targetCity") ? { targetCity: str(fd, "targetCity") || null } : {}),
       ...(fd.has("seoTitle") ? { seoTitle: str(fd, "seoTitle") || null, metaDescription: str(fd, "metaDescription") || null } : {}),
       // One H2 per line; "Heading — notes" keeps the notes.
       ...(fd.has("outline") ? { outline: str(fd, "outline").split(/\n+/).map((l) => l.trim()).filter(Boolean).map((l) => { const [h, ...n] = l.replace(/^\d+[.)]\s*/, "").split(/\s+[—–]\s+/); return { heading: h.trim(), notes: n.join(" — ").trim() }; }) } : {}),
     },
   });
   await logActivity({ actorId: user.id, clientId: topic.clientId, action: "topic.edit", entity: "topic", entityId: topicId, before: topic, after });
+  revalidatePath(`/clients/${topic.clientId}/topics`);
+}
+
+/** Rewrites one topic's outline with AI, following the team's instruction. */
+export async function reshapeOutlineAction(topicId: string, fd: FormData) {
+  const user = await requireUser();
+  const topic = await db.topic.findUniqueOrThrow({ where: { id: topicId }, select: { clientId: true, outline: true, title: true } });
+  await requireClientAccess(user, topic.clientId, "edit");
+  const instruction = str(fd, "outlineHint");
+  const { reshapeOutline } = await import("@/lib/topic-brief");
+  try {
+    const after = await reshapeOutline(topicId, instruction);
+    await db.topic.update({ where: { id: topicId }, data: { briefError: null } });
+    await logActivity({ actorId: user.id, clientId: topic.clientId, action: "topic.outline_ai", entity: "topic", entityId: topicId, before: { outline: topic.outline, title: topic.title }, after: { instruction, outline: after.outline, title: after.title } });
+  } catch (e) {
+    await db.topic.update({ where: { id: topicId }, data: { briefError: `Outline change failed: ${e instanceof Error ? e.message : String(e)}` } });
+  }
   revalidatePath(`/clients/${topic.clientId}/topics`);
 }
 

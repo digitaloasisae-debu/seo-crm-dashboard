@@ -7,11 +7,12 @@ import { requireUser } from "@/lib/session";
 import { KeywordLink, StatusBadge } from "@/components/ui";
 import { DataTable, type Row } from "@/components/data-table";
 import { fmtDate } from "@/lib/utils";
-import { briefTopicsAction, deleteTopicsAction, editTopicAction, setTopicStatusAction } from "../../../../actions";
+import { briefTopicsAction, deleteTopicsAction, editTopicAction, reshapeOutlineAction, setTopicStatusAction } from "../../../../actions";
 import { after } from "next/server";
 import { BRIEF_STALE_MS, briefTopics, type OutlineItem } from "@/lib/topic-brief";
 import { geminiConfigured } from "@/lib/gemini";
 import { SubmitButton } from "@/components/submit-button";
+import { areasOf } from "@/lib/local-area";
 
 export default async function TopicsPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ status?: string; edit?: string }> }) {
   const { id } = await params;
@@ -27,6 +28,8 @@ export default async function TopicsPage({ params, searchParams }: { params: Pro
     take: 2000,
   });
   const usedBy = usageIndex(await clientArticles(id));
+  const client = await db.client.findUniqueOrThrow({ where: { id }, select: { primaryCity: true, serviceAreaCities: true } });
+  const areas = areasOf(client);
   const briefing = (t: { briefingAt: Date | null }) => !!t.briefingAt && Date.now() - t.briefingAt.getTime() < BRIEF_STALE_MS;
   // New topics get a researched brief when n8n saves them; if that didn't finish, pick up to 3 here.
   const todo = editable && geminiConfigured() ? topics.filter((t) => t.status === "GENERATED" && !t.article && !t.briefAt && !t.briefError && !briefing(t) && t.generatedAt > new Date("2026-11-16T00:00:00Z")).slice(0, 3) : [];
@@ -67,6 +70,7 @@ export default async function TopicsPage({ params, searchParams }: { params: Pro
                     <Link className="font-medium text-slate-900 decoration-indigo-300 decoration-2 underline-offset-4 hover:text-indigo-700 hover:underline" href={`/clients/${id}/topics?edit=${t.id}#edit`} title="Edit this topic">{t.title}</Link>
                   ) : <div className="font-medium">{t.title}</div>}
                   {t.angle && <div className="text-xs text-slate-500">{t.angle}</div>}
+                  {areas.length > 1 && t.targetCity && <div className="mt-0.5 text-[11px] font-medium text-emerald-700">Targets {t.targetCity}</div>}
                   {briefing(t) && <div className="mt-1 text-xs font-medium text-indigo-600">Researching the brief on Google… refresh in a minute</div>}
                   {t.briefError && !briefing(t) && <div className="mt-1 text-xs text-rose-600">Brief failed: {t.briefError}</div>}
                   {t.briefAt && !briefing(t) && (
@@ -128,7 +132,7 @@ export default async function TopicsPage({ params, searchParams }: { params: Pro
         const t = topics.find((x) => x.id === edit);
         if (!t) return null;
         return (
-          <form id="edit" action={editTopicAction.bind(null, t.id)} className="card scroll-mt-24 space-y-3">
+          <form key={`${t.id}-${t.title}-${JSON.stringify(t.outline ?? "")}-${t.targetCity ?? ""}`} id="edit" action={editTopicAction.bind(null, t.id)} className="card scroll-mt-24 space-y-3">
             <h3 className="font-semibold">Edit topic</h3>
             <input type="hidden" name="topicId" value={t.id} />
             <label className="block"><span className="label">Title</span><input className="input" name="title" defaultValue={t.title} required /></label>
@@ -136,7 +140,24 @@ export default async function TopicsPage({ params, searchParams }: { params: Pro
             <label className="block"><span className="label">SEO title</span><input className="input" name="seoTitle" defaultValue={t.seoTitle ?? ""} maxLength={80} /></label>
             <label className="block"><span className="label">Meta description</span><textarea className="input" name="metaDescription" rows={2} defaultValue={t.metaDescription ?? ""} /></label>
             <label className="block"><span className="label">Outline (one H2 per line, &quot;Heading — notes&quot;)</span><textarea className="input font-mono text-xs" name="outline" rows={8} defaultValue={((t.outline as OutlineItem[] | null) ?? []).map((o) => (o.notes ? `${o.heading} — ${o.notes}` : o.heading)).join("\n")} /></label>
+            {areas.length > 0 && (
+              <label className="block"><span className="label">Target area (city or service area this blog is for)</span>
+                <select className="input" name="targetCity" defaultValue={t.targetCity ?? ""}>
+                  <option value="">{client.primaryCity ? `${client.primaryCity} (main city)` : "Not set"}</option>
+                  {areas.filter((a) => a !== client.primaryCity).map((a) => <option key={a} value={a}>{a}</option>)}
+                </select>
+              </label>
+            )}
             <label className="block"><span className="label">Category</span><input className="input" name="category" defaultValue={t.category ?? ""} /></label>
+            <div className="space-y-2 rounded-xl bg-indigo-50/60 p-3 ring-1 ring-indigo-100 ring-inset">
+              <span className="label">Change the outline with AI</span>
+              <textarea className="input" name="outlineHint" rows={2} placeholder={'e.g. "Make it a cost breakdown", "Start with the warning signs, then repair vs replace", "Only 5 sections", or leave empty for a fresh structure"'} />
+              <div className="flex flex-wrap items-center gap-2">
+                <SubmitButton formAction={reshapeOutlineAction.bind(null, t.id)} formNoValidate className="btn-secondary">Change outline</SubmitButton>
+                <span className="text-xs text-slate-500">Takes about 20 seconds. It also avoids the shape of this client&apos;s recent outlines.</span>
+              </div>
+              {t.briefError?.startsWith("Outline change failed") && <p className="text-xs text-rose-700">{t.briefError}</p>}
+            </div>
             <p className="text-xs text-slate-500">Saving puts the topic back to &quot;to review&quot;.</p>
             <div className="flex flex-wrap gap-2">
               <SubmitButton className="btn-primary">Save</SubmitButton>

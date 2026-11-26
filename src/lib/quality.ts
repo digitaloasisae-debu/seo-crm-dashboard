@@ -53,7 +53,10 @@ export async function runQuality(articleId: string, opts: { ai?: boolean } = {})
   const research = article.focusKeyword ? await cachedResearch(article.client.id, article.focusKeyword).catch(() => null) : null;
   // The topic's own plan (only PAA and competitor keywords that fit this article) wins over the keyword-level research.
   const plan = research ? await cachedTopicPlan(article.topicId).catch(() => null) : null;
-  const rule = checkArticle(article, article.client, research ? (plan
+  // Local blogs can target a service area instead of the main city.
+  const area = article.topicId ? (await db.topic.findUnique({ where: { id: article.topicId }, select: { targetCity: true } }))?.targetCity : null;
+  const localClient = area ? { ...article.client, primaryCity: area } : article.client;
+  const rule = checkArticle(article, localClient, research ? (plan
     ? { secondary: plan.secondaryForHeadings, paa: [...plan.paaForHeadings, ...plan.paaForFaq], paaForHeadings: plan.paaForHeadings, paaForFaq: plan.paaForFaq }
     : { secondary: research.secondaryKeywords.map((k) => k.keyword), paa: research.paa }) : null,
     { servicePage: (await cachedServicePage(article.client.id, { keyword: article.focusKeyword, topicId: article.topicId }).catch(() => null))?.url });
@@ -79,7 +82,7 @@ export async function runQuality(articleId: string, opts: { ai?: boolean } = {})
       const last3 = recent.map((r, i) => `${i + 1}. ${r.metaTitle}\n   Opening: ${opening(r.bodyHtml)}\n   H2s: ${outline(r.bodyHtml)}`).join("\n") || "(none)";
       const plain = article.bodyHtml.replace(/<(script|style)[\s\S]*?<\/\1>/gi, "").replace(/<\/(p|h[1-6]|li|tr)>/gi, "\n").replace(/<h([1-6])[^>]*>/gi, (_m, l) => `${"#".repeat(Number(l))} `).replace(/<li[^>]*>/gi, "- ").replace(/<[^>]+>/g, "").replace(/\n{3,}/g, "\n\n").slice(0, 30000);
       const out = await geminiJson<{ items: { id: string; label?: string; status: string; detail: string }[]; summary: string; top_fixes: string[] }>(
-        `SOP:\n${sop}\n\nCLIENT: ${article.client.name}${article.client.primaryCity ? ` (local client, city: ${article.client.primaryCity})` : ""}\nCLIENT BRAIN:\n${article.client.brain?.rules || "(no rules learned yet)"}\n\nCLIENT'S LAST 3 BLOGS:\n${last3}\n\nITEMS TO JUDGE:\n${wanted.map(([id, label]) => `- ${id}: ${label}`).join("\n")}\n\nARTICLE\nTitle: ${article.metaTitle}\nFocus keyword: ${article.focusKeyword}\nMeta description: ${article.metaDescription ?? ""}\n\n${plain}`,
+        `SOP:\n${sop}\n\nCLIENT: ${article.client.name}${localClient.primaryCity ? ` (local client, city this blog targets: ${localClient.primaryCity})` : ""}\nCLIENT BRAIN:\n${article.client.brain?.rules || "(no rules learned yet)"}\n\nCLIENT'S LAST 3 BLOGS:\n${last3}\n\nITEMS TO JUDGE:\n${wanted.map(([id, label]) => `- ${id}: ${label}`).join("\n")}\n\nARTICLE\nTitle: ${article.metaTitle}\nFocus keyword: ${article.focusKeyword}\nMeta description: ${article.metaDescription ?? ""}\n\n${plain}`,
         { system: SYSTEM },
       );
       const labels = new Map<string, string>(wanted.map(([id, label]) => [id, label]));

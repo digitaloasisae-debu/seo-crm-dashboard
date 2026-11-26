@@ -52,7 +52,7 @@ async function context(articleId: string) {
     where: { id: articleId },
     include: {
       client: { select: { name: true, businessType: true, primaryCity: true, siteUrl: true, ctaText: true, ctaLink: true, brain: true } },
-      topic: { select: { title: true, angle: true, seoTitle: true, metaDescription: true, outline: true } },
+      topic: { select: { title: true, angle: true, seoTitle: true, metaDescription: true, outline: true, targetCity: true } },
       notes: { where: { appliedAt: null }, orderBy: { createdAt: "asc" }, include: { author: { select: { name: true } } } },
     },
   });
@@ -61,7 +61,7 @@ async function context(articleId: string) {
   // Related live pages on the same site: the rewrite should link to the ones not linked yet.
   const ideas = (await linkIdeas(article.clientId, article.focusKeyword, { excludeId: article.id, bodyHtml: article.bodyHtml, limit: 5 }).catch(() => [])).filter((l) => !l.linked).slice(0, 3);
   const linkLines = ideas.length ? `\nRELATED PAGES ON THIS SITE (add a natural internal link to each where it fits the text, anchor close to the text given; never invent other internal URLs):\n${ideas.map((l) => `- ${l.url} (anchor: ${l.anchor})`).join("\n")}` : "";
-  const head = `SOP:\n${sop}\n\nCLIENT: ${c.name}${c.businessType ? ` (${c.businessType})` : ""}${c.primaryCity ? `, local client in ${c.primaryCity}` : ""}${c.siteUrl ? `, site ${c.siteUrl}` : ""}${c.ctaText ? `\nCTA: ${c.ctaText}${c.ctaLink ? ` -> ${c.ctaLink}` : ""}` : ""}
+  const head = `SOP:\n${sop}\n\nCLIENT: ${c.name}${c.businessType ? ` (${c.businessType})` : ""}${c.primaryCity ? `, local client in ${c.primaryCity}${article.topic?.targetCity && article.topic.targetCity !== c.primaryCity ? `. THIS BLOG TARGETS THE SERVICE AREA ${article.topic.targetCity}: use ${article.topic.targetCity} (not ${c.primaryCity}) wherever the SOP asks for the city` : ""}` : ""}${c.siteUrl ? `, site ${c.siteUrl}` : ""}${c.ctaText ? `\nCTA: ${c.ctaText}${c.ctaLink ? ` -> ${c.ctaLink}` : ""}` : ""}
 BRAND PROFILE AND CLIENT BRAIN (how this client writes, and rules the team taught; follow them strictly):\n${(await brandContext(article.clientId)) || "(none yet)"}
 
 TOPIC: ${article.topic?.title ?? article.metaTitle}${article.topic?.angle ? `\nANGLE: ${article.topic.angle}` : ""}${article.topic ? briefText(article.topic) : ""}${article.importedAt ? "\nThis is an existing live page imported from WordPress: keep its structure, links, images and facts unless the instructions say otherwise." : ""}
