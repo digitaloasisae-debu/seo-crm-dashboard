@@ -40,8 +40,8 @@ export async function briefTopic(topicId: string) {
     const c = topic.client;
     const research = dataforseoConfigured() && topic.keyword ? await getResearch(c.id, topic.keyword).catch(() => null) : null;
     const services = c.linkPool.filter((u) => /servic|solution|product/i.test(u)).slice(0, 25);
-    // Local clients: which city or service area this blog targets (named in the keyword, else spread across the areas).
-    const area = topic.targetCity ?? (c.primaryCity || c.serviceAreaCities.length ? await pickArea(c.id, topic.keyword, topic.title).catch(() => null) : null);
+    // Local clients: which city or service area this blog targets (named in the keyword, else the primary city).
+    const area = topic.targetCity ?? (c.primaryCity || c.serviceAreaCities.length ? await pickArea(c.id, topic.keyword).catch(() => null) : null);
     const recentOutlines = await recentOutlinesOf(c.id, topic.id);
     const prompt = `KEYWORD: ${topic.keyword}
 ROUGH IDEA FROM THE TOPIC GENERATOR (improve it, don't just reword it): ${topic.title}${topic.angle ? ` — ${topic.angle}` : ""}
