@@ -635,13 +635,13 @@ function ReelBrand(_: { c: Ctx }) {
  * full-bleed photo, or just the theme colour) and one transparent PNG per line of text, plus the
  * brand card for the end. src/lib/social/video.ts animates them.
  */
-export async function reelLayers(d: DesignInput, scenes: string[]): Promise<{ base: Buffer; lines: Buffer[]; brand: Buffer; durations: number[] }> {
+export async function reelLayers(d: DesignInput, scenes: string[], overVideo = false): Promise<{ base: Buffer; lines: Buffer[]; brand: Buffer; durations: number[] }> {
   const { c, fonts } = await lookOf(d);
   // The picture fills the frame (the words sit on solid blocks), or just the theme colour.
   const base = d.photo
     ? await sharp(d.photo).resize(RW, RH, { fit: "cover", position: "attention" }).jpeg({ quality: 92 }).toBuffer()
     : await sharp({ create: { width: RW, height: RH, channels: 3, background: c.t.bg } }).jpeg({ quality: 92 }).toBuffer();
-  const boxed = Boolean(d.photo);
+  const boxed = overVideo || Boolean(d.photo);
   const lines = [];
   for (const s of scenes) lines.push(await png(<ReelText c={c} text={s} boxed={boxed} />, fonts, RW, RH));
   const brand = await png(<ReelBrand c={c} />, fonts, RW, RH);

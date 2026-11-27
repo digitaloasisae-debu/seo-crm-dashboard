@@ -354,7 +354,7 @@ export async function regenerateImageAction(postId: string, formData: FormData) 
     await db.socialMedia.update({ where: { id: m.id }, data: { usedCount: { increment: 1 } } });
   } else {
     const changed = Boolean(prompt) && prompt !== cur.imageBrief.trim();
-    await db.socialPost.update({ where: { id: postId }, data: { ...(changed ? { imageBrief: prompt } : {}), photo: null, mediaId: null, imageLayout: pictureFormat, stage: "written", attempts: 0, stageError: null, status: "DRAFT" } });
+    await db.socialPost.update({ where: { id: postId }, data: { ...(changed ? { imageBrief: prompt } : {}), photo: null, clips: [], mediaId: null, imageLayout: pictureFormat, stage: "written", attempts: 0, stageError: null, status: "DRAFT" } });
     // An edited prompt teaches the learning agent what kind of pictures Hamza wants.
     await db.socialFeedback.create({ data: changed ? { projectId: cur.projectId, postId, kind: "edit", note: "image prompt", before: cur.imageBrief, after: prompt } : { projectId: cur.projectId, postId, kind: "regenerate_image", note: "" } });
     if (changed) learn(cur.projectId);
@@ -441,7 +441,7 @@ export async function rewriteUnapprovedAction(formData: FormData) {
   if (!/^\d{4}-\d{2}$/.test(month) || !project) return;
   await db.socialPost.updateMany({
     where: { projectId: project, month, status: "DRAFT", stage: { in: ["ready", "error", "written"] } },
-    data: { stage: "idea", attempts: 0, stageError: null, photo: null, textNote: "Write a fresh version: different wording, image text and picture from every other post of this account" },
+    data: { stage: "idea", attempts: 0, stageError: null, photo: null, clips: [], textNote: "Write a fresh version: different wording, image text and picture from every other post of this account" },
   });
   after(() => socialWork(200_000).catch((e) => console.error("social.work_failed", e)));
   refresh();
