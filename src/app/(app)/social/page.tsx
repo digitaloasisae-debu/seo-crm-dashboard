@@ -6,8 +6,8 @@ import { SubmitButton } from "@/components/submit-button";
 import { geminiConfigured } from "@/lib/gemini";
 import { socialBacklog } from "@/lib/social/work";
 import { monthKey, monthLabel, nextMonthKey, prevMonthKey } from "@/lib/social/schedule";
-import { deleteFailedAction, deleteUnapprovedAction, generateMonthAction, replaceRepeatsAction, retryFailedAction } from "./actions";
-import { monthRepeats } from "@/lib/social/repeats";
+import { deleteFailedAction, deleteUnapprovedAction, generateMonthAction, replaceAllRejectedAction, replaceRepeatsAction, retryFailedAction } from "./actions";
+import { REPLACED, monthRepeats } from "@/lib/social/repeats";
 import { ConfirmButton } from "@/components/confirm-button";
 import { PostCard } from "./post-card";
 import { SocialWorker } from "./worker";
@@ -78,6 +78,7 @@ export default async function SocialReviewPage({ searchParams }: { searchParams:
   const countOf = (statuses: readonly string[]) => counts.filter((c) => !statuses.length || statuses.includes(c.status)).reduce((n, c) => n + c._count, 0);
   const unapproved = countOf(["DRAFT", "REJECTED", "FAILED"]);
   const repeats = (await monthRepeats(project.id, month)).size;
+  const unreplaced = await db.socialPost.count({ where: { projectId: project.id, month, status: "REJECTED", NOT: { rejectionReason: { endsWith: REPLACED } } } });
   const months = [...new Set([thisMonth, nextMonthKey(thisMonth), month, ...monthRows.map((m) => m.month)])].sort();
   const waitingIn = (m: string) => waiting.find((w) => w.projectId === project.id && w.month === m)?._count ?? 0;
   const href = (o: { project?: string; month?: string; show?: string }) => {
@@ -170,8 +171,17 @@ export default async function SocialReviewPage({ searchParams }: { searchParams:
               {f.label} <span className="opacity-70">{countOf(f.statuses)}</span>
             </Link>
           ))}
+          {unreplaced > 0 && (
+            <form action={replaceAllRejectedAction} className="ml-auto">
+              <input type="hidden" name="month" value={month} />
+              <input type="hidden" name="project" value={project.id} />
+              <SubmitButton className="rounded-lg bg-indigo-100 px-3 py-1.5 text-xs font-semibold text-indigo-900 hover:bg-indigo-200">
+                Make new posts for {unreplaced} rejected
+              </SubmitButton>
+            </form>
+          )}
           {repeats > 0 && (
-            <form action={replaceRepeatsAction} className="ml-auto">
+            <form action={replaceRepeatsAction} className={unreplaced > 0 ? "" : "ml-auto"}>
               <input type="hidden" name="month" value={month} />
               <input type="hidden" name="project" value={project.id} />
               <ConfirmButton
@@ -183,7 +193,7 @@ export default async function SocialReviewPage({ searchParams }: { searchParams:
             </form>
           )}
           {unapproved > 0 && (
-            <form action={deleteUnapprovedAction} className={repeats > 0 ? "" : "ml-auto"}>
+            <form action={deleteUnapprovedAction} className={repeats > 0 || unreplaced > 0 ? "" : "ml-auto"}>
               <input type="hidden" name="month" value={month} />
               <input type="hidden" name="project" value={project.id} />
               <ConfirmButton

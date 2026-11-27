@@ -3,7 +3,8 @@
 import { useState } from "react";
 import { SubmitButton } from "@/components/submit-button";
 import { FORMATS, FORMAT_HELP, PICTURE_FORMATS, kindLabel } from "@/lib/social/formats";
-import { anotherLookAction, approvePostAction, deletePostAction, regenerateImageAction, regenerateTextAction, rejectPostAction, relayoutAction, restorePostAction, savePostAction, unapprovePostAction } from "./actions";
+import { REPLACED } from "@/lib/social/replaced";
+import { anotherLookAction, approvePostAction, deletePostAction, regenerateImageAction, regenerateTextAction, rejectPostAction, relayoutAction, replaceRejectedAction, restorePostAction, savePostAction, unapprovePostAction } from "./actions";
 
 export type CardPost = {
   id: string;
@@ -158,7 +159,10 @@ export function PostCard({ p }: { p: CardPost }) {
 
         {p.status === "REJECTED" && (
           <div className="flex items-center gap-3 rounded-lg bg-red-50 p-2 text-sm text-red-800">
-            <span className="flex-1">Rejected: {p.rejectionReason}</span>
+            <span className="flex-1">Rejected: {p.rejectionReason?.replace(REPLACED, "")}</span>
+            {!p.rejectionReason?.endsWith(REPLACED) && (
+              <form action={replaceRejectedAction.bind(null, p.id)}><SubmitButton className="btn-primary text-xs">Make a new one</SubmitButton></form>
+            )}
             <form action={restorePostAction.bind(null, p.id)}><SubmitButton className="text-xs underline">Restore</SubmitButton></form>
           </div>
         )}

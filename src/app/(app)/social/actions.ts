@@ -12,7 +12,7 @@ import { addMedia, describeMedia, nextMedia } from "@/lib/social/media";
 import { cleanHandles, runResearch } from "@/lib/social/research";
 import { finishPost, socialWork } from "@/lib/social/work";
 import { learnOwnStyle } from "@/lib/social/own-style";
-import { monthRepeats } from "@/lib/social/repeats";
+import { REPLACED, monthRepeats } from "@/lib/social/repeats";
 import { fromLocalInput } from "@/lib/social/schedule";
 
 const msg = (e: unknown) => (e instanceof Error ? e.message : String(e));
@@ -286,6 +286,39 @@ export async function rejectPostAction(postId: string, formData: FormData) {
   refresh();
 }
 
+/** A new post for the day of a post that was rejected without one. */
+async function replaceRejected(postId: string) {
+  const post = await db.socialPost.findUnique({ where: { id: postId } });
+  if (!post || post.status !== "REJECTED" || post.rejectionReason?.endsWith(REPLACED)) return null;
+  const fresh = await planReplacement(postId);
+  await db.socialPost.update({ where: { id: postId }, data: { rejectionReason: `${post.rejectionReason ?? ""}${REPLACED}` } });
+  return fresh;
+}
+
+export async function replaceRejectedAction(postId: string) {
+  await requireSuperAdmin();
+  const fresh = await replaceRejected(postId);
+  if (fresh) await finishPost(fresh.id);
+  refresh();
+}
+
+/** New posts for every rejected post of the month that has none yet (the worker writes and draws them). */
+export async function replaceAllRejectedAction(formData: FormData) {
+  await requireSuperAdmin();
+  const month = String(formData.get("month") ?? "");
+  const project = String(formData.get("project") ?? "");
+  if (!/^\d{4}-\d{2}$/.test(month) || !project) return;
+  const rejected = await db.socialPost.findMany({ where: { projectId: project, month, status: "REJECTED" }, orderBy: { scheduledAt: "asc" }, select: { id: true, rejectionReason: true } });
+  const started = Date.now();
+  for (const r of rejected) {
+    if (r.rejectionReason?.endsWith(REPLACED)) continue;
+    if (Date.now() - started > 200_000) break; // another click does the rest
+    await replaceRejected(r.id).catch((e) => console.error("social.replace_failed", e));
+  }
+  after(() => socialWork(200_000).catch((e) => console.error("social.work_failed", e)));
+  refresh();
+}
+
 export async function restorePostAction(postId: string) {
   await requireSuperAdmin();
   await db.socialPost.updateMany({ where: { id: postId, status: "REJECTED" }, data: { status: "DRAFT", rejectionReason: null, reviewedAt: null } });
@@ -394,7 +427,7 @@ export async function replaceRepeatsAction(formData: FormData) {
   for (const [id, of] of repeats) {
     if (Date.now() - started > 200_000) break; // the rest can be done with another click
     await db.socialPost.update({ where: { id }, data: { status: "REJECTED", rejectionReason: `Repeat of another post: "${of.slice(0, 300)}". Make a clearly different post.`, reviewedAt: new Date() } });
-    await planReplacement(id).catch((e) => console.error("social.repeat_replace_failed", e));
+    await replaceRejected(id).catch((e) => console.error("social.repeat_replace_failed", e));
   }
   after(() => socialWork(200_000).catch((e) => console.error("social.work_failed", e)));
   refresh();
