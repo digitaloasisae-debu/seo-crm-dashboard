@@ -434,7 +434,7 @@ FORMATS:
   Never: abstract metaphors (no rockets, lightbulbs, chess pieces, puzzle pieces, trophies, mountains, handshakes, glowing holograms, floating icons), stock-photo clichés (desks with glowing screens, perfect empty offices), or anything whose link to the topic needs explaining. Screens may show a recognisable layout (a map, a shop page, search results) but no readable words. No text in the image: the words go on the band.
 - photo: one of OUR REAL PHOTOS (from the library below) with a few words. Only when a library photo truly fits the post (behind the scenes, team, real work, proof). Set photoId.
 - type: big bold words only, for a sharp opinion or a line strong enough on its own. design.kicker = 1-4 small words on top. design.big = 3-8 words. Put *stars* around 1-2 words to highlight them.
-WORDS ON THE IMAGE: headline.main = 2-6 words that name the topic plainly, so someone scrolling knows at once what the post is about: a short version of the caption title that uses the topic's own words (e.g. "Amazon retargeting has changed", "Is your Google listing complete?"). No riddles, puns or vague teasers ("The secret nobody tells you", "Game changer", "Here's the truth"). headline.top = 0-4 small words of setup, or empty. headline.bottom = empty unless it is truly needed. No invented numbers.`;
+WORDS ON THE IMAGE: headline.main = 2-6 words that name the topic plainly, so someone scrolling knows at once what the post is about: a short version of the caption title that uses the topic's own words (e.g. "Amazon retargeting has changed", "Is your Google listing complete?"). No riddles, puns or vague teasers ("The secret nobody tells you", "Game changer", "Here's the truth"). headline.top = 0-4 small words of setup, or empty. headline.bottom = empty unless it is truly needed, and never a call to action, slogan or tagline ("Let's talk...", "Contact us", "Planning X? ..."): the call to action belongs in the caption only. No invented numbers.`;
 
 /** The service page for each service (saved on its card; looked up on the site once when missing). */
 async function serviceLinks(p: SocialProject & { client: Client; serviceCards: { service: string; url: string; card: string }[] }, services: string[]) {
@@ -502,22 +502,22 @@ POST TYPES (given per post):
 - reel: a short silent video (about 10-14 seconds). Most people watch it with the sound off and never read the caption, so THE WORDS ON SCREEN MUST CARRY THE MESSAGE on their own. Write scenes: 3 lines (4 at most), shown one after another, each one complete thought of 4-9 words:
   1. HOOK: a problem or question the viewer recognises from their own business, in their words (e.g. "Paying for Google Ads clicks that never call?").
   2. HOW WE SOLVE IT: what ${p.client.name} does for them, said as "we" because the Reel is on ${p.client.name}'s own account (e.g. "We show your ads only to real buyers"). Never a DIY instruction, and no brand name on screen (the caption carries it).
-  3. PAYOFF or ACTION: what changes for them, or a call to get in touch (e.g. "Fewer wasted clicks, more real calls").
+  3. PAYOFF: what changes for them with exactly this topic (e.g. "Fewer wasted clicks, more real calls"). Not a generic call to action or slogan ("Let's talk", "Contact us", "Planning X? Let's talk Y"): the caption carries the call to action. Never end two Reels with the same or a similar line.
   (An optional 4th line only when it needs a second thing ${p.client.name} does.)
   Write for a business owner, not a marketer: no agency jargon or insider terms (no "search term scrubbing", "bid adjustments", "CPA", "ROAS", "funnel", "SERP"); if a term is needed, say what it does instead. Say what ${p.client.name} does in the buyer's words (what it fixes for them), not our internal process ("How we manage..."). Each line must make sense even if the previous one was missed. headline.main is the cover text (can match line 1).`;
   // What this account already says, so new captions don't reuse the wording (Hamza 2026-11-27: "many posts have even same wording").
   const said = await db.socialPost.findMany({
     where: { projectId: p.id, id: { notIn: posts.map((x) => x.id) }, status: { not: "REJECTED" }, OR: [{ captionFacebook: { not: "" } }, { captionInstagram: { not: "" } }, { captionLinkedin: { not: "" } }] },
-    select: { captionFacebook: true, captionInstagram: true, captionLinkedin: true, headlineMain: true },
+    select: { captionFacebook: true, captionInstagram: true, captionLinkedin: true, headlineMain: true, headlineBottom: true, imageBrief: true, design: true },
     orderBy: { scheduledAt: "desc" },
     take: 30,
   });
   const saidText = said
-    .map((x) => captionBody(x.captionFacebook || x.captionInstagram || x.captionLinkedin).normalize("NFKC").replace(/\s*\n+\s*/g, " / ").slice(0, 420) + (x.headlineMain ? ` [image text: ${x.headlineMain}]` : ""))
+    .map((x) => captionBody(x.captionFacebook || x.captionInstagram || x.captionLinkedin).normalize("NFKC").replace(/\s*\n+\s*/g, " / ").slice(0, 420) + (x.headlineMain ? ` [image text: ${[x.headlineMain, x.headlineBottom].filter(Boolean).join(" / ")}]` : "") + (designOf(x.design).scenes?.length ? ` [reel lines: ${designOf(x.design).scenes!.join(" / ")}]` : "") + (x.imageBrief ? ` [picture: ${x.imageBrief.slice(0, 140)}]` : ""))
     .map((t) => `- ${t}`)
     .join("\n");
   const prompt = `BUSINESS: ${businessLine(p.client, p.timezone)}
-Main call to action: ${p.client.ctaText || "get in touch"} (${link})
+Main call to action: ${p.client.ctaText || "get in touch"} (${link}). Use it only in the caption's closing, never as words on the image or in a Reel.
 
 SERVICE CARDS:
 ${cards}
@@ -535,7 +535,7 @@ ${styleText(p)}
 OUR REAL PHOTO LIBRARY (id: what it shows; least used first):
 ${library.map((m) => `- ${m.id}: ${m.description.slice(0, 220)}${m.usedCount ? ` (used ${m.usedCount}x)` : ""}`).join("\n") || "(empty, so do not use the photo format)"}
 
-ALREADY POSTED OR PLANNED ON THIS ACCOUNT (newest first). Never reuse their titles, opening lines, list titles, list items, closing lines, image text or hashtag sets, and never make the same point again in other words. Each post you write must read fresh next to all of these:
+ALREADY POSTED OR PLANNED ON THIS ACCOUNT (newest first). Never reuse their titles, opening lines, list titles, list items, closing lines, image text, Reel lines or hashtag sets, and never make the same point again in other words. The picture must also be clearly different from theirs: a different main object or product (a different design, shape, material or colour), a different setting and a different camera angle. Each post you write must read fresh next to all of these:
 ${saidText || "(nothing yet)"}
 
 THE POSTS BELOW MUST ALSO DIFFER FROM EACH OTHER: different title, opening, list title, list items, closing line, emoji and image text. Never start two captions or two closing lines with the same words.

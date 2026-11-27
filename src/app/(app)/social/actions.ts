@@ -433,6 +433,20 @@ export async function replaceRepeatsAction(formData: FormData) {
   refresh();
 }
 
+/** Rewrite the month's posts waiting for review from scratch: new captions, image text and a new picture. */
+export async function rewriteUnapprovedAction(formData: FormData) {
+  await requireSuperAdmin();
+  const month = String(formData.get("month") ?? "");
+  const project = String(formData.get("project") ?? "");
+  if (!/^\d{4}-\d{2}$/.test(month) || !project) return;
+  await db.socialPost.updateMany({
+    where: { projectId: project, month, status: "DRAFT", stage: { in: ["ready", "error", "written"] } },
+    data: { stage: "idea", attempts: 0, stageError: null, photo: null, textNote: "Write a fresh version: different wording, image text and picture from every other post of this account" },
+  });
+  after(() => socialWork(200_000).catch((e) => console.error("social.work_failed", e)));
+  refresh();
+}
+
 /** Delete the drafts that failed 3 times (only ones not approved or live). */
 export async function deleteFailedAction() {
   await requireSuperAdmin();

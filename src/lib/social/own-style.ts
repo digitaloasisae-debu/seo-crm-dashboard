@@ -145,12 +145,13 @@ export async function drawInOwnStyle(
   const words = [post.headlineTop, post.headlineMain, post.headlineBottom].map((x) => x.replace(/\*/g, "").trim()).filter(Boolean);
   const ask = `The ${refs.length} images above are this brand's own best-performing social media posts.
 Make ONE new post image that looks like it belongs in the same feed: copy their design exactly (layout, where the text sits, the headline font look, weight, colours and effects, background treatment, borders, badges, photo style and lighting). Do not copy their wording or their exact subject.
+COPY THE DESIGN, NOT THE CONTENT: do not copy any words from the reference posts (no taglines, footers, call-to-action strips, phone numbers, websites or slogans such as "Let's talk..."). The ONLY text on the new image is the text given below. Show a NEW subject: follow "What to show" for the object, its design, shape, colour and setting, so it does not look like the products in the references.
 NO LOGOS: leave out any logo, brand mark, brand name, website, handle or watermark the reference posts have (Hamza's rule: no logos on posts). No company names on products either.
 Only the content changes:
 - Topic: ${post.idea}
 - What to show: ${post.imageBrief || post.idea}
 ${words.length ? `- Text on the image, spelled exactly like this and nothing else: ${words.map((w) => `"${w}"`).join(" / ")}` : "- No text on the image."}
-${project.styleNotes ? `\nNotes on the style:\n${project.styleNotes.split("HOW THE CAPTIONS READ:")[0].split("\n").filter((l) => !/logo|brand mark|watermark/i.test(l)).join("\n").trim()}` : ""}
+${project.styleNotes ? `\nNotes on the style:\n${project.styleNotes.split("HOW THE CAPTIONS READ:")[0].split("\n").filter((l) => !/logo|brand mark|watermark|tagline|footer|call[- ]to[- ]action|cta/i.test(l)).join("\n").replace(/["“][^"”]{3,80}["”]/g, "(their words)").trim()}` : ""}
 ${project.imageStyle.trim() ? `\nAlso: ${project.imageStyle.trim()}` : ""}
 Vertical 4:5 image. No logo, brand name or watermark anywhere. No people's faces unless the reference posts show people.`;
   let lastErr = "";

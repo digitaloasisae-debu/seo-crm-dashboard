@@ -6,7 +6,7 @@ import { SubmitButton } from "@/components/submit-button";
 import { geminiConfigured } from "@/lib/gemini";
 import { socialBacklog } from "@/lib/social/work";
 import { monthKey, monthLabel, nextMonthKey, prevMonthKey } from "@/lib/social/schedule";
-import { deleteFailedAction, deleteUnapprovedAction, generateMonthAction, replaceAllRejectedAction, replaceRepeatsAction, retryFailedAction } from "./actions";
+import { deleteFailedAction, deleteUnapprovedAction, generateMonthAction, replaceAllRejectedAction, replaceRepeatsAction, retryFailedAction, rewriteUnapprovedAction } from "./actions";
 import { REPLACED, monthRepeats } from "@/lib/social/repeats";
 import { ConfirmButton } from "@/components/confirm-button";
 import { PostCard } from "./post-card";
@@ -192,8 +192,20 @@ export default async function SocialReviewPage({ searchParams }: { searchParams:
               </ConfirmButton>
             </form>
           )}
+          {countOf(["DRAFT"]) > 0 && (
+            <form action={rewriteUnapprovedAction} className={repeats > 0 || unreplaced > 0 ? "" : "ml-auto"}>
+              <input type="hidden" name="month" value={month} />
+              <input type="hidden" name="project" value={project.id} />
+              <ConfirmButton
+                message={`Rewrite all ${countOf(["DRAFT"])} posts waiting for review for ${name} in ${monthLabel(month)}? Each gets new captions, image text and a new picture. Approved and live posts are kept.`}
+                className="rounded-lg bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-800 hover:bg-slate-200"
+              >
+                Rewrite {countOf(["DRAFT"])} waiting for review
+              </ConfirmButton>
+            </form>
+          )}
           {unapproved > 0 && (
-            <form action={deleteUnapprovedAction} className={repeats > 0 || unreplaced > 0 ? "" : "ml-auto"}>
+            <form action={deleteUnapprovedAction}>
               <input type="hidden" name="month" value={month} />
               <input type="hidden" name="project" value={project.id} />
               <ConfirmButton
