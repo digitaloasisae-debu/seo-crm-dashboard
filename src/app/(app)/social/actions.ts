@@ -12,6 +12,7 @@ import { addMedia, describeMedia, nextMedia } from "@/lib/social/media";
 import { cleanHandles, runResearch } from "@/lib/social/research";
 import { finishPost, socialWork } from "@/lib/social/work";
 import { learnOwnStyle } from "@/lib/social/own-style";
+import { monthRepeats } from "@/lib/social/repeats";
 import { fromLocalInput } from "@/lib/social/schedule";
 
 const msg = (e: unknown) => (e instanceof Error ? e.message : String(e));
@@ -376,6 +377,26 @@ export async function deleteUnapprovedAction(formData: FormData) {
   if (!/^\d{4}-\d{2}$/.test(month)) return;
   const project = String(formData.get("project") ?? "");
   await db.socialPost.deleteMany({ where: { month, ...(project ? { projectId: project } : {}), status: { in: ["DRAFT", "REJECTED", "FAILED"] } } });
+  refresh();
+}
+
+/**
+ * Swap the month's repeated drafts for fresh ideas: each repeat is rejected with the reason "repeat"
+ * and gets a new idea on the same day; the worker then writes and draws them.
+ */
+export async function replaceRepeatsAction(formData: FormData) {
+  await requireSuperAdmin();
+  const month = String(formData.get("month") ?? "");
+  const project = String(formData.get("project") ?? "");
+  if (!/^\d{4}-\d{2}$/.test(month) || !project) return;
+  const repeats = await monthRepeats(project, month);
+  const started = Date.now();
+  for (const [id, of] of repeats) {
+    if (Date.now() - started > 200_000) break; // the rest can be done with another click
+    await db.socialPost.update({ where: { id }, data: { status: "REJECTED", rejectionReason: `Repeat of another post: "${of.slice(0, 300)}". Make a clearly different post.`, reviewedAt: new Date() } });
+    await planReplacement(id).catch((e) => console.error("social.repeat_replace_failed", e));
+  }
+  after(() => socialWork(200_000).catch((e) => console.error("social.work_failed", e)));
   refresh();
 }
 
