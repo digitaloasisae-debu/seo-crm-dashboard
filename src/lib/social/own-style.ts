@@ -112,7 +112,7 @@ export async function learnOwnStyle(projectId: string, uploads: Buffer[] = []) {
   const ask = `These are the ${images.length} best-performing posts of ${p.client.name}'s own social media account, best first.
 ${texts.length ? `Their captions:\n${texts.join("\n")}\n` : ""}
 Describe the shared design so a designer can make new posts that look like they belong to the same feed:
-- "visual": 8-12 concrete bullet points: real photo vs designed graphic vs product shot, the main subject and how it is shot, background, layout and where the text sits, the headline style (length, case, font family look, weight, colours, outlines or boxes), logo or brand mark (where and how big), colour palette with hex guesses, borders, frames, badges, how polished or raw it looks.
+- "visual": 8-12 concrete bullet points: real photo vs designed graphic vs product shot, the main subject and how it is shot, background, layout and where the text sits, the headline style (length, case, font family look, weight, colours, outlines or boxes), colour palette with hex guesses, borders, frames, badges, how polished or raw it looks.
 - "captions": 4-6 bullet points on how the captions read (length, tone, emojis, structure, call to action, hashtags). Empty list if there are no captions.
 Return JSON: {"visual":["..."],"captions":["..."]}`;
   const model = process.env.GEMINI_SOCIAL_MODEL || process.env.GEMINI_MODEL || "gemini-flash-latest";
@@ -144,14 +144,15 @@ export async function drawInOwnStyle(
   const refs = project.styleRefs.map((b) => imgPart(Buffer.from(b)));
   const words = [post.headlineTop, post.headlineMain, post.headlineBottom].map((x) => x.replace(/\*/g, "").trim()).filter(Boolean);
   const ask = `The ${refs.length} images above are this brand's own best-performing social media posts.
-Make ONE new post image that looks like it belongs in the same feed: copy their design exactly (layout, where the text sits, the headline font look, weight, colours and effects, background treatment, borders, badges, logo or brand mark and its position, photo style and lighting). Do not copy their wording or their exact subject.
+Make ONE new post image that looks like it belongs in the same feed: copy their design exactly (layout, where the text sits, the headline font look, weight, colours and effects, background treatment, borders, badges, photo style and lighting). Do not copy their wording or their exact subject.
+NO LOGOS: leave out any logo, brand mark, brand name, website, handle or watermark the reference posts have (Hamza's rule: no logos on posts). No company names on products either.
 Only the content changes:
 - Topic: ${post.idea}
 - What to show: ${post.imageBrief || post.idea}
 ${words.length ? `- Text on the image, spelled exactly like this and nothing else: ${words.map((w) => `"${w}"`).join(" / ")}` : "- No text on the image."}
-${project.styleNotes ? `\nNotes on the style:\n${project.styleNotes.split("HOW THE CAPTIONS READ:")[0].trim()}` : ""}
+${project.styleNotes ? `\nNotes on the style:\n${project.styleNotes.split("HOW THE CAPTIONS READ:")[0].split("\n").filter((l) => !/logo|brand mark|watermark/i.test(l)).join("\n").trim()}` : ""}
 ${project.imageStyle.trim() ? `\nAlso: ${project.imageStyle.trim()}` : ""}
-Vertical 4:5 image. No people's faces unless the reference posts show people.`;
+Vertical 4:5 image. No logo, brand name or watermark anywhere. No people's faces unless the reference posts show people.`;
   let lastErr = "";
   for (const model of [process.env.GEMINI_STYLE_IMAGE_MODEL, "gemini-3.1-flash-image", "gemini-2.5-flash-image"].filter((m, i, a): m is string => Boolean(m) && a.indexOf(m) === i)) {
     try {
