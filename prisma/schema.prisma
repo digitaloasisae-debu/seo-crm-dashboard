@@ -1034,6 +1034,8 @@ model SocialPost {
   slides           Bytes[]
   /// The animated Reel (MP4, 1080x1920)
   video            Bytes?
+  /// Reels: the moving clips (Veo) the video is cut from; kept so text edits don't pay for new clips
+  clips            Bytes[]
   scheduledAt      DateTime
   status           SocialPostStatus @default(DRAFT)
   rejectionReason  String?

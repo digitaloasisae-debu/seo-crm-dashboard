@@ -7,7 +7,8 @@ import type { SocialPost } from "@prisma/client";
 import { db } from "../db";
 import { writePosts } from "./ai";
 import { designInput, designOf, drawAI, fitPhoto, formatOf, reelLayers, renderDesign, renderSlides } from "./image";
-import { renderReel } from "./video";
+import { renderVideoReel } from "./video";
+import { makeClip, reelClips } from "./veo";
 import { drawInOwnStyle } from "./own-style";
 
 const MAX_TRIES = 3;
@@ -89,16 +90,24 @@ export async function drawOne(postId: string) {
     // Carousels: the slides after the cover. Reels: the animated video. Both share the cover's look.
     let slides: Uint8Array<ArrayBuffer>[] = [];
     let video: Uint8Array<ArrayBuffer> | null = null;
+    let made: Buffer[] | null = null;
     if (post.kind === "carousel") {
       const list = d.slides?.length ? d.slides : [{ title: post.headlineMain || post.idea, body: post.idea }];
       slides = (await renderSlides(input, list, d.end ?? "")).map((b) => new Uint8Array(b));
     } else if (post.kind === "video") {
       const scenes = d.scenes?.length ? d.scenes : [post.headlineMain || post.idea];
-      video = new Uint8Array(await renderReel(await reelLayers(input, scenes)));
+      const layers = await reelLayers(input, scenes, true);
+      // Real moving clips (Veo), made once per Reel and reused when only the text changes.
+      if (!post.clips.length) {
+        const shots = (d.shots?.length ? d.shots : [post.imageBrief || post.idea]).slice(0, reelClips());
+        made = await Promise.all(shots.map((s) => makeClip(s)));
+      }
+      const clips = made ?? post.clips.map((c) => Buffer.from(c));
+      video = new Uint8Array(await renderVideoReel({ clips, lines: layers.lines, brand: layers.brand, durations: layers.durations }));
     }
     await db.socialPost.update({
       where: { id: post.id },
-      data: { ...(fresh ? { photo: new Uint8Array(fresh), design: { ...d, pic: format } } : {}), ...(brief ? { imageBrief: brief } : {}), image: new Uint8Array(image), slides, video, imageVersion: { increment: 1 }, stage: "ready", stageError: null },
+      data: { ...(fresh ? { photo: new Uint8Array(fresh), design: { ...d, pic: format } } : {}), ...(brief ? { imageBrief: brief } : {}), image: new Uint8Array(image), slides, video, ...(made ? { clips: made.map((b) => new Uint8Array(b)) } : {}), imageVersion: { increment: 1 }, stage: "ready", stageError: null },
     });
   } catch (e) {
     await fail([post], "written", e);

@@ -10,6 +10,7 @@ import { toLocalInput, weeklySlots, zoned } from "./schedule";
 import { ensureResearch, researchText } from "./research";
 import { learnOwnStyle, styleText } from "./own-style";
 import { captionBody, findRepeats } from "./repeats";
+import { clipSeconds, reelClips } from "./veo";
 import { buildCaption, cardUrl, titleLine, type CaptionParts } from "./caption";
 import { PICTURE_FORMATS, PILLARS, WEEK_MIX, designOf, formatOf, pillarOf, type DesignData, type Slide } from "./formats";
 
@@ -275,7 +276,7 @@ async function planMonthNow(projectId: string, month: string): Promise<number> {
   const KIND_HINT: Record<string, string> = {
     static: "one image post: one sharp point",
     carousel: "a swipeable carousel of 4-6 slides: a step-by-step, a checklist, a breakdown or a story in stages, something people save",
-    video: "a silent Reel (10-14 seconds, 3 lines of text over one visual: a problem the viewer recognises, how the business solves it for them, the payoff): one practical topic a business owner instantly recognises",
+    video: "a silent Reel of real moving video clips (a scene of the problem, then the result) with 3 lines of text on top: a problem the viewer recognises, how the business solves it for them, the payoff): one practical topic a business owner instantly recognises",
   };
   const prompt = `Plan the social media posts of ${p.client.name}'s own accounts (${p.platforms.join(", ")}) for ${month}. There is one numbered slot per post; write exactly one idea for every slot.
 
@@ -420,6 +421,7 @@ type Written = {
   slides?: { title?: string; body?: string }[];
   end?: string;
   scenes?: string[];
+  shots?: string[];
 };
 
 const one = (s: unknown) => String(s ?? "").replace(/—/g, ",").replace(/\s+/g, " ").trim();
@@ -513,12 +515,13 @@ ALSO, for every post:
 POST TYPES (given per post):
 - image: everything above.
 - carousel: the image above is the COVER slide (it must make people swipe). Also write slides: 3-5 slides that come after the cover, each {"title": 2-6 words, "body": 1-2 short sentences, max 28 words}. One idea per slide: first the problem and what it costs the buyer, then what ${p.client.name} does about it. Then end: one short closing line for the last slide, a call to action to get ${p.client.name}'s help. Slides follow the caption title and its points, so the carousel and the caption tell the same story.
-- reel: a short silent video (about 10-14 seconds). Most people watch it with the sound off and never read the caption, so THE WORDS ON SCREEN MUST CARRY THE MESSAGE on their own. Write scenes: 3 lines (4 at most), shown one after another, each one complete thought of 4-9 words:
+- reel: a short silent video made of real moving clips (about ${reelClips() * clipSeconds()} seconds). Most people watch it with the sound off and never read the caption, so THE WORDS ON SCREEN MUST CARRY THE MESSAGE on their own. Write scenes: 3 lines (4 at most), shown one after another, each one complete thought of 4-9 words:
   1. HOOK: a problem or question the viewer recognises from their own business, in their words (e.g. "Paying for Google Ads clicks that never call?").
   2. HOW WE SOLVE IT: what ${p.client.name} does for them, said as "we" because the Reel is on ${p.client.name}'s own account (e.g. "We show your ads only to real buyers"). Never a DIY instruction, and no brand name on screen (the caption carries it).
   3. PAYOFF: what changes for them with exactly this topic (e.g. "Fewer wasted clicks, more real calls"). Not a generic call to action or slogan ("Let's talk", "Contact us", "Planning X? Let's talk Y"): the caption carries the call to action. Never end two Reels with the same or a similar line.
   (An optional 4th line only when it needs a second thing ${p.client.name} does.)
-  Write for a business owner, not a marketer: no agency jargon or insider terms (no "search term scrubbing", "bid adjustments", "CPA", "ROAS", "funnel", "SERP"); if a term is needed, say what it does instead. Say what ${p.client.name} does in the buyer's words (what it fixes for them), not our internal process ("How we manage..."). Each line must make sense even if the previous one was missed. headline.main is the cover text (can match line 1).`;
+  Write for a business owner, not a marketer: no agency jargon or insider terms (no "search term scrubbing", "bid adjustments", "CPA", "ROAS", "funnel", "SERP"); if a term is needed, say what it does instead. Say what ${p.client.name} does in the buyer's words (what it fixes for them), not our internal process ("How we manage..."). Each line must make sense even if the previous one was missed. headline.main is the cover text (can match line 1).
+  Also write shots: exactly ${reelClips()} video prompts, one per moving clip (${clipSeconds()} seconds each), played one after another under the lines. They are sent to a video model (Google Veo) exactly as written, so each is a plain, literal 2-3 sentence description of ONE real scene with movement: the subject and what moves or changes, the setting, the camera move (slow push-in, pan, dolly, orbit) and the light. Together they tell the story of the lines: the first shows the problem the hook names, the last shows the result after ${p.client.name}'s work (for example a patchy, peeling wall, then a freshly painted, even wall in bright daylight). Real places, objects and products of this business, filmed like a real phone video; never abstract, never a 3D render, no people, faces or hands, no text, logos or screens with words. Every shot must look different from the account's earlier Reels.`;
   // What this account already says, so new captions don't reuse the wording (Hamza 2026-11-27: "many posts have even same wording").
   const said = await db.socialPost.findMany({
     where: { projectId: p.id, id: { notIn: posts.map((x) => x.id) }, status: { not: "REJECTED" }, OR: [{ captionFacebook: { not: "" } }, { captionInstagram: { not: "" } }, { captionLinkedin: { not: "" } }] },
@@ -566,7 +569,7 @@ ${posts
   })
   .join("\n")}
 
-Return JSON: {"posts":[{"id":"...","hooks":["","",""],"caption":{"emoji":"","intro":"","listTitle":"","points":[{"emoji":"","text":""}],"closing":"","hashtags":[""]},"format":"type","design":{"kicker":"","big":""},"photoId":"","headline":{"top":"","main":"","bottom":""},"imageBrief":"","altText":"","slides":[{"title":"","body":""}],"end":"","scenes":["","",""]}]} (slides and end only for a carousel, scenes only for a reel)`;
+Return JSON: {"posts":[{"id":"...","hooks":["","",""],"caption":{"emoji":"","intro":"","listTitle":"","points":[{"emoji":"","text":""}],"closing":"","hashtags":[""]},"format":"type","design":{"kicker":"","big":""},"photoId":"","headline":{"top":"","main":"","bottom":""},"imageBrief":"","altText":"","slides":[{"title":"","body":""}],"end":"","scenes":["","",""],"shots":[""]}]} (slides and end only for a carousel, scenes only for a reel)`;
   const r = await geminiJson<{ posts?: Written[] }>(prompt, { system, timeoutMs: 200_000, temperature: 0.8, model: textModel() });
   const out = r.posts ?? [];
   const urls = await serviceLinks(p, posts.map((x) => x.service));
@@ -593,6 +596,8 @@ Return JSON: {"posts":[{"id":"...","hooks":["","",""],"caption":{"emoji":"","int
     if (x.kind === "video") {
       const scenes = (w.scenes ?? []).map((v) => clean(v, 90)).filter(Boolean).slice(0, 4);
       if (scenes.length) design.scenes = scenes;
+      const shots = (w.shots ?? []).map((v) => clean(v, 900)).filter(Boolean).slice(0, 3);
+      if (shots.length) design.shots = shots;
     }
     const titles = (w.hooks ?? []).map((h) => clean(h, 120)).filter(Boolean).slice(0, 3);
     const parts: CaptionParts = { ...w.caption, title: titles[0] || x.headlineMain || x.idea };
@@ -613,6 +618,8 @@ Return JSON: {"posts":[{"id":"...","hooks":["","",""],"caption":{"emoji":"","int
         imageBrief: clean(w.imageBrief, 1500),
         imageLayout: format,
         design: design as Prisma.InputJsonValue,
+        // New shots for a Reel mean new clips (the old ones show the old scenes).
+        ...(x.kind === "video" && design.shots?.length ? { clips: [] } : {}),
         ...(media ? { mediaId: media.id } : {}),
         textNote: null,
       },

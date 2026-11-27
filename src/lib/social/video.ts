@@ -66,3 +66,74 @@ export async function renderReel(layers: { base: Buffer; lines: Buffer[]; brand:
     await rm(dir, { recursive: true, force: true }).catch(() => {});
   }
 }
+
+/**
+ * A Reel made of real moving clips (Veo): the clips play one after another, the post's lines of text
+ * appear on top one by one, then the brand card. If the lines need longer to read than the clips last,
+ * the last frame is held.
+ */
+export async function renderVideoReel(layers: { clips: Buffer[]; lines: Buffer[]; brand: Buffer; durations?: number[] }): Promise<Buffer> {
+  const n = Math.max(1, layers.lines.length);
+  const dir = await mkdtemp(path.join(tmpdir(), "reelv-"));
+  try {
+    await Promise.all(layers.clips.map((b, i) => writeFile(path.join(dir, `c${i}.mp4`), b)));
+    await Promise.all(layers.lines.map((b, i) => writeFile(path.join(dir, `l${i}.png`), b)));
+    await writeFile(path.join(dir, "brand.png"), layers.brand);
+    const lengths = await Promise.all(layers.clips.map((_, i) => clipLength(path.join(dir, `c${i}.mp4`))));
+    const clipsTotal = lengths.reduce((a, b) => a + b, 0);
+    // Spread the lines over the clips, but never shorter than their reading time.
+    const read = Array.from({ length: n }, (_, i) => layers.durations?.[i] ?? LINE);
+    const even = (clipsTotal - LEAD - TAIL) / n;
+    const dur = read.map((r) => Math.max(r, even));
+    const startOf = (i: number) => LEAD + dur.slice(0, i).reduce((a, b) => a + b, 0);
+    const total = Math.max(clipsTotal, startOf(n - 1) + dur[n - 1] + TAIL);
+    // When the words need longer than the clips, play the clips a little slower (up to 1.4x, reads as
+    // gentle slow motion), and only then hold the last frame.
+    const slow = Math.min(1.4, Math.max(1, total / clipsTotal));
+    const hold = Math.max(0, total - clipsTotal * slow);
+    const brandAt = startOf(n - 1) + 0.6;
+
+    const args = ["-y", "-loglevel", "error"];
+    layers.clips.forEach((_, i) => args.push("-i", path.join(dir, `c${i}.mp4`)));
+    const L = layers.clips.length;
+    layers.lines.forEach((_, i) => args.push("-loop", "1", "-framerate", String(FPS), "-t", (i === n - 1 ? total - startOf(i) : dur[i]).toFixed(2), "-i", path.join(dir, `l${i}.png`)));
+    args.push("-loop", "1", "-framerate", String(FPS), "-t", (total - brandAt).toFixed(2), "-i", path.join(dir, "brand.png"));
+    args.push("-f", "lavfi", "-t", total.toFixed(2), "-i", "anullsrc=r=44100:cl=stereo");
+    const f: string[] = [];
+    layers.clips.forEach((_, i) => f.push(`[${i}:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,setpts=${slow.toFixed(3)}*PTS,fps=${FPS},setsar=1,format=yuv420p[c${i}]`));
+    f.push(`${layers.clips.map((_, i) => `[c${i}]`).join("")}concat=n=${L}:v=1:a=0${hold > 0 ? `,tpad=stop_mode=clone:stop_duration=${hold.toFixed(2)}` : ""}[bg]`);
+    let last = "bg";
+    layers.lines.forEach((_, i) => {
+      const start = startOf(i);
+      const isLast = i === n - 1;
+      const fades = `fade=in:st=0:d=0.4:alpha=1${isLast ? "" : `,fade=out:st=${(dur[i] - 0.35).toFixed(2)}:d=0.3:alpha=1`}`;
+      f.push(`[${L + i}:v]format=rgba,${fades},setpts=PTS+${start.toFixed(2)}/TB[t${i}]`);
+      f.push(`[${last}][t${i}]overlay=x=0:y='if(lt(t,${start.toFixed(2)}),40,if(lt(t,${(start + 0.45).toFixed(2)}),40*(1-(t-${start.toFixed(2)})/0.45),0))':format=auto:eof_action=pass[v${i}]`);
+      last = `v${i}`;
+    });
+    f.push(`[${L + n}:v]format=rgba,fade=in:st=0:d=0.4:alpha=1,setpts=PTS+${brandAt.toFixed(2)}/TB[br]`);
+    f.push(`[${last}][br]overlay=0:0:format=auto:eof_action=pass,format=yuv420p[out]`);
+    args.push("-filter_complex", f.join(";"), "-map", "[out]", "-map", `${L + n + 1}:a`, "-t", total.toFixed(2));
+    args.push("-c:v", "libx264", "-preset", "veryfast", "-profile:v", "high", "-crf", "21", "-maxrate", "6M", "-bufsize", "12M", "-r", String(FPS), "-pix_fmt", "yuv420p");
+    args.push("-c:a", "aac", "-b:a", "64k", "-movflags", "+faststart", path.join(dir, "out.mp4"));
+    await run(args);
+    return await readFile(path.join(dir, "out.mp4"));
+  } finally {
+    await rm(dir, { recursive: true, force: true }).catch(() => {});
+  }
+}
+
+/** Length of a clip in seconds (ffmpeg prints it while reading the file). */
+function clipLength(file: string) {
+  return new Promise<number>((resolve) => {
+    if (!ffmpegPath) return resolve(6);
+    const p = spawn(ffmpegPath, ["-i", file], { stdio: ["ignore", "ignore", "pipe"] });
+    let err = "";
+    p.stderr.on("data", (d) => (err += d));
+    p.on("close", () => {
+      const m = err.match(/Duration: (\d+):(\d+):([\d.]+)/);
+      resolve(m ? Number(m[1]) * 3600 + Number(m[2]) * 60 + Number(m[3]) : 6);
+    });
+    p.on("error", () => resolve(6));
+  });
+}

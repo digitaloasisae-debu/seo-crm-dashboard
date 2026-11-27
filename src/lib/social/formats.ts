@@ -31,7 +31,7 @@ export const FORMAT_HELP: Record<string, string> = {
 /** pic = what the stored AI picture is ("concept" visual or "photo"), so switching formats never reuses the wrong one. */
 /** slides = carousel slides after the cover; scenes = the words of the Reel, one line per beat. */
 export type Slide = { title: string; body: string };
-export type DesignData = { texts?: Record<string, string>; variant?: number; pic?: string; slides?: Slide[]; scenes?: string[]; end?: string };
+export type DesignData = { texts?: Record<string, string>; variant?: number; pic?: string; slides?: Slide[]; scenes?: string[]; shots?: string[]; end?: string };
 export const designOf = (d: unknown): DesignData => (d && typeof d === "object" && !Array.isArray(d) ? (d as DesignData) : {});
 
 /** The text a format shows when the AI hasn't written design text for it (e.g. after switching format). */
