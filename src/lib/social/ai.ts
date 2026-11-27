@@ -133,8 +133,10 @@ async function projectContext(projectId: string) {
   return { p, cards, brand, brain };
 }
 
-function businessLine(c: Client) {
-  return `${c.name} (${c.businessType ?? "business"}), based in ${[c.primaryCity, c.targetCountry].filter(Boolean).join(", ") || "unknown"}. Website: ${c.siteUrl}`;
+function businessLine(c: Client, timezone?: string | null) {
+  const country = countryOf(c, timezone);
+  return `${c.name} (${c.businessType ?? "business"}), based in ${[c.primaryCity, country].filter(Boolean).join(", ")}. Website: ${c.siteUrl}
+AUDIENCE COUNTRY: ${country}. Every holiday, place, setting, spelling, currency and local hashtag must fit ${country}. Never mention another country or its cities (for example the UAE or Dubai) unless the business really is there.`;
 }
 
 type PlannedIdea = { slot: number; service: string; angle: string; idea: string; why: string; score: number };
@@ -156,7 +158,7 @@ export function countryOf(c: Pick<Client, "targetCountry">, timezone?: string | 
 
 async function monthEvents(c: Client, month: string, timezone?: string): Promise<MonthEvent[]> {
   const country = countryOf(c, timezone);
-  const prompt = `List the national holidays, public observances and big shared moments in ${country} during ${month} (YYYY-MM) that a ${c.businessType ?? "local business"} could post about on social media (for example national day, religious holidays and their eves, Mother's Day, back to school, White Friday / Black Friday, Dubai Shopping Festival, New Year, Earth Hour). Include international days only if people in ${country} really mark them and they fit this business.
+  const prompt = `List the national holidays, public observances and big shared moments in ${country} during ${month} (YYYY-MM) that a ${c.businessType ?? "local business"} could post about on social media (for example national day, religious holidays and their eves, Mother's Day, back to school, Black Friday, New Year, Earth Hour). Include international days only if people in ${country} really mark them and they fit this business.
 Give the date as it is observed in ${country} in that year. For moon-sighted holidays give the expected first day. Leave out anything you are not sure falls in ${month}.
 Return JSON: {"events":[{"date":"YYYY-MM-DD","name":"short name","why":"why this business can post about it, one short line"}]} (at most 6, most important first).`;
   try {
@@ -262,7 +264,7 @@ export async function planMonth(projectId: string, month: string): Promise<numbe
   };
   const prompt = `Plan the social media posts of ${p.client.name}'s own accounts (${p.platforms.join(", ")}) for ${month}. There is one numbered slot per post; write exactly one idea for every slot.
 
-BUSINESS: ${businessLine(p.client)}
+BUSINESS: ${businessLine(p.client, p.timezone)}
 
 TARGETED SERVICES (every idea must be about exactly one of these, written exactly as here): ${p.services.join(" | ")}
 
@@ -331,7 +333,7 @@ export async function planReplacement(rejectedId: string) {
 Write ONE better idea for the same service "${old.service}", taking the reason into account. Use a different angle unless the reason says the angle was fine.
 It is a ${old.kind === "video" ? "short animated Reel" : old.kind === "carousel" ? "carousel" : "single image post"}${pillarOf(old.pillar) ? ` in the "${pillarOf(old.pillar)!.label}" pillar (${pillarOf(old.pillar)!.hint})` : ""}.
 
-BUSINESS: ${businessLine(p.client)}
+BUSINESS: ${businessLine(p.client, p.timezone)}
 SERVICE CARDS:
 ${cards}
 ${brand}
@@ -391,7 +393,7 @@ FORMATS:
   MOOD AND COLOUR MATCH THE BUSINESS: think about what the business sells and how its buyers want to feel. A painting, decor, cleaning, flower, food, kids or events business needs bright, cheerful, vivid colour (freshly painted walls in bold colours, sunlight, colour swatches, clean bright rooms): write "vivid, colourful, bright" into the prompt. A finance, legal or B2B tech business can be calmer and natural. Never dull, grey or washed out for a business that sells colour or a fresh look.
   NO PEOPLE: never show people, faces, hands or bodies, not even in the background. Show the place, the objects, the screen or the product on its own.
   Write 2-4 sentences covering: the main subject and what is happening; the setting (a real place in the client's city or country when it fits); the composition and camera (e.g. close-up, eye level, shallow depth of field); the light and mood. Default style: a candid, everyday photo as a real person would take it on their phone (not a polished stock or studio shot, never a 3D render or illustration).
-  Good examples: "Close-up of a smartphone lying on a bakery counter in Dubai, its screen showing a Google Maps business listing with a row of empty star ratings, fresh bread in the background, warm morning light, shallow depth of field, realistic photo." / "An online shopper's laptop on a sofa with a checkout page open and a full shopping basket icon, a cup of coffee beside it, evening lamp light, realistic photo."
+  Good examples: "Close-up of a smartphone lying on a bakery counter, its screen showing a Google Maps business listing with a row of empty star ratings, fresh bread in the background, warm morning light, shallow depth of field, realistic photo." / "An online shopper's laptop on a sofa with a checkout page open and a full shopping basket icon, a cup of coffee beside it, evening lamp light, realistic photo."
   Never: abstract metaphors (no rockets, lightbulbs, chess pieces, puzzle pieces, trophies, mountains, handshakes, glowing holograms, floating icons), stock-photo clichés (desks with glowing screens, perfect empty offices), or anything whose link to the topic needs explaining. Screens may show a recognisable layout (a map, a shop page, search results) but no readable words. No text in the image: the words go on the band.
 - photo: one of OUR REAL PHOTOS (from the library below) with a few words. Only when a library photo truly fits the post (behind the scenes, team, real work, proof). Set photoId.
 - type: big bold words only, for a sharp opinion or a line strong enough on its own. design.kicker = 1-4 small words on top. design.big = 3-8 words. Put *stars* around 1-2 words to highlight them.
@@ -443,7 +445,7 @@ CAPTION: one caption in Hamza's layout, used on every platform (we put it togeth
 - listTitle: 2-6 words that lead into what ${p.client.name} does (e.g. "How ${p.client.name} fixes it", "What ${p.client.name} handles for you").
 - points: 3-5 items, each {"emoji": one emoji that matches that item, "text": 2-9 words}: what ${p.client.name} does to solve it or what the buyer gets, from the service card. Concrete, one idea each, never a DIY tip.
 - closing: one sentence on how ${p.client.name} helps with exactly this, naming ${p.client.name} (e.g. "${p.client.name} helps brands adapt to the future of Amazon advertising.").
-- hashtags: 12-15 real hashtags that people actually search and follow on Instagram, Facebook and LinkedIn, so the post gets found. Mix them: 4-5 big, popular tags for the field (e.g. #DigitalMarketing, #GoogleAds, #AmazonSeller, #Ecommerce, #SmallBusiness), 4-5 mid-size tags for this exact topic or service (e.g. #PPCTips, #LocalSEO, #AmazonFBA), 2-3 local tags people in the area use (e.g. #DubaiBusiness, #UAEBusiness, #Dubai), then #${p.client.name.replace(/[^\p{L}\p{N}]+/gu, "")}. Put the most relevant first (LinkedIn uses only the first 5). Only well-known, existing hashtags of 1-3 words; never invent long or made-up tags, never stuff the keyword into tags nobody searches, no generic filler (#love, #instagood, #success).
+- hashtags: 12-15 real hashtags that people actually search and follow on Instagram, Facebook and LinkedIn, so the post gets found. Mix them: 4-5 big, popular tags for the field (e.g. #DigitalMarketing, #GoogleAds, #AmazonSeller, #Ecommerce, #SmallBusiness), 4-5 mid-size tags for this exact topic or service (e.g. #PPCTips, #LocalSEO, #AmazonFBA), 2-3 local tags people in ${countryOf(p.client, p.timezone)} actually use (country or city tags of the audience, never of another country), then #${p.client.name.replace(/[^\p{L}\p{N}]+/gu, "")}. Put the most relevant first (LinkedIn uses only the first 5). Only well-known, existing hashtags of 1-3 words; never invent long or made-up tags, never stuff the keyword into tags nobody searches, no generic filler (#love, #instagood, #success).
 The service page link and the line breaks are added for you, so do not put links, "link in bio" or hashtags in the other parts. A carousel's intro can end by telling people to swipe; a reel's should be short.
 
 
@@ -466,7 +468,7 @@ POST TYPES (given per post):
   3. PAYOFF or ACTION: what changes for them, or a call to get in touch (e.g. "Fewer wasted clicks, more real calls").
   (An optional 4th line only when it needs a second thing ${p.client.name} does.)
   Write for a business owner, not a marketer: no agency jargon or insider terms (no "search term scrubbing", "bid adjustments", "CPA", "ROAS", "funnel", "SERP"); if a term is needed, say what it does instead. Say what ${p.client.name} does in the buyer's words (what it fixes for them), not our internal process ("How we manage..."). Each line must make sense even if the previous one was missed. headline.main is the cover text (can match line 1).`;
-  const prompt = `BUSINESS: ${businessLine(p.client)}
+  const prompt = `BUSINESS: ${businessLine(p.client, p.timezone)}
 Main call to action: ${p.client.ctaText || "get in touch"} (${link})
 
 SERVICE CARDS:
