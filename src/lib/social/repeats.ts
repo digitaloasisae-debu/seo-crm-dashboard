@@ -1,5 +1,7 @@
 import { db } from "../db";
 
+export { REPLACED } from "./replaced";
+
 /**
  * Spotting repeated posts (Hamza, 2026-11-27: "many posts are the same content with different wording,
  * many even have the same wording"). Plain word overlap, no AI: cheap enough to run on every plan.
