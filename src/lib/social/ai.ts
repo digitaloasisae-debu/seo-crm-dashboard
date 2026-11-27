@@ -9,6 +9,7 @@ import { brandProfileText } from "../brand-profile";
 import { toLocalInput, weeklySlots, zoned } from "./schedule";
 import { ensureResearch, researchText } from "./research";
 import { learnOwnStyle, styleText } from "./own-style";
+import { captionBody, findRepeats } from "./repeats";
 import { buildCaption, cardUrl, titleLine, type CaptionParts } from "./caption";
 import { PICTURE_FORMATS, PILLARS, WEEK_MIX, designOf, formatOf, pillarOf, type DesignData, type Slide } from "./formats";
 
@@ -299,6 +300,7 @@ RULES
 - Spread the slots evenly across the services, and vary the angles (event slots use "moment").
 - No invented numbers, prices, discounts, awards, client names or guarantees.
 - Every idea pairs a buyer problem with what ${p.client.name} does to solve it. We sell the service, we don't teach DIY: no how-to tips the buyer would do themselves.
+- EVERY IDEA IS DIFFERENT: no two ideas in this plan may make the same point, use the same problem or the same example, even in other words. When a service has several slots, give each one a different part of the service (a different problem, step, feature, result or buyer moment).
 - Do not repeat or lightly reword these recent posts:
 ${recent.map((r) => `  - [${r.service} / ${r.angle}] ${r.idea}`).join("\n") || "  (none yet)"}
 - Hamza rejected these, so avoid what made them weak:
@@ -312,6 +314,7 @@ Return JSON: {"ideas":[{"slot":1,"service":"exact service name","angle":"angle k
     .map((i) => ({ ...i, slot: Number(i.slot), service: p.services.find((s) => s.toLowerCase() === String(i.service ?? "").toLowerCase()) ?? p.services[0], angle: angleOf(String(i.angle)).key, idea: String(i.idea ?? "").trim(), why: String(i.why ?? "").trim(), score: Math.max(1, Math.min(10, Number(i.score) || 5)) }))
     .filter((i) => i.idea);
   if (!ideas.length) throw new Error(`${p.client.name}: the AI returned no usable ideas, try again`);
+  await replaceRepeatedIdeas(ideas, recent.map((r, n) => ({ id: `r${n}`, idea: r.idea })), prompt);
   const used = new Set<PlannedIdea>();
   const rows = plan.flatMap((x, n) => {
     const i = ideas.find((y) => y.slot === n + 1 && !used.has(y)) ?? ideas.find((y) => !used.has(y) && !(y.slot >= 1 && y.slot <= plan.length));
@@ -324,10 +327,42 @@ Return JSON: {"ideas":[{"slot":1,"service":"exact service name","angle":"angle k
   return rows.length;
 }
 
+/**
+ * The AI often plans the same post twice in other words. Swap each repeat (of a recent post or of an
+ * earlier idea in this plan) for a fresh idea, in one extra call. A repeat that stays a repeat is dropped.
+ */
+async function replaceRepeatedIdeas(ideas: PlannedIdea[], recent: { id: string; idea: string }[], planPrompt: string) {
+  const list = () => ideas.map((i, n) => ({ id: String(n), idea: i.idea }));
+  let dupes = findRepeats(list(), recent);
+  if (!dupes.size) return;
+  const redo = [...dupes.keys()].map(Number);
+  const keep = ideas.filter((_, n) => !dupes.has(String(n)));
+  const prompt = `${planPrompt}
+
+SECOND PASS: some ideas repeated a recent post or another idea in this plan. Write a NEW idea for each slot below. It must not share its point, problem or example with ANY idea listed under "TAKEN", nor with the recent posts above.
+SLOTS TO REDO: ${redo.map((n) => `slot ${ideas[n].slot} (service "${ideas[n].service}"; it repeated: "${dupes.get(String(n))}")`).join("; ")}
+TAKEN:
+${[...recent.map((r) => r.idea), ...keep.map((k) => k.idea)].map((x) => `- ${x}`).join("\n")}
+
+Return JSON: {"ideas":[{"slot":N,"service":"exact service name","angle":"angle key","idea":"...","why":"...","score":8}]} with only the slots to redo.`;
+  try {
+    const r = await geminiJson<{ ideas?: PlannedIdea[] }>(prompt, { timeoutMs: 120_000, temperature: 1, model: textModel() });
+    for (const n of redo) {
+      const f = (r.ideas ?? []).find((x) => Number(x.slot) === ideas[n].slot && String(x.idea ?? "").trim());
+      if (f) ideas[n] = { ...ideas[n], angle: angleOf(String(f.angle)).key, idea: String(f.idea).trim(), why: String(f.why ?? "").trim(), score: Math.max(1, Math.min(10, Number(f.score) || 5)) };
+    }
+  } catch (e) {
+    console.error("social.repeat_redo_failed", e);
+  }
+  dupes = findRepeats(list(), recent);
+  for (const n of [...dupes.keys()].map(Number).sort((a, b) => b - a)) ideas.splice(n, 1);
+}
+
 /** One replacement idea for a rejected post (same date, same service), using what was just learned. */
 export async function planReplacement(rejectedId: string) {
   const old = await db.socialPost.findUniqueOrThrow({ where: { id: rejectedId } });
   const { p, cards, brand, brain } = await projectContext(old.projectId);
+  const others = await db.socialPost.findMany({ where: { projectId: old.projectId, id: { not: old.id }, status: { not: "REJECTED" }, createdAt: { gte: new Date(Date.now() - 120 * 864e5) } }, select: { idea: true }, orderBy: { scheduledAt: "desc" }, take: 80 });
   const research = researchText(p.research, "ideas");
   const prompt = `Hamza rejected this social post idea for ${p.client.name}: "${old.idea}" (angle: ${old.angle}). Reason: ${old.rejectionReason || "not given"}.
 Write ONE better idea for the same service "${old.service}", taking the reason into account. Use a different angle unless the reason says the angle was fine.
@@ -342,6 +377,8 @@ ${research}
 
 ANGLES: ${ANGLES.map((a) => `${a.key} (${a.label})`).join(", ")}
 No invented numbers, prices, awards or guarantees.
+It must be a different post from every one below: not the same point, problem or example, not even in other words.
+${others.map((o) => `- ${o.idea}`).join("\n") || "(none)"}
 Return JSON: {"angle":"angle key","idea":"one specific sentence","why":"1 short sentence","score":8}`;
   const r = await geminiJson<Partial<PlannedIdea>>(prompt, { timeoutMs: 90_000, temperature: 0.9, model: textModel() });
   const angle = angleOf(String(r.angle)).key;
@@ -442,9 +479,9 @@ TITLES (hooks): write 3 different caption titles: 4-10 words each, a headline th
 CAPTION: one caption in Hamza's layout, used on every platform (we put it together, so return the parts in "caption"):
 - emoji: one emoji that fits the topic, shown before the title.
 - intro: 1-2 short sentences (max 35 words) on the problem the buyer has, in plain words.
-- listTitle: 2-6 words that lead into what ${p.client.name} does (e.g. "How ${p.client.name} fixes it", "What ${p.client.name} handles for you").
+- listTitle: 2-6 words that lead into what ${p.client.name} does (e.g. "How ${p.client.name} fixes it", "What ${p.client.name} handles for you"). Word it for this post's topic; don't reuse the same list title across posts.
 - points: 3-5 items, each {"emoji": one emoji that matches that item, "text": 2-9 words}: what ${p.client.name} does to solve it or what the buyer gets, from the service card. Concrete, one idea each, never a DIY tip.
-- closing: one sentence on how ${p.client.name} helps with exactly this, naming ${p.client.name} (e.g. "${p.client.name} helps brands adapt to the future of Amazon advertising.").
+- closing: one sentence on how ${p.client.name} helps with exactly this, naming ${p.client.name} (e.g. "${p.client.name} helps brands adapt to the future of Amazon advertising."). Vary how it is built from post to post; don't open every closing with "${p.client.name} helps".
 - hashtags: 12-15 real hashtags that people actually search and follow on Instagram, Facebook and LinkedIn, so the post gets found. Mix them: 4-5 big, popular tags for the field (e.g. #DigitalMarketing, #GoogleAds, #AmazonSeller, #Ecommerce, #SmallBusiness), 4-5 mid-size tags for this exact topic or service (e.g. #PPCTips, #LocalSEO, #AmazonFBA), 2-3 local tags people in ${countryOf(p.client, p.timezone)} actually use (country or city tags of the audience, never of another country), then #${p.client.name.replace(/[^\p{L}\p{N}]+/gu, "")}. Put the most relevant first (LinkedIn uses only the first 5). Only well-known, existing hashtags of 1-3 words; never invent long or made-up tags, never stuff the keyword into tags nobody searches, no generic filler (#love, #instagood, #success).
 The service page link and the line breaks are added for you, so do not put links, "link in bio" or hashtags in the other parts. A carousel's intro can end by telling people to swipe; a reel's should be short.
 
@@ -468,6 +505,17 @@ POST TYPES (given per post):
   3. PAYOFF or ACTION: what changes for them, or a call to get in touch (e.g. "Fewer wasted clicks, more real calls").
   (An optional 4th line only when it needs a second thing ${p.client.name} does.)
   Write for a business owner, not a marketer: no agency jargon or insider terms (no "search term scrubbing", "bid adjustments", "CPA", "ROAS", "funnel", "SERP"); if a term is needed, say what it does instead. Say what ${p.client.name} does in the buyer's words (what it fixes for them), not our internal process ("How we manage..."). Each line must make sense even if the previous one was missed. headline.main is the cover text (can match line 1).`;
+  // What this account already says, so new captions don't reuse the wording (Hamza 2026-11-27: "many posts have even same wording").
+  const said = await db.socialPost.findMany({
+    where: { projectId: p.id, id: { notIn: posts.map((x) => x.id) }, status: { not: "REJECTED" }, OR: [{ captionFacebook: { not: "" } }, { captionInstagram: { not: "" } }, { captionLinkedin: { not: "" } }] },
+    select: { captionFacebook: true, captionInstagram: true, captionLinkedin: true, headlineMain: true },
+    orderBy: { scheduledAt: "desc" },
+    take: 30,
+  });
+  const saidText = said
+    .map((x) => captionBody(x.captionFacebook || x.captionInstagram || x.captionLinkedin).normalize("NFKC").replace(/\s*\n+\s*/g, " / ").slice(0, 420) + (x.headlineMain ? ` [image text: ${x.headlineMain}]` : ""))
+    .map((t) => `- ${t}`)
+    .join("\n");
   const prompt = `BUSINESS: ${businessLine(p.client, p.timezone)}
 Main call to action: ${p.client.ctaText || "get in touch"} (${link})
 
@@ -486,6 +534,11 @@ ${styleText(p)}
 
 OUR REAL PHOTO LIBRARY (id: what it shows; least used first):
 ${library.map((m) => `- ${m.id}: ${m.description.slice(0, 220)}${m.usedCount ? ` (used ${m.usedCount}x)` : ""}`).join("\n") || "(empty, so do not use the photo format)"}
+
+ALREADY POSTED OR PLANNED ON THIS ACCOUNT (newest first). Never reuse their titles, opening lines, list titles, list items, closing lines, image text or hashtag sets, and never make the same point again in other words. Each post you write must read fresh next to all of these:
+${saidText || "(nothing yet)"}
+
+THE POSTS BELOW MUST ALSO DIFFER FROM EACH OTHER: different title, opening, list title, list items, closing line, emoji and image text. Never start two captions or two closing lines with the same words.
 
 POSTS TO WRITE:
 ${posts

@@ -6,7 +6,8 @@ import { SubmitButton } from "@/components/submit-button";
 import { geminiConfigured } from "@/lib/gemini";
 import { socialBacklog } from "@/lib/social/work";
 import { monthKey, monthLabel, nextMonthKey, prevMonthKey } from "@/lib/social/schedule";
-import { deleteFailedAction, deleteUnapprovedAction, generateMonthAction, retryFailedAction } from "./actions";
+import { deleteFailedAction, deleteUnapprovedAction, generateMonthAction, replaceRepeatsAction, retryFailedAction } from "./actions";
+import { monthRepeats } from "@/lib/social/repeats";
 import { ConfirmButton } from "@/components/confirm-button";
 import { PostCard } from "./post-card";
 import { SocialWorker } from "./worker";
@@ -76,6 +77,7 @@ export default async function SocialReviewPage({ searchParams }: { searchParams:
 
   const countOf = (statuses: readonly string[]) => counts.filter((c) => !statuses.length || statuses.includes(c.status)).reduce((n, c) => n + c._count, 0);
   const unapproved = countOf(["DRAFT", "REJECTED", "FAILED"]);
+  const repeats = (await monthRepeats(project.id, month)).size;
   const months = [...new Set([thisMonth, nextMonthKey(thisMonth), month, ...monthRows.map((m) => m.month)])].sort();
   const waitingIn = (m: string) => waiting.find((w) => w.projectId === project.id && w.month === m)?._count ?? 0;
   const href = (o: { project?: string; month?: string; show?: string }) => {
@@ -168,8 +170,20 @@ export default async function SocialReviewPage({ searchParams }: { searchParams:
               {f.label} <span className="opacity-70">{countOf(f.statuses)}</span>
             </Link>
           ))}
+          {repeats > 0 && (
+            <form action={replaceRepeatsAction} className="ml-auto">
+              <input type="hidden" name="month" value={month} />
+              <input type="hidden" name="project" value={project.id} />
+              <ConfirmButton
+                message={`${repeats} post${repeats > 1 ? "s" : ""} waiting for review repeat${repeats > 1 ? "" : "s"} another ${name} post. Swap ${repeats > 1 ? "them" : "it"} for fresh ideas on the same days? The repeats move to Rejected.`}
+                className="rounded-lg bg-amber-100 px-3 py-1.5 text-xs font-semibold text-amber-900 hover:bg-amber-200"
+              >
+                Replace {repeats} repeat{repeats > 1 ? "s" : ""}
+              </ConfirmButton>
+            </form>
+          )}
           {unapproved > 0 && (
-            <form action={deleteUnapprovedAction} className="ml-auto">
+            <form action={deleteUnapprovedAction} className={repeats > 0 ? "" : "ml-auto"}>
               <input type="hidden" name="month" value={month} />
               <input type="hidden" name="project" value={project.id} />
               <ConfirmButton
