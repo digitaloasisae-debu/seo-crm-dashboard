@@ -196,7 +196,21 @@ function pillarPlan(n: number, seed: number): string[] {
  * on their real date. Days that already have a post are kept (the month is only topped up).
  * Returns how many posts were added.
  */
+/** Plans being made right now, so a double click (or two tabs) can't plan the same month twice. */
+const planning = new Set<string>();
+
 export async function planMonth(projectId: string, month: string): Promise<number> {
+  const key = `${projectId}:${month}`;
+  if (planning.has(key)) throw new Error("This month is already being planned, give it a minute");
+  planning.add(key);
+  try {
+    return await planMonthNow(projectId, month);
+  } finally {
+    planning.delete(key);
+  }
+}
+
+async function planMonthNow(projectId: string, month: string): Promise<number> {
   await ensureServiceCards(projectId);
   await ensureResearch(projectId);
   const own = await db.socialProject.findUniqueOrThrow({ where: { id: projectId }, select: { ownStyle: true, styleAt: true } });
